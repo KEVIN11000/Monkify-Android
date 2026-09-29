@@ -49,6 +49,31 @@ class PlayerViewModel @Inject constructor(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    // Monkify Connect Devices
+    data class Device(val id: String, val name: String, val isSelected: Boolean)
+
+    private val _devices = MutableStateFlow(
+        listOf(
+            Device("this_device", "Este Dispositivo (Android 15)", true),
+            Device("desktop_pc", "Monkify Desktop (PC Sala)", false),
+            Device("tv_living", "Monkify TV (Living)", false)
+        )
+    )
+    val devices: StateFlow<List<Device>> = _devices.asStateFlow()
+
+    private val _activeDeviceName = MutableStateFlow("Este Dispositivo")
+    val activeDeviceName: StateFlow<String> = _activeDeviceName.asStateFlow()
+
+    fun selectDevice(deviceId: String) {
+        _devices.value = _devices.value.map { device ->
+            val selected = device.id == deviceId
+            if (selected) {
+                _activeDeviceName.value = device.name
+            }
+            device.copy(isSelected = selected)
+        }
+    }
+
     init {
         initializeController()
     }
@@ -88,6 +113,15 @@ class PlayerViewModel @Inject constructor(
             _currentTrackTitle.value = mediaMetadata.title?.toString() ?: "Desconocido"
             _currentTrackArtist.value = mediaMetadata.artist?.toString() ?: ""
             _coverUrl.value = mediaMetadata.artworkUri?.toString()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            super.onPlaybackStateChanged(playbackState)
+            if (playbackState == Player.STATE_READY) {
+                mediaController?.let {
+                    _duration.value = it.duration.coerceAtLeast(0)
+                }
+            }
         }
     }
 

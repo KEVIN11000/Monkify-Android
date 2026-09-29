@@ -1,6 +1,7 @@
 package com.k11000.monkify.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +42,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
@@ -47,9 +53,17 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.k11000.monkify.playback.PlayerViewModel
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.k11000.monkify.ui.theme.MonkifyDarkGray
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullScreenPlayer(
     onClose: () -> Unit = {},
@@ -59,9 +73,13 @@ fun FullScreenPlayer(
     val title by viewModel.currentTrackTitle.collectAsState()
     val artist by viewModel.currentTrackArtist.collectAsState()
     val coverUrl by viewModel.coverUrl.collectAsState()
-    val progress by viewModel.progress.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
     val duration by viewModel.duration.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    val activeDeviceName by viewModel.activeDeviceName.collectAsState()
+
+    var showDeviceSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
     fun formatTime(ms: Long): String {
         val totalSeconds = ms / 1000
@@ -89,16 +107,23 @@ fun FullScreenPlayer(
                     tint = MonkifyOnBackground
                 )
             }
-            Text(
-                text = "Reproduciendo desde Playlist",
-                color = MonkifyOnBackground,
-                style = MaterialTheme.typography.labelMedium
-            )
-            IconButton(onClick = { /* TODO: Context menu */ }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "REPRODUCIENDO EN",
+                    color = MonkifyGray,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = activeDeviceName,
+                    color = MonkifyPrimary,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+            IconButton(onClick = { showDeviceSheet = true }) {
                 Icon(
                     imageVector = Icons.Default.Devices,
                     contentDescription = "Monkify Connect",
-                    tint = MonkifyGray
+                    tint = MonkifyPrimary
                 )
             }
         }
@@ -146,11 +171,23 @@ fun FullScreenPlayer(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Progress Slider
+        var sliderPosition by remember { mutableStateOf<Float?>(null) }
+        
+        val currentProgress = if (duration > 0) {
+            (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+        } else 0f
+
         Slider(
-            value = progress.coerceIn(0f, 1f),
+            value = sliderPosition ?: currentProgress,
             onValueChange = { newProgress -> 
-                val newPosition = (newProgress * duration).toLong()
-                viewModel.seekTo(newPosition)
+                sliderPosition = newProgress
+            },
+            onValueChangeFinished = {
+                sliderPosition?.let { newProgress ->
+                    val newPosition = (newProgress * duration).toLong()
+                    viewModel.seekTo(newPosition)
+                    sliderPosition = null
+                }
             },
             colors = SliderDefaults.colors(
                 thumbColor = MonkifyOnBackground,
@@ -237,6 +274,74 @@ fun FullScreenPlayer(
                     contentDescription = "Lyrics",
                     tint = MonkifyOnBackground
                 )
+            }
+        }
+    }
+
+    // Monkify Connect Devices Modal
+    if (showDeviceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDeviceSheet = false },
+            sheetState = sheetState,
+            containerColor = MonkifyDarkGray
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Text(
+                    text = "Monkify Connect 🎧",
+                    color = MonkifyOnBackground,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Escucha en otro dispositivo en tiempo real",
+                    color = MonkifyGray,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                devices.forEach { device ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (device.isSelected) MonkifyPrimary.copy(alpha = 0.2f) else Color.Transparent)
+                            .clickable {
+                                viewModel.selectDevice(device.id)
+                                showDeviceSheet = false
+                            }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Devices,
+                                contentDescription = null,
+                                tint = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = device.name,
+                                color = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (device.isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            )
+                        }
+                        if (device.isSelected) {
+                            Text(
+                                text = "Conectado",
+                                color = MonkifyPrimary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

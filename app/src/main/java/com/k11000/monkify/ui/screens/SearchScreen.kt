@@ -44,10 +44,40 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 
+import android.widget.Toast
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.k11000.monkify.ui.screens.viewmodel.IngestUiState
+import com.k11000.monkify.ui.screens.viewmodel.SearchViewModel
+
 @Composable
-fun SearchScreen() {
+fun SearchScreen(
+    viewModel: SearchViewModel = hiltViewModel()
+) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val ingestState by viewModel.ingestState.collectAsState()
+
+    LaunchedEffect(ingestState) {
+        when (val state = ingestState) {
+            is IngestUiState.Success -> {
+                Toast.makeText(context, "🟢 ${state.message}", Toast.LENGTH_LONG).show()
+                viewModel.resetState()
+            }
+            is IngestUiState.Error -> {
+                Toast.makeText(context, "🔴 ${state.message}", Toast.LENGTH_SHORT).show()
+                viewModel.resetState()
+            }
+            else -> {}
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -127,11 +157,19 @@ fun SearchScreen() {
                         .background(Color.Black.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Download",
-                        tint = Color.White
-                    )
+                    if (ingestState is IngestUiState.Loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download",
+                            tint = Color.White
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
@@ -149,10 +187,18 @@ fun SearchScreen() {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = Color.Black.copy(alpha = 0.35f),
-                        onClick = { /* TODO: Paste Action */ }
+                        onClick = {
+                            val clipText = clipboardManager.getText()?.text ?: ""
+                            if (clipText.isNotBlank()) {
+                                viewModel.ingestSpotifyUrl(clipText)
+                            } else {
+                                // Default dummy URL for testing if clipboard is empty
+                                viewModel.ingestSpotifyUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+                            }
+                        }
                     ) {
                         Text(
-                            text = "Pegar enlace 📋",
+                            text = if (ingestState is IngestUiState.Loading) "Enviando..." else "Pegar enlace 📋",
                             color = Color.White,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)

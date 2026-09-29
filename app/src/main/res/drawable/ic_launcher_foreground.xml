@@ -1,30 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="85.84757"
-                android:endY="92.4963"
-                android:startX="42.9492"
-                android:startY="49.59793"
-                android:type="linear">
-                <item
-                    android:color="#44000000"
-                    android:offset="0.0" />
-                <item
-                    android:color="#00000000"
-                    android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
+
+    <!-- Monkey Ears (Left & Right) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:fillType="nonZero"
-        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
-        android:strokeWidth="1"
-        android:strokeColor="#00000000" />
+        android:fillColor="#1E1E1E"
+        android:strokeColor="#1DB954"
+        android:strokeWidth="1.5"
+        android:pathData="M35,52 A10,10 0 1,0 35,68 A10,10 0 1,0 35,52 Z" />
+    <path
+        android:fillColor="#1E1E1E"
+        android:strokeColor="#1DB954"
+        android:strokeWidth="1.5"
+        android:pathData="M73,52 A10,10 0 1,0 73,68 A10,10 0 1,0 73,52 Z" />
+
+    <!-- Head Base Silhouette -->
+    <path
+        android:fillColor="#1E1E1E"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M54,36 C42,36 34,45 34,58 C34,70 44,76 54,76 C64,76 74,70 74,58 C74,45 66,36 54,36 Z" />
+
+    <!-- Monkey Face Contour -->
+    <path
+        android:fillColor="#282828"
+        android:pathData="M44,52 C40,52 38,58 42,62 C46,66 50,66 54,66 C58,66 62,66 66,62 C70,58 68,52 64,52 C60,52 57,55 54,55 C51,55 48,52 44,52 Z" />
+
+    <!-- Monkey Eyes -->
+    <path
+        android:fillColor="#1DB954"
+        android:pathData="M44,54 A2.5,2.5 0 1,0 44,59 A2.5,2.5 0 1,0 44,54 Z" />
+    <path
+        android:fillColor="#1DB954"
+        android:pathData="M64,54 A2.5,2.5 0 1,0 64,59 A2.5,2.5 0 1,0 64,54 Z" />
+
+    <!-- Headphones Band -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#1DB954"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M29,56 C29,32 79,32 79,56" />
+
+    <!-- Headphones Ear Cups (Left & Right) -->
+    <path
+        android:fillColor="#1DB954"
+        android:pathData="M24,48 h8 v18 h-8 a4,4 0 0,1 -4,-4 v-10 a4,4 0 0,1 4,-4 Z" />
+    <path
+        android:fillColor="#1DB954"
+        android:pathData="M76,48 h8 a4,4 0 0,1 4,4 v10 a4,4 0 0,1 -4,4 h-8 Z" />
+
+    <!-- Headphone Accents -->
+    <path
+        android:fillColor="#121212"
+        android:pathData="M28,52 h3 v10 h-3 Z" />
+    <path
+        android:fillColor="#121212"
+        android:pathData="M77,52 h3 v10 h-3 Z" />
 </vector>

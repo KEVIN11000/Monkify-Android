@@ -1,7 +1,9 @@
 package com.k11000.monkify.data.repository
 
+import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.TrackRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
@@ -44,5 +46,16 @@ class MockTrackRepository @Inject constructor() : TrackRepository {
 
     override fun getMadeForYouTracks(): Flow<List<Track>> {
         return flowOf(mockTracks.reversed())
+    }
+
+    override suspend fun requestIngest(url: String): Result<IngestResponse> {
+        delay(1500) // Simular latencia de red
+        return Result.success(
+            IngestResponse(
+                taskId = "task_${System.currentTimeMillis()}",
+                status = "QUEUED",
+                message = "Extracción encolada en segundo plano"
+            )
+        )
     }
 }
