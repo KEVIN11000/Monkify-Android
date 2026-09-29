@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" fill="none">
+  <!-- Background -->
+  <rect width="390" height="844" rx="40" fill="#121212"/>
+
+  <!-- Status Bar -->
+  <text x="32" y="38" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="600">09:41</text>
+  <circle cx="330" cy="34" r="3" fill="#FFFFFF"/>
+  <rect x="340" y="28" width="20" height="11" rx="3" stroke="#FFFFFF" stroke-width="2"/>
+  <rect x="342" y="30" width="13" height="7" rx="1.5" fill="#FFFFFF"/>
+  <path d="M361 32 V36" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Header Section (Avatar, Title, Search, Add) -->
+  <g transform="translate(24, 66)">
+    <!-- User Profile Avatar -->
+    <circle cx="16" cy="16" r="16" fill="#F59E0B"/>
+    <text x="16" y="21" fill="#000000" font-family="system-ui, sans-serif" font-size="14" font-weight="700" text-anchor="middle">K</text>
+    
+    <!-- Title -->
+    <text x="44" y="23" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="22" font-weight="700">Tu biblioteca</text>
+    
+    <!-- Search in Library -->
+    <circle cx="282" cy="16" r="6" stroke="#FFFFFF" stroke-width="2" fill="none"/>
+    <line x1="286.5" y1="20.5" x2="291" y2="25" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Add (+) Button -->
+    <circle cx="330" cy="16" r="16" fill="#1F1F1F"/>
+    <path d="M330 9 V23 M323 16 H337" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Filter Chips Row -->
+  <g transform="translate(24, 118)">
+    <!-- Chip 1: Playlists -->
+    <rect width="66" height="30" rx="15" fill="#242424"/>
+    <text x="33" y="19" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="500" text-anchor="middle">Listas</text>
+
+    <!-- Chip 2: Artistas -->
+    <rect x="74" width="72" height="30" rx="15" fill="#242424"/>
+    <text x="110" y="19" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="500" text-anchor="middle">Artistas</text>
+
+    <!-- Chip 3: Álbumes -->
+    <rect x="154" width="76" height="30" rx="15" fill="#242424"/>
+    <text x="192" y="19" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="500" text-anchor="middle">Álbumes</text>
+
+    <!-- Chip 4: Descargado (Offline Pill) -->
+    <rect x="238" width="96" height="30" rx="15" fill="#1DB954" fill-opacity="0.15" stroke="#1DB954" stroke-width="1"/>
+    <circle cx="252" cy="15" r="5" fill="#1DB954"/>
+    <path d="M250 15 L252 17 L255 13" stroke="#000000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="286" y="19" fill="#1DB954" font-family="system-ui, sans-serif" font-size="11" font-weight="600" text-anchor="middle">Descargas</text>
+  </g>
+
+  <!-- Sort and View Option Row -->
+  <g transform="translate(24, 166)">
+    <path d="M4 6 L8 2 L12 6 M8 2 V14 M18 10 L14 14 L10 10 M14 14 V2" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="24" y="11" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="12" font-weight="600">Recientes</text>
+    
+    <!-- Grid/List Switcher Icon (Right) -->
+    <rect x="326" y="2" width="16" height="12" rx="2" stroke="#A7A7A7" stroke-width="1.5" fill="none"/>
+    <line x1="326" y1="6" x2="342" y2="6" stroke="#A7A7A7" stroke-width="1.5"/>
+  </g>
+
+  <!-- LIBRARY LIST ITEMS -->
+  
+  <!-- Item 1: Tus me gusta (Pinned) -->
+  <g transform="translate(24, 195)">
+    <defs>
+      <linearGradient id="libLikedGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#450af5"/>
+        <stop offset="100%" stop-color="#8ef2be"/>
+      </linearGradient>
+    </defs>
+    <rect width="64" height="64" rx="8" fill="url(#libLikedGrad)"/>
+    <path d="M32 40 L24 32 C20 28 20 23 24 20 C28 17 31 19 32 22 C33 19 36 17 40 20 C44 23 44 28 40 32 Z" fill="#FFFFFF"/>
+    <!-- Info -->
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="700">Tus me gusta</text>
+    <!-- Pin Icon + Description -->
+    <path d="M78 40 L81 37 M81 37 L85 37 L83 43 L78 40 Z" fill="#1DB954"/>
+    <text x="89" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Playlist • 842 canciones</text>
+  </g>
+
+  <!-- Item 2: Coding & Mechatronics -->
+  <g transform="translate(24, 273)">
+    <rect width="64" height="64" rx="8" fill="#1E293B"/>
+    <circle cx="32" cy="32" r="20" fill="#3B82F6" fill-opacity="0.3"/>
+    <text x="32" y="38" font-size="20" text-anchor="middle">⚡</text>
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="600">Coding &amp; Mechatronics</text>
+    <!-- Download Badge -->
+    <circle cx="82" cy="41" r="5" fill="#1DB954"/>
+    <path d="M80 41 L82 43 L85 39" stroke="#000000" stroke-width="1.2" stroke-linecap="round"/>
+    <text x="92" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Playlist • 128 canciones</text>
+  </g>
+
+  <!-- Item 3: Daft Punk (Artist - Round Avatar) -->
+  <g transform="translate(24, 351)">
+    <circle cx="32" cy="32" r="32" fill="#8B5CF6"/>
+    <text x="32" y="39" font-size="24" text-anchor="middle">🤖</text>
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="600">Daft Punk</text>
+    <text x="76" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Artista</text>
+  </g>
+
+  <!-- Item 4: Rock Classics -->
+  <g transform="translate(24, 429)">
+    <rect width="64" height="64" rx="8" fill="#991B1B"/>
+    <text x="32" y="39" font-size="22" text-anchor="middle">🎸</text>
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="600">Rock Classics 80-90s</text>
+    <circle cx="82" cy="41" r="5" fill="#1DB954"/>
+    <path d="M80 41 L82 43 L85 39" stroke="#000000" stroke-width="1.2" stroke-linecap="round"/>
+    <text x="92" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Playlist • Kevin</text>
+  </g>
+
+  <!-- Item 5: Random Access Memories (Album) -->
+  <g transform="translate(24, 507)">
+    <rect width="64" height="64" rx="8" fill="#EC4899"/>
+    <circle cx="32" cy="32" r="16" fill="#000000" fill-opacity="0.3"/>
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="600">Random Access Memories</text>
+    <text x="76" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Álbum • Daft Punk</text>
+  </g>
+
+  <!-- Item 6: Urutaú Aerospace Beats -->
+  <g transform="translate(24, 585)">
+    <rect width="64" height="64" rx="8" fill="#065F46"/>
+    <text x="32" y="39" font-size="22" text-anchor="middle">🚀</text>
+    <text x="76" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="15" font-weight="600">Urutaú Aerospace Beats</text>
+    <text x="76" y="44" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="12">Playlist • Monkify Vault</text>
+  </g>
+
+  <!-- FLOATING MINI-PLAYER (Always Consistent) -->
+  <g transform="translate(12, 696)">
+    <rect width="366" height="58" rx="10" fill="#282828"/>
+    <rect x="8" y="8" width="42" height="42" rx="6" fill="#3B82F6"/>
+    <text x="60" y="27" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="13" font-weight="600">Midnight City</text>
+    <text x="60" y="42" fill="#1DB954" font-family="system-ui, sans-serif" font-size="11" font-weight="500">M83 • Monkify Connect (PC)</text>
+    <!-- Devices Icon -->
+    <path d="M280 29 H294 M283 23 H291 C292 23 293 24 293 25 V31 H281 V25 C281 24 282 23 283 23 Z" stroke="#1DB954" stroke-width="1.5" fill="none"/>
+    <!-- Heart Icon -->
+    <path d="M312 31 L307 26 C305 24 305 21 307 19 C309 17 311 19 312 21 C313 19 315 17 317 19 C319 21 319 24 317 26 Z" fill="#1DB954"/>
+    <!-- Play/Pause -->
+    <circle cx="344" cy="29" r="14" fill="#FFFFFF"/>
+    <rect x="339" y="23" width="3" height="12" rx="1" fill="#000000"/>
+    <rect x="345" y="23" width="3" height="12" rx="1" fill="#000000"/>
+    <!-- Progress Line -->
+    <rect x="8" y="55" width="350" height="2" rx="1" fill="#3E3E3E"/>
+    <rect x="8" y="55" width="140" height="2" rx="1" fill="#1DB954"/>
+  </g>
+
+  <!-- BOTTOM NAVIGATION BAR (Tu Biblioteca Active) -->
+  <g transform="translate(0, 762)">
+    <rect width="390" height="82" fill="#121212" fill-opacity="0.95"/>
+    <line x1="0" y1="0" x2="390" y2="0" stroke="#242424" stroke-width="1"/>
+
+    <!-- Tab 1: Inicio -->
+    <g transform="translate(65, 12)">
+      <path d="M12 4 L2 12 H5 V20 H10 V15 H14 V20 H19 V12 H22 Z" fill="#A7A7A7"/>
+      <text x="12" y="32" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="10" font-weight="500" text-anchor="middle">Inicio</text>
+    </g>
+
+    <!-- Tab 2: Buscar -->
+    <g transform="translate(183, 12)">
+      <circle cx="10" cy="10" r="6" stroke="#A7A7A7" stroke-width="2" fill="none"/>
+      <line x1="15" y1="15" x2="20" y2="20" stroke="#A7A7A7" stroke-width="2" stroke-linecap="round"/>
+      <text x="12" y="32" fill="#A7A7A7" font-family="system-ui, sans-serif" font-size="10" font-weight="500" text-anchor="middle">Buscar</text>
+    </g>
+
+    <!-- Tab 3: Tu Biblioteca (Active White) -->
+    <g transform="translate(301, 12)">
+      <path d="M5 4 V20 M10 4 V20 M15 4 L19 20" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="12" y="32" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="10" font-weight="700" text-anchor="middle">Biblioteca</text>
+    </g>
+  </g>
+
+  <!-- Android/iOS Home Indicator -->
+  <rect x="125" y="830" width="140" height="5" rx="2.5" fill="#FFFFFF" fill-opacity="0.4"/>
+</svg>
