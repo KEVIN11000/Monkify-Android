@@ -17,3 +17,10 @@ val bottomNavItems = listOf(
     BottomNavItem.Search,
     BottomNavItem.Library
 )
+
+object Destinations {
+    const val HOME = "home"
+    const val SEARCH = "search"
+    const val LIBRARY = "library"
+    const val SETTINGS = "settings"
+}

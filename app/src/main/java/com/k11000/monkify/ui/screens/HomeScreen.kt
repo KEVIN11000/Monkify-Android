@@ -60,6 +60,7 @@ import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
 
 @Composable
 fun HomeScreen(
+    onNavigateToSettings: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val scrollState = rememberScrollState()
@@ -89,14 +90,14 @@ fun HomeScreen(
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
             )
             Row {
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = { /* TODO: Notificaciones */ }) {
                     Icon(
                         imageVector = Icons.Default.Notifications,
                         contentDescription = "Notifications",
                         tint = MonkifyOnBackground
                     )
                 }
-                IconButton(onClick = { /* TODO */ }) {
+                IconButton(onClick = onNavigateToSettings) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Settings",

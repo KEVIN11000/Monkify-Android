@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import com.k11000.monkify.ui.screens.HomeScreen
 import com.k11000.monkify.ui.screens.LibraryScreen
 import com.k11000.monkify.ui.screens.SearchScreen
+import com.k11000.monkify.ui.screens.SettingsScreen
 
 @Composable
 fun MonkifyNavGraph(
@@ -22,13 +23,16 @@ fun MonkifyNavGraph(
         modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()) // Solo empujamos la parte de abajo
     ) {
         composable(BottomNavItem.Home.route) {
-            HomeScreen()
+            HomeScreen(onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) })
         }
         composable(BottomNavItem.Search.route) {
             SearchScreen()
         }
         composable(BottomNavItem.Library.route) {
             LibraryScreen()
+        }
+        composable(Destinations.SETTINGS) {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }
