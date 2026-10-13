@@ -38,6 +38,7 @@ import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
+import com.k11000.monkify.ui.theme.MonkifyPrimary
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -109,15 +110,15 @@ fun LibraryScreen() {
             FilterChip(text = "Artistas", isSelected = false)
             FilterChip(text = "Álbumes", isSelected = false)
             
-            // Descargas Chip (Green tint)
+            // Descargas Chip (Acento primario Monkify)
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF1DB954).copy(alpha = 0.15f),
+                color = MonkifyPrimary.copy(alpha = 0.15f),
                 onClick = { /* TODO */ }
             ) {
                 Text(
                     text = "Descargas",
-                    color = Color(0xFF1DB954),
+                    color = MonkifyPrimary,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
