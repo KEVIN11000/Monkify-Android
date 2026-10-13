@@ -8,6 +8,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
 import com.k11000.monkify.playback.PlaybackConfig
+import com.k11000.monkify.playback.PlaybackNotificationConfig
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
@@ -26,6 +27,9 @@ class MonkifyPlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        PlaybackNotificationConfig.createNotificationChannel(this)
+        setMediaNotificationProvider(PlaybackNotificationConfig.createNotificationProvider(this))
+
         val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())

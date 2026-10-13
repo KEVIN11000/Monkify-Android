@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Monkify</string>
+    <string name="playback_notification_channel_name">Monkify Reproducción</string>
+    <string name="playback_notification_channel_desc">Controles de reproducción multimedia en segundo plano</string>
 </resources>
