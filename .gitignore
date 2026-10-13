@@ -13,4 +13,21 @@
 .externalNativeBuild
 .cxx
 local.properties
-n# Internal Architecture Docsnmonkify_*.mdnn# IDE Filesn.idea/
+# Internal Architecture Docs
+monkify_*.md
+
+# IDE Files
+.idea/
+
+# Kotlin
+.kotlin/
+
+# Secretos y firma
+*.jks
+*.keystore
+*.pem
+*.key
+.env
+.env.*
+google-services.json
+keystore.properties
