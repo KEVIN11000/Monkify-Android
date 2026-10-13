@@ -15,6 +15,18 @@ data class TrackDto(
     @SerializedName("is_favorite") val isFavorite: Boolean
 )
 
+/** Pista tal como la devuelve el Worker de Cloudflare (`GET /api/v1/tracks`, array JSON plano). */
+data class BackendTrackDto(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val album: String?,
+    @SerializedName("duration_ms") val durationMs: Long?,
+    @SerializedName("cover_url") val coverUrl: String?,
+    @SerializedName("stream_url") val streamUrl: String?,
+    @SerializedName("is_downloaded") val isDownloaded: Boolean?
+)
+
 data class PaginatedTracksDto(
     val items: List<TrackDto>,
     val total: Int,

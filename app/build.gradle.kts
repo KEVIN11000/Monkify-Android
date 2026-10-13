@@ -23,11 +23,11 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8000/api/v1/\"")
+            buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
             buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8000/ws/connect\"")
         }
         release {
-            buildConfigField("String", "BASE_URL", "\"https://api.monkify.tudominio.com/api/v1/\"")
+            buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
             buildConfigField("String", "WS_URL", "\"wss://api.monkify.tudominio.com/ws/connect\"")
             isMinifyEnabled = false
             proguardFiles(
