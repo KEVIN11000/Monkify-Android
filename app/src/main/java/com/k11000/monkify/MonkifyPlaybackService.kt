@@ -3,20 +3,36 @@ package com.k11000.monkify
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.SimpleCache
 import com.k11000.monkify.playback.PlaybackConfig
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@UnstableApi
 @AndroidEntryPoint
 class MonkifyPlaybackService : MediaSessionService() {
+
+    @Inject
+    lateinit var cache: SimpleCache
 
     private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
+        val cacheDataSourceFactory = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
         val player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cacheDataSourceFactory))
             .setAudioAttributes(PlaybackConfig.audioAttributes(), PlaybackConfig.HANDLE_AUDIO_FOCUS)
             .setHandleAudioBecomingNoisy(PlaybackConfig.HANDLE_BECOMING_NOISY)
             .setWakeMode(PlaybackConfig.WAKE_MODE)
