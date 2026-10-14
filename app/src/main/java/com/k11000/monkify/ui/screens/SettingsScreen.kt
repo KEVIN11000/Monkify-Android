@@ -1,5 +1,7 @@
 package com.k11000.monkify.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,10 +27,12 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -38,6 +42,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.ui.platform.LocalContext
+import com.k11000.monkify.BuildConfig
+import com.k11000.monkify.ui.components.UpdateDialog
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +82,24 @@ fun SettingsScreen(
             snackbarHostState.showSnackbar(it)
             viewModel.clearMessage()
         }
+    }
+
+    val context = LocalContext.current
+
+    uiState.availableUpdate?.let { update ->
+        UpdateDialog(
+            update = update,
+            onConfirmUpdate = { appUpdate ->
+                viewModel.dismissUpdateDialog()
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(appUpdate.downloadUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            },
+            onDismiss = {
+                viewModel.dismissUpdateDialog()
+            }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -380,7 +405,7 @@ fun SettingsScreen(
                         color = MonkifyOnBackground
                     )
                     Text(
-                        text = "Versión: 1.0.0 (Cloudflare Serverless Edition)",
+                        text = "Versión: ${BuildConfig.VERSION_NAME} (Cloudflare Serverless Edition)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MonkifyGray
                     )
@@ -390,6 +415,38 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MonkifyGray
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { viewModel.checkForUpdates(manual = true) },
+                        enabled = !uiState.isCheckingUpdate,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MonkifyPrimary,
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Comprobando...", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Buscar actualizaciones",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
                 }
             }
         }

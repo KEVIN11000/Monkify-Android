@@ -3,6 +3,7 @@ package com.k11000.monkify.data.repository
 import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.DownloadManager
+import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.domain.model.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,8 @@ class DownloadRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val localTrackRepository: LocalTrackRepository,
     private val okHttpClient: OkHttpClient,
-    private val downloadManager: DownloadManager
+    private val downloadManager: DownloadManager,
+    private val monkifyApi: MonkifyApi? = null
 ) {
 
     private val _downloadingTrackIds = MutableStateFlow<Set<String>>(emptySet())
@@ -38,6 +40,23 @@ class DownloadRepository @Inject constructor(
     suspend fun isDownloaded(trackId: String): Boolean = withContext(Dispatchers.IO) {
         val file = getDownloadFile(trackId)
         file.exists() && file.length() > 0
+    }
+
+    private fun resolveStreamUrl(streamUrl: String, trackId: String): String {
+        return when {
+            streamUrl.startsWith("http://") || streamUrl.startsWith("https://") -> streamUrl
+            streamUrl.startsWith("/") -> "https://monkify-backend.monkify.workers.dev$streamUrl"
+            else -> "https://monkify-backend.monkify.workers.dev/api/v1/stream/$trackId"
+        }
+    }
+
+    fun getLocalLyrics(trackId: String): String? {
+        val file = File(context.filesDir, "downloads/${trackId}.lrc")
+        return if (file.exists() && file.length() > 0) {
+            runCatching { file.readText() }.getOrNull()
+        } else {
+            null
+        }
     }
 
     suspend fun downloadTrack(track: Track): Boolean = withContext(Dispatchers.IO) {
@@ -54,8 +73,9 @@ class DownloadRepository @Inject constructor(
                 return@withContext true
             }
 
+            val resolvedUrl = resolveStreamUrl(track.streamUrl, track.id)
             val request = Request.Builder()
-                .url(track.streamUrl)
+                .url(resolvedUrl)
                 .build()
 
             val response = okHttpClient.newCall(request).execute()
@@ -66,6 +86,15 @@ class DownloadRepository @Inject constructor(
             response.body?.byteStream()?.use { input ->
                 FileOutputStream(targetFile).use { output ->
                     input.copyTo(output)
+                }
+            }
+
+            // Descargar letras sincronizadas asociadas si existen
+            runCatching {
+                val lyricsResp = monkifyApi?.getLyrics(track.id)
+                if (lyricsResp != null && lyricsResp.content.isNotBlank()) {
+                    val lyricsFile = File(downloadDir, "${track.id}.lrc")
+                    lyricsFile.writeText(lyricsResp.content)
                 }
             }
 
@@ -84,6 +113,10 @@ class DownloadRepository @Inject constructor(
         val file = getDownloadFile(trackId)
         if (file.exists()) {
             file.delete()
+        }
+        val lyricsFile = File(context.filesDir, "downloads/${trackId}.lrc")
+        if (lyricsFile.exists()) {
+            lyricsFile.delete()
         }
         localTrackRepository.removeDownload(trackId)
     }

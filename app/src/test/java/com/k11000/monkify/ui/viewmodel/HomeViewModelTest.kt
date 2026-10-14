@@ -49,7 +49,7 @@ class HomeViewModelTest {
     ) : TrackRepository {
         override fun getRecentTracks(): Flow<List<Track>> = flowOf(tracksProvider(6, 0))
         override fun getMadeForYouTracks(): Flow<List<Track>> = flowOf(tracksProvider(10, 0))
-        override suspend fun getTracks(limit: Int, offset: Int): List<Track> = tracksProvider(limit, offset)
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<Track> = tracksProvider(limit, offset)
         override suspend fun requestIngest(url: String): Result<IngestResponse> = error("unused")
     }
 

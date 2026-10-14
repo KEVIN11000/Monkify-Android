@@ -21,12 +21,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")
+            if (keystoreFile != null && file(keystoreFile).exists()) {
+                storeFile = file(keystoreFile)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else {
+                initWith(getByName("debug"))
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
             buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8000/ws/connect\"")
         }
         release {
+            signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
             buildConfigField("String", "WS_URL", "\"wss://api.monkify.tudominio.com/ws/connect\"")
             isMinifyEnabled = false

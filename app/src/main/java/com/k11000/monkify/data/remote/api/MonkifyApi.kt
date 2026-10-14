@@ -6,6 +6,7 @@ import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
 import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
+import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -29,4 +30,15 @@ interface MonkifyApi {
 
     @GET("tracks/{track_id}/lyrics")
     suspend fun getLyrics(@Path("track_id") trackId: String): LyricsResponse
+
+    @GET("playlists")
+    suspend fun getPlaylists(
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0
+    ): List<PlaylistSummaryDto>
+
+    @GET("playlists/{id}/tracks")
+    suspend fun getPlaylistTracks(
+        @Path("id") id: String
+    ): List<BackendTrackDto>
 }

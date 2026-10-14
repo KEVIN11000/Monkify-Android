@@ -10,11 +10,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TrackDao {
 
-    @Query("SELECT * FROM favorite_tracks ORDER BY addedAt DESC")
+    @Query("SELECT * FROM favorite_tracks WHERE isFavorite = 1 ORDER BY addedAt DESC")
     fun getAllFavoriteTracks(): Flow<List<TrackEntity>>
 
     @Query("SELECT * FROM favorite_tracks WHERE isDownloaded = 1 ORDER BY addedAt DESC")
     fun getDownloadedTracks(): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM favorite_tracks ORDER BY addedAt DESC")
+    fun getAllTracksFlow(): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM favorite_tracks ORDER BY addedAt DESC LIMIT :limit OFFSET :offset")
+    suspend fun getPagedTracks(limit: Int, offset: Int): List<TrackEntity>
+
+    @Query("SELECT * FROM favorite_tracks WHERE title LIKE '%' || :query || '%' OR artist LIKE '%' || :query || '%' OR album LIKE '%' || :query || '%' ORDER BY addedAt DESC LIMIT :limit OFFSET :offset")
+    suspend fun searchTracks(query: String, limit: Int, offset: Int): List<TrackEntity>
 
     @Query("SELECT * FROM favorite_tracks WHERE id = :id")
     suspend fun getTrackById(id: String): TrackEntity?
@@ -24,6 +33,9 @@ interface TrackDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrack(track: TrackEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTracks(tracks: List<TrackEntity>): List<Long>
 
     @Query("DELETE FROM favorite_tracks WHERE id = :id")
     suspend fun deleteTrackById(id: String): Int

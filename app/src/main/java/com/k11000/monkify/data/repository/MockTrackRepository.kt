@@ -48,8 +48,13 @@ class MockTrackRepository @Inject constructor() : TrackRepository {
         return flowOf(mockTracks.reversed())
     }
 
-    override suspend fun getTracks(limit: Int, offset: Int): List<Track> {
-        return mockTracks.drop(offset).take(limit)
+    override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<Track> {
+        val filtered = if (!query.isNullOrBlank()) {
+            mockTracks.filter { it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true) }
+        } else {
+            mockTracks
+        }
+        return filtered.drop(offset).take(limit)
     }
 
     override suspend fun requestIngest(url: String): Result<IngestResponse> {

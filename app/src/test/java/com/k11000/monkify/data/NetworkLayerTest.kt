@@ -9,6 +9,7 @@ import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
 import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
+import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.remote.dto.toDomain
 import com.k11000.monkify.data.repository.NetworkTrackRepository
 import kotlinx.coroutines.flow.first
@@ -63,6 +64,8 @@ class NetworkLayerTest {
         override suspend fun login(request: LoginRequest): LoginResponse = error("unused")
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = error("unused")
         override suspend fun getLyrics(trackId: String): LyricsResponse = error("unused")
+        override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
+        override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = result()
     }
 
     @Test

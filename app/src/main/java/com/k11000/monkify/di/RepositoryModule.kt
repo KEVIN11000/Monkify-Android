@@ -1,7 +1,11 @@
 package com.k11000.monkify.di
 
-import com.k11000.monkify.data.repository.NetworkTrackRepository
+import com.k11000.monkify.data.repository.DownloadRepositoryImpl
+import com.k11000.monkify.data.repository.OfflineFirstTrackRepository
+import com.k11000.monkify.data.repository.UpdateRepositoryImpl
+import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.TrackRepository
+import com.k11000.monkify.domain.repository.UpdateRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -15,6 +19,18 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTrackRepository(
-        networkTrackRepository: NetworkTrackRepository
+        offlineFirstTrackRepository: OfflineFirstTrackRepository
     ): TrackRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUpdateRepository(
+        updateRepositoryImpl: UpdateRepositoryImpl
+    ): UpdateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDownloadRepository(
+        downloadRepositoryImpl: DownloadRepositoryImpl
+    ): DownloadRepository
 }

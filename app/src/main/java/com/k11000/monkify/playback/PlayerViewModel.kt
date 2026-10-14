@@ -22,17 +22,27 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.repository.DownloadRepository
 import com.k11000.monkify.data.repository.LocalTrackRepository
+import com.k11000.monkify.playback.lyrics.LyricLine
+import com.k11000.monkify.playback.lyrics.LrcParser
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val localTrackRepository: LocalTrackRepository,
-    private val downloadRepository: DownloadRepository
+    private val downloadRepository: DownloadRepository,
+    private val monkifyApi: MonkifyApi
 ) : ViewModel() {
 
     private var mediaController: MediaController? = null
+
+    private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
+    val lyrics: StateFlow<List<LyricLine>> = _lyrics.asStateFlow()
+
+    private val _isLoadingLyrics = MutableStateFlow(false)
+    val isLoadingLyrics: StateFlow<Boolean> = _isLoadingLyrics.asStateFlow()
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -63,6 +73,10 @@ class PlayerViewModel @Inject constructor(
 
     private val _isZenCleared = MutableStateFlow(false)
     val isZenCleared: StateFlow<Boolean> = _isZenCleared.asStateFlow()
+
+    private var currentQueue: List<Track> = emptyList()
+    private val _queue = MutableStateFlow<List<Track>>(emptyList())
+    val queue: StateFlow<List<Track>> = _queue.asStateFlow()
 
     private var currentTrack: Track? = null
 
@@ -185,6 +199,25 @@ class PlayerViewModel @Inject constructor(
             _coverUrl.value = mediaMetadata.artworkUri?.toString()
         }
 
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            super.onMediaItemTransition(mediaItem, reason)
+            val mediaId = mediaItem?.mediaId ?: return
+            val track = currentQueue.find { it.id == mediaId }
+            if (track != null) {
+                currentTrack = track
+                _currentTrackTitle.value = track.title
+                _currentTrackArtist.value = track.artist
+                _coverUrl.value = track.coverUrl
+                loadLyricsForTrack(track.id)
+                viewModelScope.launch {
+                    _isCurrentDownloaded.value = downloadRepository.isDownloaded(track.id)
+                    localTrackRepository.isFavorite(track.id).collect { isFav ->
+                        _isCurrentFavorite.value = isFav
+                    }
+                }
+            }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             super.onPlaybackStateChanged(playbackState)
             if (playbackState == Player.STATE_READY) {
@@ -195,60 +228,117 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun playTrack(track: Track) {
-        currentTrack = track
-        val controller = mediaController ?: return
+    fun loadLyricsForTrack(trackId: String) {
+        viewModelScope.launch {
+            _isLoadingLyrics.value = true
+            _lyrics.value = emptyList()
+            try {
+                // Si la pista tiene letras descargadas localmente en disco, cargarlas directamente
+                val localLyrics = downloadRepository.getLocalLyrics(trackId)
+                if (!localLyrics.isNullOrBlank()) {
+                    _lyrics.value = LrcParser.parse(localLyrics)
+                    return@launch
+                }
+
+                val response = monkifyApi.getLyrics(trackId)
+                if (response.content.isNotBlank()) {
+                    _lyrics.value = LrcParser.parse(response.content)
+                }
+            } catch (_: Exception) {
+                // Silencioso: pista sin letras asociadas
+            } finally {
+                _isLoadingLyrics.value = false
+            }
+        }
+    }
+
+    fun setLyricsContent(lrcContent: String) {
+        _lyrics.value = LrcParser.parse(lrcContent)
+    }
+
+    fun playQueue(tracks: List<Track>, startIndex: Int = 0) {
+        if (tracks.isEmpty()) return
+        currentQueue = tracks
+        _queue.value = tracks
+
+        val validStartIndex = if (startIndex in tracks.indices) startIndex else 0
+        val activeTrack = tracks[validStartIndex]
+        currentTrack = activeTrack
+
+        _currentTrackTitle.value = activeTrack.title
+        _currentTrackArtist.value = activeTrack.artist
+        _coverUrl.value = activeTrack.coverUrl
+        loadLyricsForTrack(activeTrack.id)
 
         viewModelScope.launch {
-            _isCurrentDownloaded.value = downloadRepository.isDownloaded(track.id)
-            localTrackRepository.isFavorite(track.id).collect { isFav ->
+            _isCurrentDownloaded.value = downloadRepository.isDownloaded(activeTrack.id)
+            localTrackRepository.isFavorite(activeTrack.id).collect { isFav ->
                 _isCurrentFavorite.value = isFav
             }
         }
 
-        val metadata = MediaMetadata.Builder()
-            .setTitle(track.title)
-            .setArtist(track.artist)
-            .setAlbumTitle(track.album)
-            .apply {
-                if (!track.coverUrl.isNullOrBlank()) {
-                    setArtworkUri(Uri.parse(track.coverUrl))
-                }
-            }
-            .build()
+        val controller = mediaController ?: return
 
-        val streamUri = if (track.streamUrl.isNotBlank()) {
-            if (track.streamUrl.startsWith("/")) {
-                Uri.fromFile(java.io.File(track.streamUrl))
+        val mediaItems = tracks.map { track ->
+            val metadata = MediaMetadata.Builder()
+                .setTitle(track.title)
+                .setArtist(track.artist)
+                .setAlbumTitle(track.album)
+                .apply {
+                    if (!track.coverUrl.isNullOrBlank()) {
+                        setArtworkUri(Uri.parse(track.coverUrl))
+                    }
+                }
+                .build()
+
+            val streamUri = if (track.streamUrl.isNotBlank()) {
+                if (track.streamUrl.startsWith("/")) {
+                    Uri.fromFile(java.io.File(track.streamUrl))
+                } else {
+                    Uri.parse(track.streamUrl)
+                }
             } else {
-                Uri.parse(track.streamUrl)
+                Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
             }
-        } else {
-            Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
+
+            MediaItem.Builder()
+                .setMediaId(track.id)
+                .setUri(streamUri)
+                .setMediaMetadata(metadata)
+                .build()
         }
 
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(track.id)
-            .setUri(streamUri)
-            .setMediaMetadata(metadata)
-            .build()
-
-        controller.setMediaItem(mediaItem)
+        controller.setMediaItems(mediaItems, validStartIndex, 0L)
         controller.prepare()
         controller.play()
     }
 
+    fun playTrack(track: Track) {
+        playQueue(listOf(track), 0)
+    }
+
     fun playTestTrack() {
-        playTrack(
-            Track(
-                id = "test_track_1",
-                title = "Lofi Study Beats",
-                artist = "FASSounds",
-                album = "Pixabay Chill",
-                durationMs = 120000,
-                coverUrl = "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&q=80",
-                streamUrl = "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3"
-            )
+        val testTrack = Track(
+            id = "test_track_1",
+            title = "Lofi Study Beats",
+            artist = "FASSounds",
+            album = "Pixabay Chill",
+            durationMs = 120000,
+            coverUrl = "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&q=80",
+            streamUrl = "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3"
+        )
+        playTrack(testTrack)
+        setLyricsContent(
+            """
+            [00:00.00] ♪ Instrumental Intro ♪
+            [00:05.00] Relax and take a breath
+            [00:10.00] Finding peace in the quiet night
+            [00:15.00] Soft melodies floating by
+            [00:20.00] Just enjoy the sound of the flow
+            [00:30.00] Let the rhythm guide your mind
+            [00:45.00] Deep focus, calm thoughts
+            [01:00.00] Everything is in harmony
+            """.trimIndent()
         )
     }
 

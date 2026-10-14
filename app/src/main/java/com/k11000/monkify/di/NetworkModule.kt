@@ -2,6 +2,7 @@ package com.k11000.monkify.di
 
 import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.data.remote.api.AuthInterceptor
+import com.k11000.monkify.data.remote.api.GitHubReleaseApi
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import dagger.Module
 import dagger.Provides
@@ -54,5 +55,16 @@ object NetworkModule {
     @Singleton
     fun provideMonkifyApi(retrofit: Retrofit): MonkifyApi {
         return retrofit.create(MonkifyApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): GitHubReleaseApi {
+        return Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(GitHubReleaseApi::class.java)
     }
 }

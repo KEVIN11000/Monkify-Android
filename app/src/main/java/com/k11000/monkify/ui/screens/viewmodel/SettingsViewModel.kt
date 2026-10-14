@@ -3,6 +3,8 @@ package com.k11000.monkify.ui.screens.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.repository.SettingsRepository
+import com.k11000.monkify.domain.model.AppUpdate
+import com.k11000.monkify.domain.repository.UpdateRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,79 +21,86 @@ data class SettingsUiState(
     val message: String? = null,
     val zenModeEnabled: Boolean = true,
     val zenEngine: String = "AURORA",
-    val lockScreenEnabled: Boolean = false
+    val lockScreenEnabled: Boolean = false,
+    val isCheckingUpdate: Boolean = false,
+    val availableUpdate: AppUpdate? = null
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository?,
+    private val updateRepository: UpdateRepository
 ) : ViewModel() {
+
+    constructor(updateRepository: UpdateRepository) : this(null, updateRepository)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            settingsRepository.cacheLimitMb.collect { limit ->
-                _uiState.update { it.copy(cacheLimitMb = limit) }
+        settingsRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.cacheLimitMb.collect { limit ->
+                    _uiState.update { it.copy(cacheLimitMb = limit) }
+                }
             }
-        }
-        viewModelScope.launch {
-            settingsRepository.dynamicColor.collect { dynamic ->
-                _uiState.update { it.copy(dynamicColor = dynamic) }
+            viewModelScope.launch {
+                repo.dynamicColor.collect { dynamic ->
+                    _uiState.update { it.copy(dynamicColor = dynamic) }
+                }
             }
-        }
-        viewModelScope.launch {
-            settingsRepository.zenModeEnabled.collect { enabled ->
-                _uiState.update { it.copy(zenModeEnabled = enabled) }
+            viewModelScope.launch {
+                repo.zenModeEnabled.collect { enabled ->
+                    _uiState.update { it.copy(zenModeEnabled = enabled) }
+                }
             }
-        }
-        viewModelScope.launch {
-            settingsRepository.zenEngine.collect { engine ->
-                _uiState.update { it.copy(zenEngine = engine) }
+            viewModelScope.launch {
+                repo.zenEngine.collect { engine ->
+                    _uiState.update { it.copy(zenEngine = engine) }
+                }
             }
-        }
-        viewModelScope.launch {
-            settingsRepository.lockScreenEnabled.collect { lockEnabled ->
-                _uiState.update { it.copy(lockScreenEnabled = lockEnabled) }
+            viewModelScope.launch {
+                repo.lockScreenEnabled.collect { lockEnabled ->
+                    _uiState.update { it.copy(lockScreenEnabled = lockEnabled) }
+                }
             }
+            refreshCacheUsage()
         }
-        refreshCacheUsage()
     }
 
     fun setCacheLimit(mb: Long) {
         viewModelScope.launch {
-            settingsRepository.setCacheLimitMb(mb)
+            settingsRepository?.setCacheLimitMb(mb)
         }
     }
 
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.setDynamicColor(enabled)
+            settingsRepository?.setDynamicColor(enabled)
         }
     }
 
     fun setZenModeEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.setZenModeEnabled(enabled)
+            settingsRepository?.setZenModeEnabled(enabled)
         }
     }
 
     fun setZenEngine(engine: String) {
         viewModelScope.launch {
-            settingsRepository.setZenEngine(engine)
+            settingsRepository?.setZenEngine(engine)
         }
     }
 
     fun setLockScreenEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            settingsRepository.setLockScreenEnabled(enabled)
+            settingsRepository?.setLockScreenEnabled(enabled)
         }
     }
 
     fun refreshCacheUsage() {
         viewModelScope.launch {
-            val usedBytes = settingsRepository.getCacheUsedBytes()
+            val usedBytes = settingsRepository?.getCacheUsedBytes() ?: 0L
             _uiState.update { it.copy(cacheUsedBytes = usedBytes) }
         }
     }
@@ -99,8 +108,8 @@ class SettingsViewModel @Inject constructor(
     fun clearCache() {
         viewModelScope.launch {
             _uiState.update { it.copy(isClearingCache = true) }
-            settingsRepository.clearMediaCache()
-            val usedBytes = settingsRepository.getCacheUsedBytes()
+            settingsRepository?.clearMediaCache()
+            val usedBytes = settingsRepository?.getCacheUsedBytes() ?: 0L
             _uiState.update {
                 it.copy(
                     isClearingCache = false,
@@ -113,5 +122,43 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    fun checkForUpdates(manual: Boolean = true) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingUpdate = true) }
+            val result = updateRepository.checkForUpdate()
+            result.fold(
+                onSuccess = { update ->
+                    if (update.isUpdateAvailable) {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingUpdate = false,
+                                availableUpdate = update
+                            )
+                        }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingUpdate = false,
+                                message = if (manual) "Monkify está al día (versión ${update.currentVersionName})" else null
+                            )
+                        }
+                    }
+                },
+                onFailure = {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            message = if (manual) "No se pudo verificar actualizaciones. Comprueba tu conexión." else null
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(availableUpdate = null) }
     }
 }

@@ -23,4 +23,8 @@ object Destinations {
     const val SEARCH = "search"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
+    const val PLAYLIST_DETAIL = "playlist_detail/{playlistId}?name={name}"
+
+    fun playlistDetail(playlistId: String, name: String = ""): String =
+        "playlist_detail/$playlistId?name=${java.net.URLEncoder.encode(name, "UTF-8")}"
 }

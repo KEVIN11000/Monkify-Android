@@ -44,6 +44,13 @@ data class PlaylistDetailDto(
     val tracks: List<TrackDto>
 )
 
+data class PlaylistSummaryDto(
+    val id: String,
+    val name: String,
+    @SerializedName("track_count") val trackCount: Int,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
 data class LoginRequest(val username: String, val password: String)
 
 data class LoginResponse(

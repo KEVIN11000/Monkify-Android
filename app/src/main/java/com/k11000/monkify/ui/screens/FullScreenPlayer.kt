@@ -62,6 +62,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.components.LyricsView
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
@@ -87,7 +88,9 @@ fun FullScreenPlayer(
     val isFavorite by viewModel.isCurrentFavorite.collectAsState()
     val isDownloaded by viewModel.isCurrentDownloaded.collectAsState()
     val isDownloading by viewModel.isCurrentDownloading.collectAsState()
+    val lyrics by viewModel.lyrics.collectAsState()
 
+    var showLyrics by remember { mutableStateOf(false) }
     var showDeviceSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -141,29 +144,46 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Carátula con Resplandor Ambiental (Ambient Glow)
+        // Área Central: Carátula o Letras Sincronizadas
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f),
             contentAlignment = Alignment.Center
         ) {
-            // Sombra / Aura difusa de resplandor ambiental
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(0.94f)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MonkifyPrimary.copy(alpha = 0.22f))
-            )
-            AsyncImage(
-                model = coverUrl ?: "https://via.placeholder.com/500",
-                contentDescription = "Carátula de álbum",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.DarkGray)
-            )
+            if (showLyrics) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MonkifyDarkGray.copy(alpha = 0.5f))
+                ) {
+                    LyricsView(
+                        lyrics = lyrics,
+                        currentPositionMs = currentPosition,
+                        onLineClick = { timestampMs ->
+                            viewModel.seekTo(timestampMs)
+                        }
+                    )
+                }
+            } else {
+                // Sombra / Aura difusa de resplandor ambiental
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(0.94f)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MonkifyPrimary.copy(alpha = 0.22f))
+                )
+                AsyncImage(
+                    model = coverUrl ?: "https://via.placeholder.com/500",
+                    contentDescription = "Carátula de álbum",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.DarkGray)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -328,11 +348,11 @@ fun FullScreenPlayer(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            IconButton(onClick = { /* TODO: Letras en tiempo real */ }) {
+            IconButton(onClick = { showLyrics = !showLyrics }) {
                 Icon(
                     imageVector = Icons.Default.Lyrics,
-                    contentDescription = "Letras",
-                    tint = MonkifyGray
+                    contentDescription = if (showLyrics) "Ocultar letras" else "Ver letras",
+                    tint = if (showLyrics) MonkifyPrimary else MonkifyGray
                 )
             }
         }
