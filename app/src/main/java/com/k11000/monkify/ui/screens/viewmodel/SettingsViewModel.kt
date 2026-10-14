@@ -16,7 +16,9 @@ data class SettingsUiState(
     val cacheUsedBytes: Long = 0L,
     val dynamicColor: Boolean = false,
     val isClearingCache: Boolean = false,
-    val message: String? = null
+    val message: String? = null,
+    val zenModeEnabled: Boolean = true,
+    val zenEngine: String = "AURORA"
 )
 
 @HiltViewModel
@@ -38,6 +40,16 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(dynamicColor = dynamic) }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.zenModeEnabled.collect { enabled ->
+                _uiState.update { it.copy(zenModeEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.zenEngine.collect { engine ->
+                _uiState.update { it.copy(zenEngine = engine) }
+            }
+        }
         refreshCacheUsage()
     }
 
@@ -50,6 +62,18 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch {
             settingsRepository.setDynamicColor(enabled)
+        }
+    }
+
+    fun setZenModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setZenModeEnabled(enabled)
+        }
+    }
+
+    fun setZenEngine(engine: String) {
+        viewModelScope.launch {
+            settingsRepository.setZenEngine(engine)
         }
     }
 

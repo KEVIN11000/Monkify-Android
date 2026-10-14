@@ -1,5 +1,8 @@
 package com.k11000.monkify.ui.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +53,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
+import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
@@ -60,7 +66,8 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
-    playerViewModel: PlayerViewModel = hiltViewModel()
+    playerViewModel: PlayerViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val listState = rememberLazyListState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -71,6 +78,22 @@ fun HomeScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+
+    val settingsState by settingsViewModel.uiState.collectAsState()
+    val isZenCleared by playerViewModel.isZenCleared.collectAsState()
+    val isPlaying by playerViewModel.isPlaying.collectAsState()
+
+    val isEffectivelyCleared = isZenCleared && settingsState.zenModeEnabled
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (isEffectivelyCleared) 0f else 1f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "ZenContentAlpha"
+    )
+    val contentScale by animateFloatAsState(
+        targetValue = if (isEffectivelyCleared) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "ZenContentScale"
+    )
 
     // Trigger de paginación infinita al aproximarse al final del feed
     val shouldLoadMore by remember {
@@ -87,14 +110,49 @@ fun HomeScreen(
         }
     }
 
-    LazyColumn(
-        state = listState,
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .padding(top = statusBarPadding + 16.dp),
-        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
+        // Capa 1: Fondo Zen animado (Aurora o Visualizador reactivo)
+        ZenBackground(
+            isPlaying = isPlaying,
+            engine = settingsState.zenEngine,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Capa 2: Si está despejado, overlay táctil para restaurar
+        if (isEffectivelyCleared) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { playerViewModel.setZenCleared(false) }
+                    .padding(bottom = 120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Toca la pantalla o la barra para volver",
+                    color = MonkifyGray.copy(alpha = 0.65f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // Capa 3: Contenido de tarjetas y secciones con animación fluida de desvanecimiento
+        LazyColumn(
+            state = listState,
+            userScrollEnabled = !isEffectivelyCleared,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = contentAlpha
+                    scaleX = contentScale
+                    scaleY = contentScale
+                }
+                .padding(top = statusBarPadding + 16.dp),
+            contentPadding = PaddingValues(bottom = 96.dp)
+        ) {
         // Cabecera
         item {
             Row(
@@ -300,6 +358,7 @@ fun HomeScreen(
                 }
             }
         }
+    }
     }
 }
 

@@ -24,7 +24,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private var mediaController: MediaController? = null
@@ -55,6 +55,17 @@ class PlayerViewModel @Inject constructor(
 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
+    private val _isZenCleared = MutableStateFlow(false)
+    val isZenCleared: StateFlow<Boolean> = _isZenCleared.asStateFlow()
+
+    fun toggleZenCleared() {
+        _isZenCleared.value = !_isZenCleared.value
+    }
+
+    fun setZenCleared(cleared: Boolean) {
+        _isZenCleared.value = cleared
+    }
 
     // Monkify Connect Devices
     data class Device(val id: String, val name: String, val isSelected: Boolean)

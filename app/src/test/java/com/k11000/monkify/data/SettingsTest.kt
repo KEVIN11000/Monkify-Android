@@ -15,6 +15,11 @@ class SettingsTest {
         assertEquals(1024L, SettingsRepository.DEFAULT_CACHE_LIMIT_MB)
         assertEquals("cache_limit_mb", SettingsRepository.KEY_CACHE_LIMIT_MB.name)
         assertEquals("dynamic_color", SettingsRepository.KEY_DYNAMIC_COLOR.name)
+        assertEquals("zen_mode_enabled", SettingsRepository.KEY_ZEN_MODE_ENABLED.name)
+        assertEquals("zen_engine", SettingsRepository.KEY_ZEN_ENGINE.name)
+        assertEquals("AURORA", SettingsRepository.DEFAULT_ZEN_ENGINE)
+        assertEquals("AURORA", SettingsRepository.ZEN_ENGINE_AURORA)
+        assertEquals("VISUALIZER", SettingsRepository.ZEN_ENGINE_VISUALIZER)
     }
 
     @Test
@@ -30,12 +35,21 @@ class SettingsTest {
         assertFalse(state.dynamicColor)
         assertFalse(state.isClearingCache)
         assertNull(state.message)
+        assertEquals(true, state.zenModeEnabled)
+        assertEquals("AURORA", state.zenEngine)
     }
 
     @Test
     fun `actualizacion de estado de SettingsUiState funciona adecuadamente`() {
-        val state = SettingsUiState().copy(cacheLimitMb = 2048L, dynamicColor = true)
+        val state = SettingsUiState().copy(
+            cacheLimitMb = 2048L,
+            dynamicColor = true,
+            zenModeEnabled = false,
+            zenEngine = "VISUALIZER"
+        )
         assertEquals(2048L, state.cacheLimitMb)
         assertEquals(true, state.dynamicColor)
+        assertEquals(false, state.zenModeEnabled)
+        assertEquals("VISUALIZER", state.zenEngine)
     }
 }

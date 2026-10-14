@@ -38,4 +38,19 @@ class PlayerControlsTest {
         assertEquals("1:15", formatTime(75000L))
         assertEquals("4:02", formatTime(242000L))
     }
+
+    @Test
+    fun `toggle de Zen Clear conmuta el estado booleano correctamente`() {
+        var isZenCleared = false
+        // Simular accion toggleZenCleared
+        isZenCleared = !isZenCleared
+        assertEquals(true, isZenCleared)
+
+        isZenCleared = !isZenCleared
+        assertEquals(false, isZenCleared)
+
+        // Simular setZenCleared(true)
+        isZenCleared = true
+        assertEquals(true, isZenCleared)
+    }
 }

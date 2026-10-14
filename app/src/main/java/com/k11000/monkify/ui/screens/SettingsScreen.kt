@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
@@ -243,7 +244,88 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Sección 3: Información
+            // Sección 3: Modo Zen y Fondo Dinámico
+            SettingsSectionHeader(title = "MODO ZEN Y FONDO AMBIENTAL", icon = Icons.Default.AutoAwesome)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                colors = CardDefaults.cardColors(containerColor = MonkifySurface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Despejar pantalla al pulsar barra",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MonkifyOnBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Al presionar la barra flotante en Inicio, las tarjetas se desvanecen para mostrar la animación de fondo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MonkifyGray
+                            )
+                        }
+                        Switch(
+                            checked = uiState.zenModeEnabled,
+                            onCheckedChange = { viewModel.setZenModeEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = MonkifyPrimary,
+                                uncheckedThumbColor = MonkifyGray,
+                                uncheckedTrackColor = MonkifyDarkGray
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Motor Visual de Fondo:",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MonkifyOnBackground
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = uiState.zenEngine == "AURORA",
+                            onClick = { viewModel.setZenEngine("AURORA") },
+                            label = { Text("Aurora Boreal") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                        FilterChip(
+                            selected = uiState.zenEngine == "VISUALIZER",
+                            onClick = { viewModel.setZenEngine("VISUALIZER") },
+                            label = { Text("Visualizador de Audio") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Sección 4: Información
             SettingsSectionHeader(title = "INFORMACIÓN DEL SISTEMA", icon = Icons.Default.Info)
             Card(
                 modifier = Modifier

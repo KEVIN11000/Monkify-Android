@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.k11000.monkify.playback.PlaybackCache
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,14 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_DYNAMIC_COLOR] ?: false
     }
 
+    val zenModeEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_ZEN_MODE_ENABLED] ?: true
+    }
+
+    val zenEngine: Flow<String> = dataStore.data.map { preferences ->
+        preferences[KEY_ZEN_ENGINE] ?: DEFAULT_ZEN_ENGINE
+    }
+
     suspend fun setCacheLimitMb(mb: Long) {
         dataStore.edit { preferences ->
             preferences[KEY_CACHE_LIMIT_MB] = mb
@@ -39,6 +48,18 @@ class SettingsRepository @Inject constructor(
     suspend fun setDynamicColor(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_DYNAMIC_COLOR] = enabled
+        }
+    }
+
+    suspend fun setZenModeEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[KEY_ZEN_MODE_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setZenEngine(engine: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_ZEN_ENGINE] = engine
         }
     }
 
@@ -68,6 +89,12 @@ class SettingsRepository @Inject constructor(
     companion object {
         val KEY_CACHE_LIMIT_MB = longPreferencesKey("cache_limit_mb")
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val KEY_ZEN_MODE_ENABLED = booleanPreferencesKey("zen_mode_enabled")
+        val KEY_ZEN_ENGINE = stringPreferencesKey("zen_engine")
+
         const val DEFAULT_CACHE_LIMIT_MB: Long = 1024L // 1 GB
+        const val DEFAULT_ZEN_ENGINE = "AURORA"
+        const val ZEN_ENGINE_AURORA = "AURORA"
+        const val ZEN_ENGINE_VISUALIZER = "VISUALIZER"
     }
 }
