@@ -2,19 +2,36 @@ package com.k11000.monkify.ui.screens.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.k11000.monkify.data.repository.DownloadRepository
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val trackRepository: TrackRepository
+    private val trackRepository: TrackRepository,
+    private val downloadRepository: DownloadRepository? = null
 ) : ViewModel() {
+
+    val downloadedTrackIds: StateFlow<Set<String>> = downloadRepository?.downloadedTrackIds
+        ?.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+        ?: MutableStateFlow(emptySet())
+
+    val downloadingTrackIds: StateFlow<Set<String>> = downloadRepository?.downloadingTrackIds
+        ?: MutableStateFlow(emptySet())
+
+    fun toggleDownload(track: Track) {
+        viewModelScope.launch {
+            downloadRepository?.toggleDownload(track)
+        }
+    }
 
     private val _recentTracks = MutableStateFlow<List<Track>>(emptyList())
     val recentTracks: StateFlow<List<Track>> = _recentTracks.asStateFlow()

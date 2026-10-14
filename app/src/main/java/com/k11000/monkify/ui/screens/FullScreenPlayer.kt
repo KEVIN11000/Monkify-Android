@@ -21,6 +21,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,6 +84,9 @@ fun FullScreenPlayer(
     val activeDeviceName by viewModel.activeDeviceName.collectAsState()
     val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
     val repeatMode by viewModel.repeatMode.collectAsState()
+    val isFavorite by viewModel.isCurrentFavorite.collectAsState()
+    val isDownloaded by viewModel.isCurrentDownloaded.collectAsState()
+    val isDownloading by viewModel.isCurrentDownloading.collectAsState()
 
     var showDeviceSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -160,7 +168,7 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Título y Artista
+        // Título y Artista con acciones de Favorito y Descarga
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -181,6 +189,34 @@ fun FullScreenPlayer(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Botón Descargar
+                IconButton(onClick = { viewModel.toggleDownload() }) {
+                    if (isDownloading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = MonkifyPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
+                            contentDescription = if (isDownloaded) "Descargada" else "Descargar pista",
+                            tint = if (isDownloaded) MonkifyPrimary else MonkifyGray
+                        )
+                    }
+                }
+
+                // Botón Favorito
+                IconButton(onClick = { viewModel.toggleFavorite() }) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Quitar de favoritos" else "Marcar como favorito",
+                        tint = if (isFavorite) Color(0xFFFF4081) else MonkifyGray
+                    )
+                }
             }
         }
 

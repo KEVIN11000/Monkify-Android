@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +80,8 @@ fun HomeScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
+    val downloadingTrackIds by viewModel.downloadingTrackIds.collectAsState()
 
     val settingsState by settingsViewModel.uiState.collectAsState()
     val isZenCleared by playerViewModel.isZenCleared.collectAsState()
@@ -336,6 +340,9 @@ fun HomeScreen(
             items(feedTracks, key = { it.id }) { track ->
                 TrackRowItem(
                     track = track,
+                    isDownloaded = track.id in downloadedTrackIds,
+                    isDownloading = track.id in downloadingTrackIds,
+                    onDownloadClick = { viewModel.toggleDownload(track) },
                     onClick = { playerViewModel.playTrack(track) }
                 )
             }
@@ -521,7 +528,10 @@ fun MadeForYouCard(
 fun TrackRowItem(
     track: Track,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDownloaded: Boolean = false,
+    isDownloading: Boolean = false,
+    onDownloadClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -558,6 +568,30 @@ fun TrackRowItem(
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
+
+        if (onDownloadClick != null) {
+            IconButton(
+                onClick = onDownloadClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                if (isDownloading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MonkifyPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
+                        contentDescription = if (isDownloaded) "Descargada" else "Descargar pista",
+                        tint = if (isDownloaded) MonkifyPrimary else MonkifyGray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
         Text(
             text = formatDuration(track.durationMs),
             color = MonkifyGray,

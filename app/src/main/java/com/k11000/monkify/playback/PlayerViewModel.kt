@@ -22,9 +22,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.k11000.monkify.data.repository.DownloadRepository
+import com.k11000.monkify.data.repository.LocalTrackRepository
+
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val localTrackRepository: LocalTrackRepository,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private var mediaController: MediaController? = null
@@ -59,12 +64,46 @@ class PlayerViewModel @Inject constructor(
     private val _isZenCleared = MutableStateFlow(false)
     val isZenCleared: StateFlow<Boolean> = _isZenCleared.asStateFlow()
 
+    private var currentTrack: Track? = null
+
+    private val _isCurrentFavorite = MutableStateFlow(false)
+    val isCurrentFavorite: StateFlow<Boolean> = _isCurrentFavorite.asStateFlow()
+
+    private val _isCurrentDownloaded = MutableStateFlow(false)
+    val isCurrentDownloaded: StateFlow<Boolean> = _isCurrentDownloaded.asStateFlow()
+
+    private val _isCurrentDownloading = MutableStateFlow(false)
+    val isCurrentDownloading: StateFlow<Boolean> = _isCurrentDownloading.asStateFlow()
+
     fun toggleZenCleared() {
         _isZenCleared.value = !_isZenCleared.value
     }
 
     fun setZenCleared(cleared: Boolean) {
         _isZenCleared.value = cleared
+    }
+
+    fun toggleFavorite() {
+        val track = currentTrack ?: return
+        viewModelScope.launch {
+            localTrackRepository.toggleFavorite(track)
+            _isCurrentFavorite.value = !_isCurrentFavorite.value
+        }
+    }
+
+    fun toggleDownload() {
+        val track = currentTrack ?: return
+        viewModelScope.launch {
+            if (_isCurrentDownloaded.value) {
+                downloadRepository.removeDownload(track.id)
+                _isCurrentDownloaded.value = false
+            } else {
+                _isCurrentDownloading.value = true
+                val success = downloadRepository.downloadTrack(track)
+                _isCurrentDownloaded.value = success
+                _isCurrentDownloading.value = false
+            }
+        }
     }
 
     // Monkify Connect Devices
@@ -157,7 +196,15 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun playTrack(track: Track) {
+        currentTrack = track
         val controller = mediaController ?: return
+
+        viewModelScope.launch {
+            _isCurrentDownloaded.value = downloadRepository.isDownloaded(track.id)
+            localTrackRepository.isFavorite(track.id).collect { isFav ->
+                _isCurrentFavorite.value = isFav
+            }
+        }
 
         val metadata = MediaMetadata.Builder()
             .setTitle(track.title)
@@ -171,7 +218,11 @@ class PlayerViewModel @Inject constructor(
             .build()
 
         val streamUri = if (track.streamUrl.isNotBlank()) {
-            Uri.parse(track.streamUrl)
+            if (track.streamUrl.startsWith("/")) {
+                Uri.fromFile(java.io.File(track.streamUrl))
+            } else {
+                Uri.parse(track.streamUrl)
+            }
         } else {
             Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
         }
