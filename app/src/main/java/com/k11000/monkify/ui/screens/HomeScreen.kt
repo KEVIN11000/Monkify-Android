@@ -8,173 +8,296 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil3.compose.AsyncImage
+import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.ui.layout.ContentScale
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.k11000.monkify.playback.PlayerViewModel
-
-import androidx.hilt.navigation.compose.hiltViewModel
-import coil3.compose.AsyncImage
-import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
-
 @Composable
 fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
-    val scrollState = rememberScrollState()
+    val listState = rememberLazyListState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    
+
     val recentTracks by viewModel.recentTracks.collectAsState()
     val madeForYouTracks by viewModel.madeForYouTracks.collectAsState()
+    val feedTracks by viewModel.feedTracks.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMore by viewModel.hasMore.collectAsState()
 
-    Column(
+    // Trigger de paginación infinita al aproximarse al final del feed
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val totalCount = listState.layoutInfo.totalItemsCount
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalCount > 0 && lastVisibleIndex >= totalCount - 4
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && hasMore && !isLoadingMore) {
+            viewModel.loadMore()
+        }
+    }
+
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .verticalScroll(scrollState)
-            .padding(top = statusBarPadding + 16.dp, bottom = 16.dp)
+            .padding(top = statusBarPadding + 16.dp),
+        contentPadding = PaddingValues(bottom = 96.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // Cabecera
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Buenas noches",
+                    color = MonkifyOnBackground,
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Row {
+                    IconButton(onClick = { /* TODO: Notificaciones */ }) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Notifications",
+                            tint = MonkifyOnBackground
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = MonkifyOnBackground
+                        )
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+
+        // Chips de filtro
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(text = "Todo", isSelected = true)
+                FilterChip(text = "Música", isSelected = false)
+                FilterChip(text = "Podcasts", isSelected = false)
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(24.dp)) }
+
+        // Grilla 2x3 de Reproducción Rápida con datos reales
+        item {
+            val quickItems = if (recentTracks.isNotEmpty()) {
+                recentTracks.take(6)
+            } else {
+                emptyList()
+            }
+
+            if (quickItems.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    quickItems.chunked(2).forEach { rowTracks ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowTracks.forEach { track ->
+                                QuickGridItem(
+                                    track = track,
+                                    onClick = { playerViewModel.playTrack(track) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (rowTracks.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Fallback de carga inicial con botón de prueba interactivo
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    QuickGridFallbackItem(
+                        title = "Play Test Track",
+                        onClick = { playerViewModel.playTestTrack() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(32.dp)) }
+
+        // Carrusel: Escuchado recientemente
+        if (recentTracks.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Escuchado recientemente",
+                    color = MonkifyOnBackground,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(recentTracks) { track ->
+                        AlbumCard(
+                            title = if (track.album.isNotBlank()) track.album else track.title,
+                            subtitle = track.artist,
+                            coverUrl = track.coverUrl,
+                            onClick = { playerViewModel.playTrack(track) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+
+        // Carrusel: Hecho para ti
+        if (madeForYouTracks.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Hecho para ti",
+                    color = MonkifyOnBackground,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(madeForYouTracks) { track ->
+                        MadeForYouCard(
+                            title = "Mix: ${track.artist}",
+                            subtitle = track.title,
+                            onClick = { playerViewModel.playTrack(track) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+
+        // Sección Principal Paginada: Todas las canciones (Feed Vertical)
+        item {
             Text(
-                text = "Buenas noches",
+                text = "Todas las canciones",
                 color = MonkifyOnBackground,
-                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-            Row {
-                IconButton(onClick = { /* TODO: Notificaciones */ }) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Notifications",
-                        tint = MonkifyOnBackground
-                    )
-                }
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = MonkifyOnBackground
-                    )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        if (feedTracks.isEmpty() && isLoading) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MonkifyPrimary, modifier = Modifier.size(32.dp))
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Filter Chips
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(text = "Todo", isSelected = true)
-            FilterChip(text = "Música", isSelected = false)
-            FilterChip(text = "Podcasts", isSelected = false)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Quick Grid (6 items)
-        val quickItems = listOf("Play Test Track", "Coding Focus", "Rock Classics", "Daft Punk", "Jazz Vibes", "Daily Mix 1")
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            userScrollEnabled = false
-        ) {
-            items(quickItems) { item ->
-                QuickGridItem(title = item)
+        } else {
+            items(feedTracks, key = { it.id }) { track ->
+                TrackRowItem(
+                    track = track,
+                    onClick = { playerViewModel.playTrack(track) }
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Recently Played
-        Text(
-            text = "Escuchado recientemente",
-            color = MonkifyOnBackground,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(recentTracks) { track ->
-                AlbumCard(title = track.album, subtitle = "Álbum • ${track.artist}", coverUrl = track.coverUrl)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Made For You
-        Text(
-            text = "Hecho para ti",
-            color = MonkifyOnBackground,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(madeForYouTracks) { track ->
-                MadeForYouCard(title = "Mix: ${track.artist}", subtitle = track.title)
+        // Indicador de paginación adicional al pie del feed
+        if (isLoadingMore) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MonkifyPrimary,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
             }
         }
     }
@@ -198,25 +321,56 @@ fun FilterChip(text: String, isSelected: Boolean) {
 
 @Composable
 fun QuickGridItem(
-    title: String,
-    viewModel: PlayerViewModel = hiltViewModel()
+    track: Track,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .background(MonkifyDarkGray)
-            .clickable {
-                if (title == "Play Test Track") {
-                    viewModel.playTestTrack()
-                }
-            },
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = track.coverUrl ?: "https://via.placeholder.com/150",
+            contentDescription = track.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(54.dp)
+                .background(Color.DarkGray)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = track.title,
+            color = MonkifyOnBackground,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
+        )
+    }
+}
+
+@Composable
+fun QuickGridFallbackItem(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MonkifyDarkGray)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(54.dp)
-                .background(Color.Gray) // Placeholder for image
+                .background(Color.Gray)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -233,8 +387,17 @@ fun QuickGridItem(
 }
 
 @Composable
-fun AlbumCard(title: String, subtitle: String, coverUrl: String?) {
-    Column(modifier = Modifier.width(140.dp)) {
+fun AlbumCard(
+    title: String,
+    subtitle: String,
+    coverUrl: String?,
+    onClick: () -> Unit = {}
+) {
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable(onClick = onClick)
+    ) {
         AsyncImage(
             model = coverUrl ?: "https://via.placeholder.com/150",
             contentDescription = title,
@@ -263,13 +426,18 @@ fun AlbumCard(title: String, subtitle: String, coverUrl: String?) {
 }
 
 @Composable
-fun MadeForYouCard(title: String, subtitle: String) {
+fun MadeForYouCard(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .width(140.dp)
             .height(70.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF1E293B))
+            .clickable(onClick = onClick)
             .padding(12.dp),
         verticalArrangement = Arrangement.Center
     ) {
@@ -288,4 +456,61 @@ fun MadeForYouCard(title: String, subtitle: String) {
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+fun TrackRowItem(
+    track: Track,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = track.coverUrl ?: "https://via.placeholder.com/150",
+            contentDescription = track.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MonkifyDarkGray)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (track.album.isNotBlank()) "${track.artist} • ${track.album}" else track.artist,
+                color = MonkifyGray,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = formatDuration(track.durationMs),
+            color = MonkifyGray,
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
+
+private fun formatDuration(durationMs: Long): String {
+    if (durationMs <= 0L) return "--:--"
+    val totalSeconds = durationMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
 }

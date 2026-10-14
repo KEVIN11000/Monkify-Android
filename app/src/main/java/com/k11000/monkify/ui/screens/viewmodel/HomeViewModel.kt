@@ -22,20 +22,91 @@ class HomeViewModel @Inject constructor(
     private val _madeForYouTracks = MutableStateFlow<List<Track>>(emptyList())
     val madeForYouTracks: StateFlow<List<Track>> = _madeForYouTracks.asStateFlow()
 
+    private val _feedTracks = MutableStateFlow<List<Track>>(emptyList())
+    val feedTracks: StateFlow<List<Track>> = _feedTracks.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private val _hasMore = MutableStateFlow(true)
+    val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
+
     init {
         loadData()
     }
 
-    private fun loadData() {
+    fun refresh() {
+        _hasMore.value = true
+        loadData()
+    }
+
+    fun loadData() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val tracks = trackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
+                if (tracks.isNotEmpty()) {
+                    _feedTracks.value = tracks
+                    _recentTracks.value = tracks.take(6)
+                    _madeForYouTracks.value = if (tracks.size > 6) tracks.drop(6).take(10) else tracks.reversed()
+                    _hasMore.value = tracks.size >= PAGE_SIZE
+                } else {
+                    // Fallback a los flows tradicionales si getTracks devolvió lista vacía
+                    fallbackToFlows()
+                }
+            } catch (e: Exception) {
+                fallbackToFlows()
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    private fun fallbackToFlows() {
         viewModelScope.launch {
             trackRepository.getRecentTracks().collect { tracks ->
-                _recentTracks.value = tracks
+                if (tracks.isNotEmpty()) {
+                    _recentTracks.value = tracks.take(6)
+                    _feedTracks.value = tracks
+                }
             }
         }
         viewModelScope.launch {
             trackRepository.getMadeForYouTracks().collect { tracks ->
-                _madeForYouTracks.value = tracks
+                if (tracks.isNotEmpty()) {
+                    _madeForYouTracks.value = tracks
+                }
             }
         }
+    }
+
+    fun loadMore() {
+        if (_isLoadingMore.value || !_hasMore.value || _isLoading.value) return
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            try {
+                val currentOffset = _feedTracks.value.size
+                val newTracks = trackRepository.getTracks(limit = PAGE_SIZE, offset = currentOffset)
+                if (newTracks.isEmpty()) {
+                    _hasMore.value = false
+                } else {
+                    _feedTracks.value = _feedTracks.value + newTracks
+                    if (newTracks.size < PAGE_SIZE) {
+                        _hasMore.value = false
+                    }
+                }
+            } catch (e: Exception) {
+                // Silencioso o reintentable en el siguiente scroll
+            } finally {
+                _isLoadingMore.value = false
+            }
+        }
+    }
+
+    companion object {
+        const val PAGE_SIZE = 20
     }
 }

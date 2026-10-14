@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.k11000.monkify.MonkifyPlaybackService
+import com.k11000.monkify.domain.model.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
@@ -125,25 +126,49 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun playTestTrack() {
+    fun playTrack(track: Track) {
         val controller = mediaController ?: return
-        
+
         val metadata = MediaMetadata.Builder()
-            .setTitle("Lofi Study Beats")
-            .setArtist("FASSounds")
-            .setArtworkUri(Uri.parse("https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&q=80"))
+            .setTitle(track.title)
+            .setArtist(track.artist)
+            .setAlbumTitle(track.album)
+            .apply {
+                if (!track.coverUrl.isNullOrBlank()) {
+                    setArtworkUri(Uri.parse(track.coverUrl))
+                }
+            }
             .build()
 
+        val streamUri = if (track.streamUrl.isNotBlank()) {
+            Uri.parse(track.streamUrl)
+        } else {
+            Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
+        }
+
         val mediaItem = MediaItem.Builder()
-            .setMediaId("test_track_1")
-            // Royalty-free Lofi Track from Pixabay for testing
-            .setUri("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3") 
+            .setMediaId(track.id)
+            .setUri(streamUri)
             .setMediaMetadata(metadata)
             .build()
 
         controller.setMediaItem(mediaItem)
         controller.prepare()
         controller.play()
+    }
+
+    fun playTestTrack() {
+        playTrack(
+            Track(
+                id = "test_track_1",
+                title = "Lofi Study Beats",
+                artist = "FASSounds",
+                album = "Pixabay Chill",
+                durationMs = 120000,
+                coverUrl = "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&q=80",
+                streamUrl = "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3"
+            )
+        )
     }
 
     fun togglePlayPause() {

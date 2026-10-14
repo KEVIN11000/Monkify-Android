@@ -37,6 +37,9 @@ class NetworkTrackRepository(
         emit(fetchTracks(limit = PAGE_SIZE, offset = 0).reversed())
     }
 
+    override suspend fun getTracks(limit: Int, offset: Int): List<Track> =
+        fetchTracks(limit = limit, offset = offset)
+
     override suspend fun requestIngest(url: String): Result<IngestResponse> =
         try {
             val response = api.ingest(IngestRequest(url))

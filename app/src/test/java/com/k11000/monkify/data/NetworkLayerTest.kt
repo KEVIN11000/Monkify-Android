@@ -78,4 +78,12 @@ class NetworkLayerTest {
         val repo = NetworkTrackRepository(FakeApi { throw java.io.IOException("offline") }, baseUrl)
         assertTrue(repo.getRecentTracks().first().isEmpty())
     }
+
+    @Test
+    fun `repositorio soporta getTracks con paginacion`() = runBlocking {
+        val repo = NetworkTrackRepository(FakeApi { parse() }, baseUrl)
+        val tracks = repo.getTracks(limit = 10, offset = 0)
+        assertEquals(2, tracks.size)
+        assertEquals("stream1", tracks[0].id)
+    }
 }

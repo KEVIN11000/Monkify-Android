@@ -48,6 +48,10 @@ class MockTrackRepository @Inject constructor() : TrackRepository {
         return flowOf(mockTracks.reversed())
     }
 
+    override suspend fun getTracks(limit: Int, offset: Int): List<Track> {
+        return mockTracks.drop(offset).take(limit)
+    }
+
     override suspend fun requestIngest(url: String): Result<IngestResponse> {
         delay(1500) // Simular latencia de red
         return Result.success(
