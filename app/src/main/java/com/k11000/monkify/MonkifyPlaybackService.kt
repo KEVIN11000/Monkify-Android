@@ -16,6 +16,17 @@ import androidx.media3.session.MediaSessionService
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import com.k11000.monkify.data.repository.SettingsRepository
+import com.k11000.monkify.lockscreen.LockScreenActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+
 @UnstableApi
 @AndroidEntryPoint
 class MonkifyPlaybackService : MediaSessionService() {
@@ -23,12 +34,40 @@ class MonkifyPlaybackService : MediaSessionService() {
     @Inject
     lateinit var cache: SimpleCache
 
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     private var mediaSession: MediaSession? = null
+    private var isLockScreenPrefEnabled = false
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                val player = mediaSession?.player
+                if (player?.isPlaying == true && isLockScreenPrefEnabled) {
+                    val lockIntent = Intent(this@MonkifyPlaybackService, LockScreenActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    }
+                    startActivity(lockIntent)
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         PlaybackNotificationConfig.createNotificationChannel(this)
         setMediaNotificationProvider(PlaybackNotificationConfig.createNotificationProvider(this))
+
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        registerReceiver(screenReceiver, filter)
+
+        serviceScope.launch {
+            settingsRepository.lockScreenEnabled.collect { enabled ->
+                isLockScreenPrefEnabled = enabled
+            }
+        }
 
         val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(cache)
@@ -58,6 +97,11 @@ class MonkifyPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (_: Exception) {}
+        serviceScope.cancel()
+
         mediaSession?.run {
             player.release()
             release()

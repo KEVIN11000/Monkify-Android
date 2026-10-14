@@ -17,7 +17,9 @@ class SettingsTest {
         assertEquals("dynamic_color", SettingsRepository.KEY_DYNAMIC_COLOR.name)
         assertEquals("zen_mode_enabled", SettingsRepository.KEY_ZEN_MODE_ENABLED.name)
         assertEquals("zen_engine", SettingsRepository.KEY_ZEN_ENGINE.name)
+        assertEquals("lock_screen_enabled", SettingsRepository.KEY_LOCK_SCREEN_ENABLED.name)
         assertEquals("AURORA", SettingsRepository.DEFAULT_ZEN_ENGINE)
+        assertEquals(false, SettingsRepository.DEFAULT_LOCK_SCREEN_ENABLED)
         assertEquals("AURORA", SettingsRepository.ZEN_ENGINE_AURORA)
         assertEquals("VISUALIZER", SettingsRepository.ZEN_ENGINE_VISUALIZER)
     }
@@ -37,6 +39,7 @@ class SettingsTest {
         assertNull(state.message)
         assertEquals(true, state.zenModeEnabled)
         assertEquals("AURORA", state.zenEngine)
+        assertEquals(false, state.lockScreenEnabled)
     }
 
     @Test
@@ -45,11 +48,13 @@ class SettingsTest {
             cacheLimitMb = 2048L,
             dynamicColor = true,
             zenModeEnabled = false,
-            zenEngine = "VISUALIZER"
+            zenEngine = "VISUALIZER",
+            lockScreenEnabled = true
         )
         assertEquals(2048L, state.cacheLimitMb)
         assertEquals(true, state.dynamicColor)
         assertEquals(false, state.zenModeEnabled)
         assertEquals("VISUALIZER", state.zenEngine)
+        assertEquals(true, state.lockScreenEnabled)
     }
 }

@@ -18,7 +18,8 @@ data class SettingsUiState(
     val isClearingCache: Boolean = false,
     val message: String? = null,
     val zenModeEnabled: Boolean = true,
-    val zenEngine: String = "AURORA"
+    val zenEngine: String = "AURORA",
+    val lockScreenEnabled: Boolean = false
 )
 
 @HiltViewModel
@@ -50,6 +51,11 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(zenEngine = engine) }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.lockScreenEnabled.collect { lockEnabled ->
+                _uiState.update { it.copy(lockScreenEnabled = lockEnabled) }
+            }
+        }
         refreshCacheUsage()
     }
 
@@ -74,6 +80,12 @@ class SettingsViewModel @Inject constructor(
     fun setZenEngine(engine: String) {
         viewModelScope.launch {
             settingsRepository.setZenEngine(engine)
+        }
+    }
+
+    fun setLockScreenEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setLockScreenEnabled(enabled)
         }
     }
 

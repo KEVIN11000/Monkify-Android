@@ -320,6 +320,45 @@ fun SettingsScreen(
                             )
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(MonkifyDarkGray)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Reproductor en Pantalla de Bloqueo",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MonkifyOnBackground
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Proyecta el Modo Zen interactivo sobre el bloqueo. Protege contra burn-in OLED y se apaga en el bolsillo.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MonkifyGray
+                            )
+                        }
+                        Switch(
+                            checked = uiState.lockScreenEnabled,
+                            onCheckedChange = { viewModel.setLockScreenEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = MonkifyPrimary,
+                                uncheckedThumbColor = MonkifyGray,
+                                uncheckedTrackColor = MonkifyDarkGray
+                            )
+                        )
+                    }
                 }
             }
 
