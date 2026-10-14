@@ -50,6 +50,12 @@ class PlayerViewModel @Inject constructor(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
+    private val _isShuffleEnabled = MutableStateFlow(false)
+    val isShuffleEnabled: StateFlow<Boolean> = _isShuffleEnabled.asStateFlow()
+
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
     // Monkify Connect Devices
     data class Device(val id: String, val name: String, val isSelected: Boolean)
 
@@ -85,7 +91,12 @@ class PlayerViewModel @Inject constructor(
         
         controllerFuture.addListener({
             mediaController = controllerFuture.get()
-            mediaController?.addListener(playerListener)
+            mediaController?.let { controller ->
+                controller.addListener(playerListener)
+                _isShuffleEnabled.value = controller.shuffleModeEnabled
+                _repeatMode.value = controller.repeatMode
+                _isPlaying.value = controller.isPlaying
+            }
         }, ContextCompat.getMainExecutor(context))
         
         // Polling loop for playback progress
@@ -108,6 +119,14 @@ class PlayerViewModel @Inject constructor(
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            _isShuffleEnabled.value = shuffleModeEnabled
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _repeatMode.value = repeatMode
         }
 
         override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
@@ -179,6 +198,46 @@ class PlayerViewModel @Inject constructor(
 
     fun seekTo(positionMs: Long) {
         mediaController?.seekTo(positionMs)
+    }
+
+    fun toggleShuffle() {
+        mediaController?.let {
+            val newShuffle = !it.shuffleModeEnabled
+            it.shuffleModeEnabled = newShuffle
+            _isShuffleEnabled.value = newShuffle
+        }
+    }
+
+    fun toggleRepeatMode() {
+        mediaController?.let {
+            val nextMode = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+            it.repeatMode = nextMode
+            _repeatMode.value = nextMode
+        }
+    }
+
+    fun skipToNext() {
+        mediaController?.let {
+            if (it.hasNextMediaItem()) {
+                it.seekToNextMediaItem()
+            } else {
+                it.seekTo(0)
+            }
+        }
+    }
+
+    fun skipToPrevious() {
+        mediaController?.let {
+            if (it.currentPosition > 3000L || !it.hasPreviousMediaItem()) {
+                it.seekTo(0)
+            } else {
+                it.seekToPreviousMediaItem()
+            }
+        }
     }
 
     override fun onCleared() {

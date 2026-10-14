@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,16 +26,25 @@ import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,27 +53,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.media3.common.Player
 import coil3.compose.AsyncImage
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
+import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
-
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.k11000.monkify.playback.PlayerViewModel
-
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import com.k11000.monkify.ui.theme.MonkifyDarkGray
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,9 +77,12 @@ fun FullScreenPlayer(
     val duration by viewModel.duration.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val activeDeviceName by viewModel.activeDeviceName.collectAsState()
+    val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
+    val repeatMode by viewModel.repeatMode.collectAsState()
 
     var showDeviceSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     fun formatTime(ms: Long): String {
         val totalSeconds = ms / 1000
@@ -92,9 +95,9 @@ fun FullScreenPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .padding(24.dp)
+            .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
     ) {
-        // Top Bar
+        // Barra Superior
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -103,7 +106,7 @@ fun FullScreenPlayer(
             IconButton(onClick = onClose) {
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Close",
+                    contentDescription = "Cerrar reproductor",
                     tint = MonkifyOnBackground
                 )
             }
@@ -128,23 +131,36 @@ fun FullScreenPlayer(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // Large Cover Image
-        AsyncImage(
-            model = coverUrl ?: "https://via.placeholder.com/500",
-            contentDescription = "Album Cover",
-            contentScale = ContentScale.Crop,
+        // Carátula con Resplandor Ambiental (Ambient Glow)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.DarkGray)
-        )
+                .aspectRatio(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            // Sombra / Aura difusa de resplandor ambiental
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(0.94f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MonkifyPrimary.copy(alpha = 0.22f))
+            )
+            AsyncImage(
+                model = coverUrl ?: "https://via.placeholder.com/500",
+                contentDescription = "Carátula de álbum",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.DarkGray)
+            )
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Title and Artist
+        // Título y Artista
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -170,16 +186,16 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Progress Slider
+        // Slider de Progreso en Azul Eléctrico
         var sliderPosition by remember { mutableStateOf<Float?>(null) }
-        
+
         val currentProgress = if (duration > 0) {
             (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
         } else 0f
 
         Slider(
             value = sliderPosition ?: currentProgress,
-            onValueChange = { newProgress -> 
+            onValueChange = { newProgress ->
                 sliderPosition = newProgress
             },
             onValueChangeFinished = {
@@ -190,9 +206,9 @@ fun FullScreenPlayer(
                 }
             },
             colors = SliderDefaults.colors(
-                thumbColor = MonkifyOnBackground,
-                activeTrackColor = MonkifyOnBackground,
-                inactiveTrackColor = MonkifyGray.copy(alpha = 0.5f)
+                thumbColor = MonkifyPrimary,
+                activeTrackColor = MonkifyPrimary,
+                inactiveTrackColor = MonkifyDarkGray
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -204,81 +220,89 @@ fun FullScreenPlayer(
             Text(text = formatTime(duration), color = MonkifyGray, style = MaterialTheme.typography.labelSmall)
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Playback Controls
+        // Botonera de Transporte Multimedia Completa
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { /* TODO: Shuffle */ }) {
+            // Shuffle (Aleatorio)
+            IconButton(onClick = { viewModel.toggleShuffle() }) {
                 Icon(
                     imageVector = Icons.Default.Shuffle,
-                    contentDescription = "Shuffle",
-                    tint = MonkifyPrimary // Active state
+                    contentDescription = "Aleatorio",
+                    tint = if (isShuffleEnabled) MonkifyPrimary else MonkifyGray
                 )
             }
-            IconButton(onClick = { /* TODO: Prev */ }) {
+
+            // Anterior (Skip Previous)
+            IconButton(onClick = { viewModel.skipToPrevious() }) {
                 Icon(
                     imageVector = Icons.Default.SkipPrevious,
-                    contentDescription = "Previous",
+                    contentDescription = "Pista anterior",
                     tint = MonkifyOnBackground,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
+
+            // Play / Pause Central
             Box(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(MonkifyPrimary)
+                    .clickable { viewModel.togglePlayPause() }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                IconButton(onClick = { viewModel.togglePlayPause() }) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = MonkifyBackground,
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            }
-            IconButton(onClick = { /* TODO: Next */ }) {
                 Icon(
-                    imageVector = Icons.Default.SkipNext,
-                    contentDescription = "Next",
-                    tint = MonkifyOnBackground,
-                    modifier = Modifier.size(40.dp)
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = "Reproducir o Pausar",
+                    tint = MonkifyBackground,
+                    modifier = Modifier.size(38.dp)
                 )
             }
-            IconButton(onClick = { /* TODO: Repeat */ }) {
+
+            // Siguiente (Skip Next)
+            IconButton(onClick = { viewModel.skipToNext() }) {
                 Icon(
-                    imageVector = Icons.Default.Repeat,
-                    contentDescription = "Repeat",
-                    tint = MonkifyGray
+                    imageVector = Icons.Default.SkipNext,
+                    contentDescription = "Pista siguiente",
+                    tint = MonkifyOnBackground,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            // Repetir (Repeat Mode)
+            IconButton(onClick = { viewModel.toggleRepeatMode() }) {
+                Icon(
+                    imageVector = if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    contentDescription = "Repetir",
+                    tint = if (repeatMode != Player.REPEAT_MODE_OFF) MonkifyPrimary else MonkifyGray
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
-        
-        // Bottom Lyrics Bar
+
+        // Barra Inferior de Letras (Lyrics)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            IconButton(onClick = { /* TODO: Open Lyrics */ }) {
+            IconButton(onClick = { /* TODO: Letras en tiempo real */ }) {
                 Icon(
                     imageVector = Icons.Default.Lyrics,
-                    contentDescription = "Lyrics",
-                    tint = MonkifyOnBackground
+                    contentDescription = "Letras",
+                    tint = MonkifyGray
                 )
             }
         }
     }
 
-    // Monkify Connect Devices Modal
+    // Modal de Selección de Dispositivos (Monkify Connect)
     if (showDeviceSheet) {
         ModalBottomSheet(
             onDismissRequest = { showDeviceSheet = false },
