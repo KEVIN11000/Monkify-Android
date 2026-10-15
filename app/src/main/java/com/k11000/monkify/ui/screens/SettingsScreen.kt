@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storage
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.AnnotatedString
 import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.ui.components.UpdateDialog
 import com.k11000.monkify.util.AppLogger
+import com.k11000.monkify.util.GitHubIssueUrlBuilder
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,6 +105,7 @@ fun SettingsScreen(
     var showLogsDialog by remember { mutableStateOf(false) }
     var feedbackComment by remember { mutableStateOf("") }
     var attachLogs by remember { mutableStateOf(true) }
+    var reportType by remember { mutableStateOf(GitHubIssueUrlBuilder.IssueType.BUG) }
 
     uiState.availableUpdate?.let { update ->
         UpdateDialog(
@@ -533,16 +536,46 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Reporte de Errores y Soporte",
+                        text = "Centro de Soporte y Tickets",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MonkifyOnBackground
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Describe cualquier fallo o escribe tus comentarios. Puedes adjuntar los registros técnicos recientes para resolverlo.",
+                        text = "Reporta fallos o envía sugerencias. Se creará un ticket directamente en GitHub con los datos de tu dispositivo para resolverlo.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MonkifyGray
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = reportType == GitHubIssueUrlBuilder.IssueType.BUG,
+                            onClick = { reportType = GitHubIssueUrlBuilder.IssueType.BUG },
+                            label = { Text("🐞 Error / Bug", style = MaterialTheme.typography.bodySmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                        FilterChip(
+                            selected = reportType == GitHubIssueUrlBuilder.IssueType.FEATURE,
+                            onClick = { reportType = GitHubIssueUrlBuilder.IssueType.FEATURE },
+                            label = { Text("💡 Sugerencia", style = MaterialTheme.typography.bodySmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
@@ -553,7 +586,10 @@ fun SettingsScreen(
                             .height(115.dp),
                         placeholder = {
                             Text(
-                                "Escribe tu reporte o comentario (ej. error 404 en canción, problema al pausar...)",
+                                if (reportType == GitHubIssueUrlBuilder.IssueType.BUG)
+                                    "Describe el fallo (ej. error 404 en canción, problema al pausar...)"
+                                else
+                                    "Describe tu sugerencia o idea de mejora...",
                                 color = MonkifyGray,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -601,38 +637,31 @@ fun SettingsScreen(
                             onClick = {
                                 val comment = feedbackComment.trim()
                                 if (comment.isBlank()) {
-                                    Toast.makeText(context, "Por favor escribe un comentario antes de compartir", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Por favor escribe una breve descripción antes de continuar", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
 
-                                val reportBuilder = StringBuilder()
-                                reportBuilder.appendLine("=== REPORTE DE SOPORTE MONKIFY ===")
-                                reportBuilder.appendLine("Fecha: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
-                                reportBuilder.appendLine("Versión: ${BuildConfig.VERSION_NAME} (code: ${BuildConfig.VERSION_CODE})")
-                                reportBuilder.appendLine("Dispositivo: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})")
-                                reportBuilder.appendLine("--- COMENTARIO ---")
-                                reportBuilder.appendLine(comment)
+                                val logsText = if (attachLogs) AppLogger.getLogsAsText().takeLast(3000) else null
 
-                                if (attachLogs) {
-                                    reportBuilder.appendLine("--- REGISTROS RECIENTES (Últimos eventos) ---")
-                                    val logs = AppLogger.getLogsAsText().takeLast(3000)
-                                    reportBuilder.appendLine(logs.ifBlank { "Sin eventos registrados." })
-                                }
-                                reportBuilder.appendLine("==================================")
+                                val params = GitHubIssueUrlBuilder.IssueParams(
+                                    type = reportType,
+                                    comment = comment,
+                                    appVersion = BuildConfig.VERSION_NAME,
+                                    versionCode = BuildConfig.VERSION_CODE,
+                                    deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+                                    androidVersion = "Android ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})",
+                                    logs = logsText
+                                )
 
-                                val reportText = reportBuilder.toString()
-                                val sendIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, reportText)
-                                    putExtra(Intent.EXTRA_SUBJECT, "Reporte de Soporte Monkify - ${android.os.Build.MODEL}")
-                                    type = "text/plain"
+                                val issueUrl = GitHubIssueUrlBuilder.buildUrl(params)
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(issueUrl)).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 }
-                                val shareIntent = Intent.createChooser(sendIntent, "Enviar reporte de soporte vía...")
                                 try {
-                                    context.startActivity(shareIntent)
+                                    context.startActivity(intent)
                                 } catch (_: Exception) {
-                                    clipboardManager.setText(AnnotatedString(reportText))
-                                    Toast.makeText(context, "Reporte copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
+                                    clipboardManager.setText(AnnotatedString(issueUrl))
+                                    Toast.makeText(context, "No se pudo abrir el navegador. Enlace copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
@@ -640,33 +669,30 @@ fun SettingsScreen(
                                 contentColor = Color.Black
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.3f)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Share,
+                                imageVector = Icons.Default.OpenInBrowser,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Compartir", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text("Abrir en GitHub", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                         }
 
                         OutlinedButton(
                             onClick = {
                                 val comment = feedbackComment.trim()
-                                if (comment.isBlank()) {
-                                    Toast.makeText(context, "Por favor escribe un comentario antes de copiar", Toast.LENGTH_SHORT).show()
-                                    return@OutlinedButton
-                                }
-
                                 val reportBuilder = StringBuilder()
                                 reportBuilder.appendLine("=== REPORTE DE SOPORTE MONKIFY ===")
+                                reportBuilder.appendLine("Tipo: ${reportType.name}")
                                 reportBuilder.appendLine("Fecha: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
                                 reportBuilder.appendLine("Versión: ${BuildConfig.VERSION_NAME} (code: ${BuildConfig.VERSION_CODE})")
                                 reportBuilder.appendLine("Dispositivo: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})")
-                                reportBuilder.appendLine("--- COMENTARIO ---")
-                                reportBuilder.appendLine(comment)
-
+                                if (comment.isNotBlank()) {
+                                    reportBuilder.appendLine("--- COMENTARIO ---")
+                                    reportBuilder.appendLine(comment)
+                                }
                                 if (attachLogs) {
                                     reportBuilder.appendLine("--- REGISTROS RECIENTES (Últimos eventos) ---")
                                     val logs = AppLogger.getLogsAsText().takeLast(3000)
@@ -675,12 +701,12 @@ fun SettingsScreen(
                                 reportBuilder.appendLine("==================================")
 
                                 clipboardManager.setText(AnnotatedString(reportBuilder.toString()))
-                                Toast.makeText(context, "Reporte completo copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Diagnóstico copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
                             },
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Copiar Reporte", color = MonkifyOnBackground, style = MaterialTheme.typography.bodySmall)
+                            Text("Copiar", color = MonkifyOnBackground, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }

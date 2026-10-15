@@ -86,15 +86,19 @@ class SearchViewModel @Inject constructor(
         _selectedTrack.value = track
     }
 
-    fun ingestSpotifyUrl(url: String) {
-        if (!url.contains("spotify.com")) {
-            _ingestState.value = IngestUiState.Error("El enlace no es de Spotify")
+    fun ingestMediaUrl(url: String) {
+        val trimmed = url.trim()
+        val isValid = trimmed.contains("spotify.com") ||
+                      trimmed.contains("youtube.com") ||
+                      trimmed.contains("youtu.be")
+        if (!isValid) {
+            _ingestState.value = IngestUiState.Error("El enlace debe ser de Spotify o YouTube")
             return
         }
 
         viewModelScope.launch {
             _ingestState.value = IngestUiState.Loading
-            trackRepository.requestIngest(url)
+            trackRepository.requestIngest(trimmed)
                 .onSuccess { response ->
                     _ingestState.value = IngestUiState.Success(response.message)
                 }
@@ -103,6 +107,8 @@ class SearchViewModel @Inject constructor(
                 }
         }
     }
+
+    fun ingestSpotifyUrl(url: String) = ingestMediaUrl(url)
 
     fun resetState() {
         _ingestState.value = IngestUiState.Idle

@@ -124,8 +124,8 @@ fun SearchScreen(
                     val clip = clipboardManager.getText()?.text?.trim()
                     if (clip.isNullOrBlank()) {
                         Toast.makeText(context, "El portapapeles está vacío", Toast.LENGTH_SHORT).show()
-                    } else if (clip.contains("spotify.com")) {
-                        viewModel.ingestSpotifyUrl(clip)
+                    } else if (clip.contains("spotify.com") || clip.contains("youtube.com") || clip.contains("youtu.be")) {
+                        viewModel.ingestMediaUrl(clip)
                         Toast.makeText(context, "Enlace registrado para descarga en la nube", Toast.LENGTH_SHORT).show()
                     } else {
                         viewModel.onQueryChange(clip)
@@ -135,7 +135,7 @@ fun SearchScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.ContentPaste,
-                    contentDescription = "Pegar enlace de Spotify",
+                    contentDescription = "Pegar enlace de Spotify o YouTube",
                     tint = MonkifyPrimary
                 )
             }

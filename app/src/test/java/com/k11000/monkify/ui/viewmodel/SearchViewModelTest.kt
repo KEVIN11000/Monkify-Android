@@ -148,14 +148,31 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun `ingestSpotifyUrl con url no de Spotify actualiza ingestState a Error sin llamar repositorio`() = runTest(testDispatcher) {
+    fun `ingestMediaUrl con url de YouTube valida invoca repositorio y actualiza ingestState a Success`() = runTest(testDispatcher) {
+        val fakeRepo = FakeTrackRepository()
+        fakeRepo.ingestResult = Result.success(IngestResponse("task_yt", "accepted", "Enlace de YouTube añadido a la cola"))
+        val viewModel = SearchViewModel(fakeRepo)
+
+        viewModel.ingestMediaUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        runCurrent()
+
+        assertEquals("https://www.youtube.com/watch?v=dQw4w9WgXcQ", fakeRepo.requestedUrl)
+        assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Success)
+        val success = viewModel.ingestState.value as com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Success
+        assertEquals("Enlace de YouTube añadido a la cola", success.message)
+    }
+
+    @Test
+    fun `ingestMediaUrl con url de dominio invalido actualiza ingestState a Error sin llamar repositorio`() = runTest(testDispatcher) {
         val fakeRepo = FakeTrackRepository()
         val viewModel = SearchViewModel(fakeRepo)
 
-        viewModel.ingestSpotifyUrl("https://youtube.com/watch?v=123")
+        viewModel.ingestMediaUrl("https://vimeo.com/12345678")
         runCurrent()
 
         assertEquals(null, fakeRepo.requestedUrl)
         assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error)
+        val error = viewModel.ingestState.value as com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error
+        assertEquals("El enlace debe ser de Spotify o YouTube", error.message)
     }
 }
