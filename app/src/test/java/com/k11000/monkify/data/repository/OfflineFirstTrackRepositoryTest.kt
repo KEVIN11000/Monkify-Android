@@ -78,6 +78,8 @@ class OfflineFirstTrackRepositoryTest {
             }
             return 1
         }
+
+        override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
     }
 
     private class FakeMonkifyApi(

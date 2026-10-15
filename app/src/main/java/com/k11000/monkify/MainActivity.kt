@@ -69,11 +69,16 @@ import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 import com.k11000.monkify.ui.theme.MyApplicationTheme
+import com.k11000.monkify.domain.repository.SyncScheduler
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var syncScheduler: SyncScheduler
 
     private val playerViewModel: PlayerViewModel by viewModels()
     private var isInPipMode by mutableStateOf(false)
@@ -94,6 +99,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        try {
+            syncScheduler.schedulePeriodicSync()
+        } catch (_: Throwable) {
+            // No bloquear la inicialización de UI si el planificador de WorkManager está en entorno restringido
+        }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)

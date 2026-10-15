@@ -45,4 +45,8 @@ interface TrackDao {
 
     @Query("UPDATE favorite_tracks SET isDownloaded = :isDownloaded, localFilePath = :localPath WHERE id = :id")
     suspend fun updateDownloadStatus(id: String, isDownloaded: Boolean, localPath: String?): Int
+
+    @Query("SELECT * FROM favorite_tracks")
+    suspend fun getAllTracksSnapshot(): List<TrackEntity>
 }
+

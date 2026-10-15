@@ -96,7 +96,10 @@ class LibraryViewModelTest {
             }
             return 1
         }
+
+        override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
     }
+
 
     @Test
     fun `canciones insertadas en Room como favoritas y descargadas se reflejan en displayedTracks`() = runTest(testDispatcher) {

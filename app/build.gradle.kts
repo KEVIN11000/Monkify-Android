@@ -110,7 +110,11 @@ dependencies {
     // Navigation
     implementation(libs.navigation.compose)
     
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+    
     testImplementation(libs.junit)
+
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

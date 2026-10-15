@@ -12,12 +12,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.k11000.monkify.domain.model.SyncStatus
+import com.k11000.monkify.domain.repository.SyncScheduler
 import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
-    private val downloadRepository: DownloadRepository? = null
+    private val downloadRepository: DownloadRepository? = null,
+    private val syncScheduler: SyncScheduler? = null
 ) : ViewModel() {
 
     val downloadedTrackIds: StateFlow<Set<String>> = downloadRepository?.downloadedTrackIds
@@ -26,6 +29,18 @@ class HomeViewModel @Inject constructor(
 
     val downloadingTrackIds: StateFlow<Set<String>> = downloadRepository?.downloadingTrackIds
         ?: MutableStateFlow(emptySet())
+
+    val syncStatus: StateFlow<SyncStatus> = syncScheduler?.syncStatus
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, SyncStatus.IDLE)
+        ?: MutableStateFlow(SyncStatus.IDLE)
+
+    val lastSyncTimestamp: StateFlow<Long> = syncScheduler?.lastSyncTimestamp
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+        ?: MutableStateFlow(0L)
+
+    fun requestSync() {
+        syncScheduler?.scheduleImmediateSync()
+    }
 
     fun toggleDownload(track: Track) {
         viewModelScope.launch {
@@ -58,6 +73,7 @@ class HomeViewModel @Inject constructor(
     fun refresh() {
         _hasMore.value = true
         loadData()
+        syncScheduler?.scheduleImmediateSync()
     }
 
     fun loadData() {

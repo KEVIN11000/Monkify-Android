@@ -41,4 +41,10 @@ abstract class RepositoryModule {
     abstract fun bindPlaylistRepository(
         playlistRepositoryImpl: PlaylistRepositoryImpl
     ): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSyncScheduler(
+        syncSchedulerImpl: com.k11000.monkify.data.sync.SyncSchedulerImpl
+    ): com.k11000.monkify.domain.repository.SyncScheduler
 }

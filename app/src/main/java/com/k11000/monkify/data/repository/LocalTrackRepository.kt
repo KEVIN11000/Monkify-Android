@@ -59,4 +59,26 @@ class LocalTrackRepository @Inject constructor(
             trackDao.updateDownloadStatus(trackId, isDownloaded = false, localPath = null)
         }
     }
+
+    suspend fun syncRemoteCatalog(remoteTracks: List<Track>): Int {
+        val existingMap = trackDao.getAllTracksSnapshot().associateBy { it.id }
+        val entities = remoteTracks.map { track ->
+            val local = existingMap[track.id]
+            com.k11000.monkify.data.local.entity.TrackEntity(
+                id = track.id,
+                title = track.title,
+                artist = track.artist,
+                album = track.album,
+                durationMs = track.durationMs,
+                coverUrl = track.coverUrl,
+                streamUrl = track.streamUrl,
+                isFavorite = local?.isFavorite ?: false,
+                isDownloaded = local?.isDownloaded ?: false,
+                localFilePath = local?.localFilePath
+            )
+        }
+        entities.forEach { trackDao.insertTrack(it) }
+        return entities.size
+    }
 }
+

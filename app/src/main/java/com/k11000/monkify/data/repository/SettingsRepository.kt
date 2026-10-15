@@ -43,6 +43,10 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_LOCK_SCREEN_ENABLED] ?: DEFAULT_LOCK_SCREEN_ENABLED
     }
 
+    val lastSyncTimestamp: Flow<Long> = dataStore.data.map { preferences ->
+        preferences[KEY_LAST_SYNC_TIMESTAMP] ?: DEFAULT_LAST_SYNC_TIMESTAMP
+    }
+
     suspend fun setCacheLimitMb(mb: Long) {
         dataStore.edit { preferences ->
             preferences[KEY_CACHE_LIMIT_MB] = mb
@@ -70,6 +74,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setLockScreenEnabled(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_LOCK_SCREEN_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setLastSyncTimestamp(timestamp: Long) {
+        dataStore.edit { preferences ->
+            preferences[KEY_LAST_SYNC_TIMESTAMP] = timestamp
         }
     }
 
@@ -102,10 +112,12 @@ class SettingsRepository @Inject constructor(
         val KEY_ZEN_MODE_ENABLED = booleanPreferencesKey("zen_mode_enabled")
         val KEY_ZEN_ENGINE = stringPreferencesKey("zen_engine")
         val KEY_LOCK_SCREEN_ENABLED = booleanPreferencesKey("lock_screen_enabled")
+        val KEY_LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
 
         const val DEFAULT_CACHE_LIMIT_MB: Long = 1024L // 1 GB
         const val DEFAULT_ZEN_ENGINE = "AURORA"
         const val DEFAULT_LOCK_SCREEN_ENABLED = false
+        const val DEFAULT_LAST_SYNC_TIMESTAMP: Long = 0L
         const val ZEN_ENGINE_AURORA = "AURORA"
         const val ZEN_ENGINE_VISUALIZER = "VISUALIZER"
     }

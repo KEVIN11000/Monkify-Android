@@ -80,6 +80,30 @@ class HomeViewModelTest {
         assertFalse(viewModel.hasMore.value)
     }
 
+    private class FakeSyncScheduler : com.k11000.monkify.domain.repository.SyncScheduler {
+        val _status = kotlinx.coroutines.flow.MutableStateFlow(com.k11000.monkify.domain.model.SyncStatus.IDLE)
+        override val syncStatus: Flow<com.k11000.monkify.domain.model.SyncStatus> = _status
+
+        val _timestamp = kotlinx.coroutines.flow.MutableStateFlow(0L)
+        override val lastSyncTimestamp: Flow<Long> = _timestamp
+
+        var immediateSyncCalled = false
+        var periodicSyncCalled = false
+
+        override fun schedulePeriodicSync() {
+            periodicSyncCalled = true
+        }
+
+        override fun scheduleImmediateSync() {
+            immediateSyncCalled = true
+            _status.value = com.k11000.monkify.domain.model.SyncStatus.SYNCING
+        }
+
+        override fun cancelSync() {
+            _status.value = com.k11000.monkify.domain.model.SyncStatus.IDLE
+        }
+    }
+
     @Test
     fun `hasMore se desactiva si la primera pagina trae menos de PAGE_SIZE`() = runBlocking {
         val smallCatalog = createSampleTracks(5)
@@ -89,5 +113,40 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel(fakeRepo)
         assertEquals(5, viewModel.feedTracks.value.size)
         assertFalse(viewModel.hasMore.value)
+    }
+
+    @Test
+    fun `refresh invoca scheduleImmediateSync en SyncScheduler y recarga catalogo`() = runBlocking {
+        val fakeRepo = FakeTrackRepository { limit, offset ->
+            createSampleTracks(5)
+        }
+        val fakeScheduler = FakeSyncScheduler()
+        val viewModel = HomeViewModel(
+            trackRepository = fakeRepo,
+            downloadRepository = null,
+            syncScheduler = fakeScheduler
+        )
+
+        assertFalse(fakeScheduler.immediateSyncCalled)
+        viewModel.refresh()
+        assertTrue(fakeScheduler.immediateSyncCalled)
+        assertEquals(com.k11000.monkify.domain.model.SyncStatus.SYNCING, viewModel.syncStatus.value)
+    }
+
+    @Test
+    fun `requestSync invoca planificador bajo demanda y expone lastSyncTimestamp`() = runBlocking {
+        val fakeRepo = FakeTrackRepository { _, _ -> emptyList() }
+        val fakeScheduler = FakeSyncScheduler()
+        fakeScheduler._timestamp.value = 1729000000000L
+
+        val viewModel = HomeViewModel(
+            trackRepository = fakeRepo,
+            downloadRepository = null,
+            syncScheduler = fakeScheduler
+        )
+
+        assertEquals(1729000000000L, viewModel.lastSyncTimestamp.value)
+        viewModel.requestSync()
+        assertTrue(fakeScheduler.immediateSyncCalled)
     }
 }
