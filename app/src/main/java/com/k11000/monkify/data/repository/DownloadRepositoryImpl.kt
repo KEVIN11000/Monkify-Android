@@ -173,7 +173,13 @@ class DownloadRepositoryImpl @Inject constructor(
             val response = okHttpClient.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                throw IOException("Fallo en la descarga de audio HTTP ${response.code}")
+                val errorMsg = when (response.code) {
+                    404 -> "Pista no disponible en el servidor (HTTP 404)"
+                    401, 403 -> "Acceso no autorizado al audio (${response.code})"
+                    500, 502, 503 -> "Servidor de almacenamiento no disponible (${response.code})"
+                    else -> "Fallo en la descarga de audio (HTTP ${response.code})"
+                }
+                throw IOException(errorMsg)
             }
 
             val body = response.body ?: throw IOException("Cuerpo de respuesta vacío")
@@ -220,7 +226,12 @@ class DownloadRepositoryImpl @Inject constructor(
             if (tempAudioFile.exists()) {
                 tempAudioFile.delete()
             }
-            stateFlow.value = DownloadState.Error(e.message ?: "Error en la descarga")
+            val userMsg = when {
+                e.message?.contains("404") == true -> "Pista no disponible en el servidor (HTTP 404)"
+                e.message?.contains("Espacio insuficiente") == true -> e.message ?: "Espacio insuficiente"
+                else -> e.message ?: "Error en la descarga"
+            }
+            stateFlow.value = DownloadState.Error(userMsg)
             Result.failure(e)
         } finally {
             _downloadingTrackIds.value = _downloadingTrackIds.value - track.id

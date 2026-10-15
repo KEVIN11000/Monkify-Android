@@ -18,7 +18,8 @@ import com.k11000.monkify.ui.screens.SettingsScreen
 @Composable
 fun MonkifyNavGraph(
     navController: NavHostController,
-    innerPadding: PaddingValues
+    innerPadding: PaddingValues,
+    homeScrollTrigger: Int = 0
 ) {
     NavHost(
         navController = navController,
@@ -26,7 +27,10 @@ fun MonkifyNavGraph(
         modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()) // Solo empujamos la parte de abajo
     ) {
         composable(BottomNavItem.Home.route) {
-            HomeScreen(onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) })
+            HomeScreen(
+                onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) },
+                scrollToTopTrigger = homeScrollTrigger
+            )
         }
         composable(BottomNavItem.Search.route) {
             SearchScreen()

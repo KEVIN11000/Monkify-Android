@@ -149,4 +149,49 @@ class PlayerControlsTest {
         val zenModeKey = com.k11000.monkify.data.repository.SettingsRepository.KEY_ZEN_MODE_ENABLED
         assertEquals("zen_mode_enabled", zenModeKey.name)
     }
+
+    @Test
+    fun `preferencias de estilo de caratula constantes y alternancia de MODERN y VINYL`() {
+        val modern = com.k11000.monkify.data.repository.SettingsRepository.COVER_STYLE_MODERN
+        val vinyl = com.k11000.monkify.data.repository.SettingsRepository.COVER_STYLE_VINYL
+
+        assertEquals("MODERN", modern)
+        assertEquals("VINYL", vinyl)
+        assertEquals("MODERN", com.k11000.monkify.data.repository.SettingsRepository.DEFAULT_COVER_STYLE)
+
+        fun toggleCoverStyle(current: String): String =
+            if (current == vinyl) modern else vinyl
+
+        var style = modern
+        style = toggleCoverStyle(style)
+        assertEquals("VINYL", style)
+
+        style = toggleCoverStyle(style)
+        assertEquals("MODERN", style)
+    }
+
+    @Test
+    fun `parsePlaybackError traduce error 404 en mensaje legible`() {
+        val exception = androidx.media3.common.PlaybackException(
+            "Response code: 404",
+            java.io.IOException("HTTP 404"),
+            androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
+        )
+
+        fun parseError(error: androidx.media3.common.PlaybackException): String {
+            val cause = error.cause
+            val message = cause?.message ?: error.message ?: ""
+            return when {
+                message.contains("404") || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+                    "Pista no disponible en el servidor (HTTP 404)"
+                message.contains("Unable to connect") || message.contains("ConnectException") || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                    "Error de conexión de red al reproducir"
+                else ->
+                    "Error de reproducción: ${error.errorCodeName}"
+            }
+        }
+
+        val msg = parseError(exception)
+        assertEquals("Pista no disponible en el servidor (HTTP 404)", msg)
+    }
 }

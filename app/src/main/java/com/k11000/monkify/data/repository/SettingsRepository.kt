@@ -39,6 +39,10 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_ZEN_ENGINE] ?: DEFAULT_ZEN_ENGINE
     }
 
+    val coverStyle: Flow<String> = dataStore.data.map { preferences ->
+        preferences[KEY_COVER_STYLE] ?: DEFAULT_COVER_STYLE
+    }
+
     val lockScreenEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[KEY_LOCK_SCREEN_ENABLED] ?: DEFAULT_LOCK_SCREEN_ENABLED
     }
@@ -68,6 +72,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setZenEngine(engine: String) {
         dataStore.edit { preferences ->
             preferences[KEY_ZEN_ENGINE] = engine
+        }
+    }
+
+    suspend fun setCoverStyle(style: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_COVER_STYLE] = style
         }
     }
 
@@ -111,11 +121,15 @@ class SettingsRepository @Inject constructor(
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val KEY_ZEN_MODE_ENABLED = booleanPreferencesKey("zen_mode_enabled")
         val KEY_ZEN_ENGINE = stringPreferencesKey("zen_engine")
+        val KEY_COVER_STYLE = stringPreferencesKey("cover_style")
         val KEY_LOCK_SCREEN_ENABLED = booleanPreferencesKey("lock_screen_enabled")
         val KEY_LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
 
         const val DEFAULT_CACHE_LIMIT_MB: Long = 1024L // 1 GB
         const val DEFAULT_ZEN_ENGINE = "AURORA"
+        const val DEFAULT_COVER_STYLE = "MODERN"
+        const val COVER_STYLE_MODERN = "MODERN"
+        const val COVER_STYLE_VINYL = "VINYL"
         const val DEFAULT_LOCK_SCREEN_ENABLED = false
         const val DEFAULT_LAST_SYNC_TIMESTAMP: Long = 0L
         const val ZEN_ENGINE_AURORA = "AURORA"

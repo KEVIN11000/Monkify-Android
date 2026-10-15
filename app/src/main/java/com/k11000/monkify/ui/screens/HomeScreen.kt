@@ -67,6 +67,7 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 @Composable
 fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
+    scrollToTopTrigger: Int = 0,
     viewModel: HomeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -86,6 +87,14 @@ fun HomeScreen(
     val settingsState by settingsViewModel.uiState.collectAsState()
     val isZenCleared by playerViewModel.isZenCleared.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+
+    // Manejo de desplazamiento al tope y restauración de pantalla despejada al pulsar Inicio
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            playerViewModel.setZenCleared(false)
+            listState.animateScrollToItem(0)
+        }
+    }
 
     val isEffectivelyCleared = isZenCleared && settingsState.zenModeEnabled
     val contentAlpha by animateFloatAsState(
@@ -231,6 +240,7 @@ fun HomeScreen(
                             rowTracks.forEach { track ->
                                 QuickGridItem(
                                     track = track,
+                                    isDownloaded = track.id in downloadedTrackIds,
                                     onClick = { playerViewModel.playTrack(track) },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -280,6 +290,7 @@ fun HomeScreen(
                             title = if (track.album.isNotBlank()) track.album else track.title,
                             subtitle = track.artist,
                             coverUrl = track.coverUrl,
+                            isDownloaded = track.id in downloadedTrackIds,
                             onClick = { playerViewModel.playTrack(track) }
                         )
                     }
@@ -389,7 +400,8 @@ fun FilterChip(text: String, isSelected: Boolean) {
 fun QuickGridItem(
     track: Track,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDownloaded: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -398,25 +410,63 @@ fun QuickGridItem(
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.coverUrl ?: "https://via.placeholder.com/150",
-            contentDescription = track.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(54.dp)
-                .background(Color.DarkGray)
-        )
+        Box {
+            AsyncImage(
+                model = track.coverUrl ?: "https://via.placeholder.com/150",
+                contentDescription = track.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(Color.DarkGray)
+            )
+            if (isDownloaded) {
+                Surface(
+                    color = MonkifyDarkGray.copy(alpha = 0.85f),
+                    shape = RoundedCornerShape(bottomEnd = 4.dp),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DownloadDone,
+                        contentDescription = "Descargada",
+                        tint = MonkifyPrimary,
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .size(10.dp)
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = track.title,
-            color = MonkifyOnBackground,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(end = 8.dp)
-        )
+        ) {
+            Text(
+                text = track.title,
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = if (isDownloaded) 1 else 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (isDownloaded) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.DownloadDone,
+                        contentDescription = null,
+                        tint = MonkifyPrimary,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "Descargada",
+                        color = MonkifyPrimary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -457,22 +507,41 @@ fun AlbumCard(
     title: String,
     subtitle: String,
     coverUrl: String?,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    isDownloaded: Boolean = false
 ) {
     Column(
         modifier = Modifier
             .width(140.dp)
             .clickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = coverUrl ?: "https://via.placeholder.com/150",
-            contentDescription = title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(140.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.DarkGray)
-        )
+        Box {
+            AsyncImage(
+                model = coverUrl ?: "https://via.placeholder.com/150",
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(140.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.DarkGray)
+            )
+            if (isDownloaded) {
+                Surface(
+                    color = MonkifyDarkGray.copy(alpha = 0.9f),
+                    shape = RoundedCornerShape(bottomStart = 8.dp),
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DownloadDone,
+                        contentDescription = "Descargada",
+                        tint = MonkifyPrimary,
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(14.dp)
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = title,

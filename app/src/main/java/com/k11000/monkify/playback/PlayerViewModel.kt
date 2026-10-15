@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -17,8 +18,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,6 +59,21 @@ class PlayerViewModel @Inject constructor(
         ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_ZEN_ENGINE)
         ?: MutableStateFlow(SettingsRepository.DEFAULT_ZEN_ENGINE)
 
+    val coverStyle: StateFlow<String> = settingsRepository?.coverStyle
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_COVER_STYLE)
+        ?: MutableStateFlow(SettingsRepository.DEFAULT_COVER_STYLE)
+
+    fun toggleCoverStyle() {
+        val nextStyle = if (coverStyle.value == SettingsRepository.COVER_STYLE_VINYL) {
+            SettingsRepository.COVER_STYLE_MODERN
+        } else {
+            SettingsRepository.COVER_STYLE_VINYL
+        }
+        viewModelScope.launch {
+            settingsRepository?.setCoverStyle(nextStyle)
+        }
+    }
+
     private var mediaController: MediaController? = null
 
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
@@ -89,6 +108,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
+    private val _playbackError = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val playbackError: SharedFlow<String> = _playbackError.asSharedFlow()
 
     private val _isZenCleared = MutableStateFlow(false)
     val isZenCleared: StateFlow<Boolean> = _isZenCleared.asStateFlow()
@@ -341,6 +363,26 @@ class PlayerViewModel @Inject constructor(
                     _duration.value = it.duration.coerceAtLeast(0)
                 }
             }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            super.onPlayerError(error)
+            _isPlaying.value = false
+            val errorMsg = parsePlaybackError(error)
+            _playbackError.tryEmit(errorMsg)
+        }
+    }
+
+    fun parsePlaybackError(error: PlaybackException): String {
+        val cause = error.cause
+        val message = cause?.message ?: error.message ?: ""
+        return when {
+            message.contains("404") || error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+                "Pista no disponible en el servidor (HTTP 404)"
+            message.contains("Unable to connect") || message.contains("ConnectException") || error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                "Error de conexión de red al reproducir"
+            else ->
+                "Error de reproducción: ${error.errorCodeName}"
         }
     }
 

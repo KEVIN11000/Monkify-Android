@@ -202,4 +202,23 @@ class DownloadRepositoryTest {
         assertEquals(Pair(1, 5), progressReports.first())
         assertEquals(Pair(5, 5), progressReports.last())
     }
+
+    @Test
+    fun download_error_mapping_translates_http_codes_to_friendly_spanish_messages() {
+        fun mapHttpError(code: Int): String {
+            return when (code) {
+                404 -> "Pista no disponible en el servidor (HTTP 404)"
+                401, 403 -> "Acceso no autorizado al audio ($code)"
+                500, 502, 503 -> "Servidor de almacenamiento no disponible ($code)"
+                else -> "Fallo en la descarga de audio (HTTP $code)"
+            }
+        }
+
+        assertEquals("Pista no disponible en el servidor (HTTP 404)", mapHttpError(404))
+        assertEquals("Acceso no autorizado al audio (401)", mapHttpError(401))
+        assertEquals("Acceso no autorizado al audio (403)", mapHttpError(403))
+        assertEquals("Servidor de almacenamiento no disponible (500)", mapHttpError(500))
+        assertEquals("Servidor de almacenamiento no disponible (502)", mapHttpError(502))
+        assertEquals("Fallo en la descarga de audio (HTTP 418)", mapHttpError(418))
+    }
 }

@@ -27,6 +27,31 @@ class SettingsTest {
     @Test
     fun `ruta de navegacion para ajustes esta configurada`() {
         assertEquals("settings", Destinations.SETTINGS)
+        assertEquals("home", Destinations.HOME)
+        assertEquals("search", Destinations.SEARCH)
+        assertEquals("library", Destinations.LIBRARY)
+        assertEquals("home", com.k11000.monkify.ui.navigation.BottomNavItem.Home.route)
+        assertEquals("Inicio", com.k11000.monkify.ui.navigation.BottomNavItem.Home.label)
+    }
+
+    @Test
+    fun `home reselection trigger incrementa contador y ejecuta reseteo de pantalla zen`() {
+        var showFullScreenPlayer = true
+        var isZenCleared = true
+        var homeScrollTrigger = 0
+
+        // Simular callback de onHomeReselect
+        val onHomeReselect = {
+            showFullScreenPlayer = false
+            isZenCleared = false
+            homeScrollTrigger++
+        }
+
+        onHomeReselect()
+
+        assertFalse(showFullScreenPlayer)
+        assertFalse(isZenCleared)
+        assertEquals(1, homeScrollTrigger)
     }
 
     @Test

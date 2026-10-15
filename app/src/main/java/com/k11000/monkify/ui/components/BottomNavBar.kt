@@ -15,7 +15,10 @@ import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 
 @Composable
-fun BottomNavBar(navController: NavController) {
+fun BottomNavBar(
+    navController: NavController,
+    onHomeReselect: (() -> Unit)? = null
+) {
     NavigationBar(
         containerColor = MonkifyBackground,
         contentColor = MonkifyOnBackground
@@ -24,17 +27,27 @@ fun BottomNavBar(navController: NavController) {
         val currentRoute = navBackStackEntry?.destination?.route
 
         bottomNavItems.forEach { item ->
+            val isSelected = currentRoute == item.route
             NavigationBarItem(
                 icon = { Icon(imageVector = item.icon, contentDescription = item.label) },
                 label = { Text(item.label) },
-                selected = currentRoute == item.route,
+                selected = isSelected,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+                    if (isSelected) {
+                        if (item.route == "home") {
+                            onHomeReselect?.invoke()
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                    } else {
+                        if (item.route == "home") {
+                            onHomeReselect?.invoke()
+                        }
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(

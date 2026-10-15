@@ -1,7 +1,9 @@
 package com.k11000.monkify.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,6 +12,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
@@ -63,6 +67,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,11 +83,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
+import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.LyricsView
+import com.k11000.monkify.ui.components.VinylTurntable
 import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
@@ -115,6 +122,7 @@ fun FullScreenPlayer(
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
     val zenModeEnabled by viewModel.zenModeEnabled.collectAsState()
     val zenEngine by viewModel.zenEngine.collectAsState()
+    val coverStyle by viewModel.coverStyle.collectAsState()
 
     val context = LocalContext.current
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
@@ -122,13 +130,31 @@ fun FullScreenPlayer(
     var showDeleteDownloadDialog by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
     var showDeviceSheet by remember { mutableStateOf(false) }
+    var isZenImmersive by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    // Manejo del botón de retroceso: si está en modo Zen inmersivo sale de él; si las letras están visibles las cierra; si no, colapsa el reproductor
+    BackHandler(enabled = true) {
+        if (isZenImmersive) {
+            isZenImmersive = false
+        } else if (showLyrics) {
+            showLyrics = false
+        } else {
+            onClose()
+        }
+    }
 
     LaunchedEffect(downloadState) {
         if (downloadState is DownloadState.Error) {
             val errorMsg = (downloadState as DownloadState.Error).message
             Toast.makeText(context, "Error en descarga: $errorMsg", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.playbackError.collect { errorMsg ->
+            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -144,6 +170,14 @@ fun FullScreenPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (zenModeEnabled) {
+                    isZenImmersive = !isZenImmersive
+                }
+            }
     ) {
         if (zenModeEnabled) {
             ZenBackground(
@@ -167,11 +201,16 @@ fun FullScreenPlayer(
             )
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
+        AnimatedVisibility(
+            visible = !isZenImmersive,
+            enter = fadeIn(animationSpec = tween(280)),
+            exit = fadeOut(animationSpec = tween(200))
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
+            ) {
         // Barra Superior
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -197,12 +236,22 @@ fun FullScreenPlayer(
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
-            IconButton(onClick = { showDeviceSheet = true }) {
-                Icon(
-                    imageVector = Icons.Default.Devices,
-                    contentDescription = "Monkify Connect",
-                    tint = MonkifyPrimary
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Selector de Estilo de Carátula (Moderno vs Vinilo/Vitrola)
+                IconButton(onClick = { viewModel.toggleCoverStyle() }) {
+                    Icon(
+                        imageVector = Icons.Default.Album,
+                        contentDescription = "Cambiar estilo de carátula",
+                        tint = if (coverStyle == SettingsRepository.COVER_STYLE_VINYL) MonkifyPrimary else MonkifyGray
+                    )
+                }
+                IconButton(onClick = { showDeviceSheet = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Devices,
+                        contentDescription = "Monkify Connect",
+                        tint = MonkifyPrimary
+                    )
+                }
             }
         }
 
@@ -212,7 +261,15 @@ fun FullScreenPlayer(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f),
+                .aspectRatio(1f)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (zenModeEnabled) {
+                        isZenImmersive = !isZenImmersive
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -239,26 +296,34 @@ fun FullScreenPlayer(
                         )
                     }
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Sombra / Aura difusa de resplandor ambiental
+                    if (coverStyle == SettingsRepository.COVER_STYLE_VINYL) {
+                        VinylTurntable(
+                            coverUrl = coverUrl,
+                            isPlaying = isPlaying,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize(0.94f)
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(MonkifyPrimary.copy(alpha = 0.22f))
-                        )
-                        AsyncImage(
-                            model = coverUrl ?: "https://via.placeholder.com/500",
-                            contentDescription = "Carátula de álbum",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.DarkGray)
-                        )
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Sombra / Aura difusa de resplandor ambiental
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize(0.94f)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(MonkifyPrimary.copy(alpha = 0.22f))
+                            )
+                            AsyncImage(
+                                model = coverUrl ?: "https://via.placeholder.com/500",
+                                contentDescription = "Carátula de álbum",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.DarkGray)
+                            )
+                        }
                     }
                 }
             }
@@ -490,6 +555,41 @@ fun FullScreenPlayer(
             }
         }
     }
+        }
+
+        // Modo Zen Inmersivo: Rótulo minimalista en la parte inferior
+        AnimatedVisibility(
+            visible = isZenImmersive,
+            enter = fadeIn(animationSpec = tween(350)),
+            exit = fadeOut(animationSpec = tween(250)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 56.dp, start = 32.dp, end = 32.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = title,
+                    color = MonkifyOnBackground.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = artist,
+                    color = MonkifyPrimary.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Toca para mostrar controles",
+                    color = MonkifyGray.copy(alpha = 0.55f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
 
     // Modal de Selección de Dispositivos (Monkify Connect)
     if (showDeviceSheet) {

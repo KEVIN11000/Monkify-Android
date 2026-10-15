@@ -1,8 +1,7 @@
 package com.k11000.monkify.ui.components
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
@@ -41,7 +39,6 @@ import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MiniPlayer(
     modifier: Modifier = Modifier,
@@ -54,7 +51,6 @@ fun MiniPlayer(
     val artist by viewModel.currentTrackArtist.collectAsState()
     val coverUrl by viewModel.coverUrl.collectAsState()
     val progress by viewModel.progress.collectAsState()
-    val settingsState by settingsViewModel.uiState.collectAsState()
 
     Box(
         modifier = modifier
@@ -62,16 +58,7 @@ fun MiniPlayer(
             .padding(horizontal = 8.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(MonkifyDarkGray)
-            .combinedClickable(
-                onClick = {
-                    if (settingsState.zenModeEnabled) {
-                        viewModel.toggleZenCleared()
-                    } else {
-                        onExpand()
-                    }
-                },
-                onLongClick = onExpand
-            )
+            .clickable(onClick = onExpand)
     ) {
         Column {
             Row(
@@ -110,16 +97,6 @@ fun MiniPlayer(
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Botón explícito para expandir a pantalla completa
-                IconButton(onClick = onExpand) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInFull,
-                        contentDescription = "Pantalla completa",
-                        tint = MonkifyGray,
-                        modifier = Modifier.size(20.dp)
                     )
                 }
 

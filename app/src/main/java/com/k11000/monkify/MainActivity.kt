@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -138,6 +139,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        lifecycleScope.launch {
+            playerViewModel.playbackError.collect { errorMsg ->
+                android.widget.Toast.makeText(this@MainActivity, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -158,6 +165,12 @@ class MainActivity : ComponentActivity() {
                 } else {
                     val navController = rememberNavController()
                     var showFullScreenPlayer by rememberSaveable { mutableStateOf(false) }
+                    var homeScrollTrigger by rememberSaveable { mutableStateOf(0) }
+
+                    // Interceptar retroceso del sistema para colapsar el reproductor sin salir de la app
+                    BackHandler(enabled = showFullScreenPlayer) {
+                        showFullScreenPlayer = false
+                    }
 
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
@@ -170,14 +183,22 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 AnimatedVisibility(visible = !showFullScreenPlayer) {
-                                    BottomNavBar(navController = navController)
+                                    BottomNavBar(
+                                        navController = navController,
+                                        onHomeReselect = {
+                                            showFullScreenPlayer = false
+                                            playerViewModel.setZenCleared(false)
+                                            homeScrollTrigger++
+                                        }
+                                    )
                                 }
                             }
                         }
                     ) { innerPadding ->
                         MonkifyNavGraph(
                             navController = navController,
-                            innerPadding = innerPadding
+                            innerPadding = innerPadding,
+                            homeScrollTrigger = homeScrollTrigger
                         )
                     }
 
