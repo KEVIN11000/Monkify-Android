@@ -1,6 +1,13 @@
 package com.k11000.monkify.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +83,7 @@ import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.LyricsView
+import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
@@ -104,6 +113,8 @@ fun FullScreenPlayer(
     val downloadState by viewModel.currentDownloadState.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
+    val zenModeEnabled by viewModel.zenModeEnabled.collectAsState()
+    val zenEngine by viewModel.zenEngine.collectAsState()
 
     val context = LocalContext.current
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
@@ -129,12 +140,38 @@ fun FullScreenPlayer(
         return String.format("%d:%02d", minutes, seconds)
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
     ) {
+        if (zenModeEnabled) {
+            ZenBackground(
+                isPlaying = isPlaying,
+                engine = zenEngine,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Viñeta ambiental superior e inferior para óptimo contraste de tipografías y controles
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.55f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.75f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
+        ) {
         // Barra Superior
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -171,45 +208,59 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Área Central: Carátula o Letras Sincronizadas
+        // Área Central: Carátula o Letras Sincronizadas con transición fluida
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f),
             contentAlignment = Alignment.Center
         ) {
-            if (showLyrics) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MonkifyDarkGray.copy(alpha = 0.5f))
-                ) {
-                    LyricsView(
-                        lyrics = lyrics,
-                        currentPositionMs = currentPosition,
-                        onLineClick = { timestampMs ->
-                            viewModel.seekTo(timestampMs)
-                        }
-                    )
+            AnimatedContent(
+                targetState = showLyrics,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.95f, animationSpec = tween(300)))
+                        .togetherWith(fadeOut(animationSpec = tween(200)) + scaleOut(targetScale = 0.95f, animationSpec = tween(200)))
+                },
+                label = "CoverLyricsTransition"
+            ) { isLyricsVisible ->
+                if (isLyricsVisible) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MonkifyDarkGray.copy(alpha = 0.5f))
+                    ) {
+                        LyricsView(
+                            lyrics = lyrics,
+                            currentPositionMs = currentPosition,
+                            onLineClick = { timestampMs ->
+                                viewModel.seekTo(timestampMs)
+                            }
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Sombra / Aura difusa de resplandor ambiental
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize(0.94f)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MonkifyPrimary.copy(alpha = 0.22f))
+                        )
+                        AsyncImage(
+                            model = coverUrl ?: "https://via.placeholder.com/500",
+                            contentDescription = "Carátula de álbum",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.DarkGray)
+                        )
+                    }
                 }
-            } else {
-                // Sombra / Aura difusa de resplandor ambiental
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize(0.94f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MonkifyPrimary.copy(alpha = 0.22f))
-                )
-                AsyncImage(
-                    model = coverUrl ?: "https://via.placeholder.com/500",
-                    contentDescription = "Carátula de álbum",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.DarkGray)
-                )
             }
         }
 
@@ -589,5 +640,6 @@ fun FullScreenPlayer(
             }
         )
     }
+}
 }
 

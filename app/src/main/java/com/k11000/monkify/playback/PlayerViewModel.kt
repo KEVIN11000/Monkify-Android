@@ -21,8 +21,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
-
+import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.ActionResponseDto
 import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
@@ -41,8 +43,17 @@ class PlayerViewModel @Inject constructor(
     private val localTrackRepository: LocalTrackRepository,
     private val downloadRepository: DownloadRepository,
     private val monkifyApi: MonkifyApi,
-    private val playlistRepository: PlaylistRepository? = null
+    private val playlistRepository: PlaylistRepository? = null,
+    private val settingsRepository: SettingsRepository? = null
 ) : ViewModel() {
+
+    val zenModeEnabled: StateFlow<Boolean> = settingsRepository?.zenModeEnabled
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+        ?: MutableStateFlow(true)
+
+    val zenEngine: StateFlow<String> = settingsRepository?.zenEngine
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_ZEN_ENGINE)
+        ?: MutableStateFlow(SettingsRepository.DEFAULT_ZEN_ENGINE)
 
     private var mediaController: MediaController? = null
 

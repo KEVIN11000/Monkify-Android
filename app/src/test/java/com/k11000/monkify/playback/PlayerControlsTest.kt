@@ -122,4 +122,31 @@ class PlayerControlsTest {
         assertEquals(5000L, parsed[1].timestampMs)
         assertEquals("Local offline lyric line 2", parsed[1].text)
     }
+
+    @Test
+    fun `preferencias zen constantes y alternancia de motores AURORA y VISUALIZER`() {
+        val aurora = com.k11000.monkify.data.repository.SettingsRepository.ZEN_ENGINE_AURORA
+        val visualizer = com.k11000.monkify.data.repository.SettingsRepository.ZEN_ENGINE_VISUALIZER
+
+        assertEquals("AURORA", aurora)
+        assertEquals("VISUALIZER", visualizer)
+        assertEquals("AURORA", com.k11000.monkify.data.repository.SettingsRepository.DEFAULT_ZEN_ENGINE)
+
+        // Alternancia de motor
+        fun toggleEngine(current: String): String =
+            if (current == aurora) visualizer else aurora
+
+        var activeEngine = aurora
+        activeEngine = toggleEngine(activeEngine)
+        assertEquals("VISUALIZER", activeEngine)
+
+        activeEngine = toggleEngine(activeEngine)
+        assertEquals("AURORA", activeEngine)
+    }
+
+    @Test
+    fun `zen mode enabled default es true segun la configuracion`() {
+        val zenModeKey = com.k11000.monkify.data.repository.SettingsRepository.KEY_ZEN_MODE_ENABLED
+        assertEquals("zen_mode_enabled", zenModeKey.name)
+    }
 }

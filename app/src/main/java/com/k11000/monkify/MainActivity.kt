@@ -19,8 +19,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -174,11 +181,24 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Reproductor Pantalla Completa Flotante
+                    // Reproductor Pantalla Completa Flotante con físicas de resorte y desvanecimiento
                     AnimatedVisibility(
                         visible = showFullScreenPlayer,
-                        enter = slideInVertically(initialOffsetY = { it }),
-                        exit = slideOutVertically(targetOffsetY = { it })
+                        enter = slideInVertically(
+                            initialOffsetY = { (it * 0.9f).toInt() },
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) + fadeIn(
+                            animationSpec = tween(durationMillis = 280, easing = LinearOutSlowInEasing)
+                        ),
+                        exit = slideOutVertically(
+                            targetOffsetY = { it },
+                            animationSpec = tween(durationMillis = 240, easing = FastOutLinearInEasing)
+                        ) + fadeOut(
+                            animationSpec = tween(durationMillis = 180)
+                        )
                     ) {
                         FullScreenPlayer(
                             onClose = { showFullScreenPlayer = false }
