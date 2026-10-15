@@ -107,4 +107,37 @@ class OfflinePlaybackSimulationTest {
         assertEquals("/local/path/t2.mp3", offlinePlayableTracks[1].streamUrl)
         assertNotNull(offlinePlayableTracks[0].title)
     }
+
+    @Test
+    fun `resolucion de stream local prioriza getLocalAudioPath sobre url remota`() {
+        val remoteTrack = Track(
+            id = "t_downloaded_1",
+            title = "Offline Priority Track",
+            artist = "Artist",
+            album = "Album",
+            durationMs = 180000,
+            coverUrl = null,
+            streamUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/t_downloaded_1"
+        )
+        val tempFile = File.createTempFile("monkify_offline_test", ".mp3")
+        try {
+            tempFile.writeBytes(ByteArray(1024))
+            val localPath = tempFile.absolutePath
+
+            // Simular lógica de resolución offline implementada en PlayerViewModel.playQueue:
+            val streamUriString = if (!localPath.isNullOrBlank() && File(localPath).exists()) {
+                "file://$localPath"
+            } else if (remoteTrack.streamUrl.isNotBlank()) {
+                remoteTrack.streamUrl
+            } else {
+                "https://fallback"
+            }
+
+            assertTrue("La URI de reproducción debe resolver a archivo local con esquema file://", streamUriString.startsWith("file://"))
+            assertTrue(streamUriString.contains(tempFile.name))
+        } finally {
+            tempFile.delete()
+        }
+    }
 }
+

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -35,6 +38,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,8 +82,12 @@ fun PlaylistDetailScreen(
     val playlistName by viewModel.playlistName.collectAsState()
     val tracks by viewModel.tracks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
+    val isDownloadingAll by viewModel.isDownloadingAll.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+
 
     LaunchedEffect(playlistId) {
         viewModel.loadPlaylist(playlistId, initialName)
@@ -170,18 +179,78 @@ fun PlaylistDetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (tracks.isNotEmpty()) {
-                        Button(
-                            onClick = { playerViewModel.playQueue(tracks, 0) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MonkifyPrimary,
-                                contentColor = Color.Black
-                            ),
-                            shape = CircleShape,
-                            modifier = Modifier.height(48.dp)
+                        val allDownloaded = tracks.all { it.id in downloadedTrackIds }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = "Reproducir Todo", fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = { playerViewModel.playQueue(tracks, 0) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MonkifyPrimary,
+                                    contentColor = Color.Black
+                                ),
+                                shape = CircleShape,
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = "Reproducir Todo", fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (!isDownloadingAll && !allDownloaded) {
+                                        viewModel.downloadAllTracks { res ->
+                                            res.fold(
+                                                onSuccess = {
+                                                    Toast.makeText(context, "Descarga de playlist completada", Toast.LENGTH_SHORT).show()
+                                                },
+                                                onFailure = { err ->
+                                                    Toast.makeText(context, err.message ?: "Error al descargar", Toast.LENGTH_SHORT).show()
+                                                }
+                                            )
+                                        }
+                                    } else if (allDownloaded) {
+                                        Toast.makeText(context, "Todas las canciones están descargadas", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (allDownloaded) MonkifyPrimary else MonkifyOnBackground
+                                ),
+                                border = BorderStroke(1.dp, if (allDownloaded) MonkifyPrimary else MonkifyDarkGray),
+                                shape = CircleShape,
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                if (isDownloadingAll) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = MonkifyPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "${downloadProgress.first}/${downloadProgress.second}",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = if (allDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (allDownloaded) MonkifyPrimary else MonkifyGray
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (allDownloaded) "Descargada" else "Descargar",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (allDownloaded) MonkifyPrimary else MonkifyOnBackground
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -276,6 +345,17 @@ fun PlaylistDetailScreen(
                             )
                         }
 
+                        if (track.id in downloadedTrackIds) {
+                            Icon(
+                                imageVector = Icons.Default.DownloadDone,
+                                contentDescription = "Descargada offline",
+                                tint = MonkifyPrimary,
+                                modifier = Modifier
+                                    .padding(horizontal = 6.dp)
+                                    .size(18.dp)
+                            )
+                        }
+
                         // Botón Quitar de Playlist
                         IconButton(
                             onClick = {
@@ -301,6 +381,7 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
+
 
             item {
                 Spacer(modifier = Modifier.height(32.dp))

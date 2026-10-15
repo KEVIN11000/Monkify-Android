@@ -6,6 +6,7 @@ import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,8 +31,14 @@ enum class LibraryFilter(val displayName: String) {
 class LibraryViewModel @Inject constructor(
     private val localTrackRepository: LocalTrackRepository,
     private val monkifyApi: MonkifyApi? = null,
-    private val playlistRepository: PlaylistRepository? = null
+    private val playlistRepository: PlaylistRepository? = null,
+    private val downloadRepository: DownloadRepository? = null
 ) : ViewModel() {
+
+    val totalStorageBytes: StateFlow<Long> = (downloadRepository?.downloadedTrackIds
+        ?.map { downloadRepository.getTotalDownloadsSizeBytes() }
+        ?: flowOf(0L))
+        .stateIn(viewModelScope, SharingStarted.Eagerly, downloadRepository?.getTotalDownloadsSizeBytes() ?: 0L)
 
     private val _selectedFilter = MutableStateFlow(LibraryFilter.ALL)
     val selectedFilter: StateFlow<LibraryFilter> = _selectedFilter.asStateFlow()
@@ -40,9 +49,27 @@ class LibraryViewModel @Inject constructor(
     private val _isLoadingPlaylists = MutableStateFlow(false)
     val isLoadingPlaylists: StateFlow<Boolean> = _isLoadingPlaylists.asStateFlow()
 
+    fun deleteDownload(trackId: String, onComplete: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val repo = downloadRepository
+                if (repo != null) {
+                    val result = repo.deleteDownloadedTrack(trackId)
+                    onComplete(result)
+                } else {
+                    localTrackRepository.removeDownload(trackId)
+                    onComplete(Result.success(Unit))
+                }
+            } catch (e: Exception) {
+                onComplete(Result.failure(e))
+            }
+        }
+    }
+
     init {
         loadPlaylists()
     }
+
 
     fun loadPlaylists() {
         viewModelScope.launch {

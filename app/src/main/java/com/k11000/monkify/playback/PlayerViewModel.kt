@@ -15,6 +15,7 @@ import com.k11000.monkify.MonkifyPlaybackService
 import com.k11000.monkify.domain.model.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,8 @@ import com.k11000.monkify.data.remote.dto.ActionResponseDto
 import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
 import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
-import com.k11000.monkify.data.repository.DownloadRepository
+import com.k11000.monkify.domain.model.DownloadState
+import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.playback.lyrics.LyricLine
@@ -95,6 +97,22 @@ class PlayerViewModel @Inject constructor(
     private val _isCurrentDownloading = MutableStateFlow(false)
     val isCurrentDownloading: StateFlow<Boolean> = _isCurrentDownloading.asStateFlow()
 
+    private val _currentDownloadState = MutableStateFlow<DownloadState>(DownloadState.NotDownloaded)
+    val currentDownloadState: StateFlow<DownloadState> = _currentDownloadState.asStateFlow()
+
+    private var downloadStateJob: Job? = null
+
+    private fun observeTrackDownloadState(trackId: String) {
+        downloadStateJob?.cancel()
+        downloadStateJob = viewModelScope.launch {
+            downloadRepository.getDownloadState(trackId).collect { state ->
+                _currentDownloadState.value = state
+                _isCurrentDownloaded.value = state is DownloadState.Downloaded
+                _isCurrentDownloading.value = state is DownloadState.Downloading
+            }
+        }
+    }
+
     fun toggleZenCleared() {
         _isZenCleared.value = !_isZenCleared.value
     }
@@ -114,15 +132,7 @@ class PlayerViewModel @Inject constructor(
     fun toggleDownload() {
         val track = currentTrack ?: return
         viewModelScope.launch {
-            if (_isCurrentDownloaded.value) {
-                downloadRepository.removeDownload(track.id)
-                _isCurrentDownloaded.value = false
-            } else {
-                _isCurrentDownloading.value = true
-                val success = downloadRepository.downloadTrack(track)
-                _isCurrentDownloaded.value = success
-                _isCurrentDownloading.value = false
-            }
+            downloadRepository.toggleDownload(track)
         }
     }
 
@@ -304,8 +314,8 @@ class PlayerViewModel @Inject constructor(
                 _currentTrackArtist.value = track.artist
                 _coverUrl.value = track.coverUrl
                 loadLyricsForTrack(track.id)
+                observeTrackDownloadState(track.id)
                 viewModelScope.launch {
-                    _isCurrentDownloaded.value = downloadRepository.isDownloaded(track.id)
                     localTrackRepository.isFavorite(track.id).collect { isFav ->
                         _isCurrentFavorite.value = isFav
                     }
@@ -364,9 +374,9 @@ class PlayerViewModel @Inject constructor(
         _currentTrackArtist.value = activeTrack.artist
         _coverUrl.value = activeTrack.coverUrl
         loadLyricsForTrack(activeTrack.id)
+        observeTrackDownloadState(activeTrack.id)
 
         viewModelScope.launch {
-            _isCurrentDownloaded.value = downloadRepository.isDownloaded(activeTrack.id)
             localTrackRepository.isFavorite(activeTrack.id).collect { isFav ->
                 _isCurrentFavorite.value = isFav
             }
@@ -386,7 +396,10 @@ class PlayerViewModel @Inject constructor(
                 }
                 .build()
 
-            val streamUri = if (track.streamUrl.isNotBlank()) {
+            val localPath = downloadRepository.getLocalAudioPath(track.id)
+            val streamUri = if (!localPath.isNullOrBlank() && java.io.File(localPath).exists()) {
+                Uri.fromFile(java.io.File(localPath))
+            } else if (track.streamUrl.isNotBlank()) {
                 if (track.streamUrl.startsWith("/")) {
                     Uri.fromFile(java.io.File(track.streamUrl))
                 } else {

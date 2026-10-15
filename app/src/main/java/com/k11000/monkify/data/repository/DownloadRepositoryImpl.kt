@@ -1,6 +1,7 @@
 package com.k11000.monkify.data.repository
 
 import android.content.Context
+import android.os.Environment
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.domain.model.Track
@@ -9,10 +10,14 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,15 +32,53 @@ class DownloadRepositoryImpl @Inject constructor(
 
     private val downloadStates = ConcurrentHashMap<String, MutableStateFlow<DownloadState>>()
 
+    private val _downloadingTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    override val downloadingTrackIds: StateFlow<Set<String>> = _downloadingTrackIds.asStateFlow()
+
+    override val downloadedTrackIds: Flow<Set<String>> = localTrackRepository.downloadedTracks.map { tracks ->
+        tracks.map { it.id }.toSet()
+    }
+
+    /**
+     * Directorio de almacenamiento Scoped para música:
+     * Prioriza context.getExternalFilesDir(Environment.DIRECTORY_MUSIC) que no requiere permisos
+     * runtime en Android 10-15 y evita saturar la partición interna restringida.
+     */
     private val musicDir: File
-        get() = File(context.filesDir, "music").apply { if (!exists()) mkdirs() }
+        get() = (context.getExternalFilesDir(Environment.DIRECTORY_MUSIC) ?: File(context.filesDir, "music")).apply {
+            if (!exists()) mkdirs()
+        }
 
+    /**
+     * Directorio para letras sincronizadas en sandbox privado.
+     */
     private val lyricsDir: File
-        get() = File(context.filesDir, "lyrics").apply { if (!exists()) mkdirs() }
+        get() = File(context.filesDir, "lyrics").apply {
+            if (!exists()) mkdirs()
+        }
 
-    fun getAudioFile(trackId: String): File = File(musicDir, "$trackId.mp3")
+    fun getAudioFile(trackId: String): File {
+        val primary = File(musicDir, "$trackId.mp3")
+        if (primary.exists() && primary.length() > 0) return primary
 
-    fun getLyricsFile(trackId: String): File = File(lyricsDir, "$trackId.lrc")
+        val fallbackInternal = File(context.filesDir, "music/$trackId.mp3")
+        if (fallbackInternal.exists() && fallbackInternal.length() > 0) return fallbackInternal
+
+        val legacyDownloads = File(context.filesDir, "downloads/$trackId.mp3")
+        if (legacyDownloads.exists() && legacyDownloads.length() > 0) return legacyDownloads
+
+        return primary
+    }
+
+    fun getLyricsFile(trackId: String): File {
+        val primary = File(lyricsDir, "$trackId.lrc")
+        if (primary.exists() && primary.length() > 0) return primary
+
+        val legacyDownloads = File(context.filesDir, "downloads/$trackId.lrc")
+        if (legacyDownloads.exists() && legacyDownloads.length() > 0) return legacyDownloads
+
+        return primary
+    }
 
     override fun getDownloadState(trackId: String): Flow<DownloadState> {
         val flow = downloadStates.computeIfAbsent(trackId) {
@@ -68,6 +111,33 @@ class DownloadRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getTotalDownloadsSizeBytes(): Long {
+        var total = 0L
+        val scannedDirs = listOfNotNull(
+            musicDir,
+            File(context.filesDir, "music"),
+            File(context.filesDir, "downloads")
+        ).distinctBy { it.absolutePath }
+
+        scannedDirs.forEach { dir ->
+            if (dir.exists()) {
+                dir.listFiles()?.forEach { file ->
+                    if (file.isFile && (file.extension.equals("mp3", ignoreCase = true) || file.extension.equals("lrc", ignoreCase = true))) {
+                        total += file.length()
+                    }
+                }
+            }
+        }
+        if (lyricsDir.exists()) {
+            lyricsDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.extension.equals("lrc", ignoreCase = true)) {
+                    total += file.length()
+                }
+            }
+        }
+        return total
+    }
+
     private fun resolveStreamUrl(streamUrl: String, trackId: String): String {
         return when {
             streamUrl.startsWith("http://") || streamUrl.startsWith("https://") -> streamUrl
@@ -79,24 +149,38 @@ class DownloadRepositoryImpl @Inject constructor(
     override suspend fun downloadTrack(track: Track): Result<String> = withContext(Dispatchers.IO) {
         val stateFlow = downloadStates.computeIfAbsent(track.id) { MutableStateFlow(DownloadState.NotDownloaded) }
         stateFlow.value = DownloadState.Downloading(0)
+        _downloadingTrackIds.value = _downloadingTrackIds.value + track.id
 
         val tempAudioFile = File(musicDir, "${track.id}.tmp")
-        val finalAudioFile = getAudioFile(track.id)
+        val finalAudioFile = File(musicDir, "${track.id}.mp3")
 
         try {
+            // Verificar espacio en disco (> 25 MB)
+            val usableSpace = musicDir.usableSpace
+            if (usableSpace in 1 until (25L * 1024 * 1024)) {
+                throw IOException("Espacio insuficiente en disco para descargar la pista (menos de 25 MB disponibles)")
+            }
+
+            // Si ya existe y es válido, registrar en Room y retornar de inmediato
+            if (finalAudioFile.exists() && finalAudioFile.length() > 0) {
+                localTrackRepository.markAsDownloaded(track, finalAudioFile.absolutePath)
+                stateFlow.value = DownloadState.Downloaded(finalAudioFile.absolutePath)
+                return@withContext Result.success(finalAudioFile.absolutePath)
+            }
+
             val url = resolveStreamUrl(track.streamUrl, track.id)
             val request = okhttp3.Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                throw java.io.IOException("Fallo en la descarga de audio HTTP ${response.code}")
+                throw IOException("Fallo en la descarga de audio HTTP ${response.code}")
             }
 
-            val body = response.body ?: throw java.io.IOException("Cuerpo de respuesta vacío")
+            val body = response.body ?: throw IOException("Cuerpo de respuesta vacío")
             val totalBytes = body.contentLength()
 
             body.byteStream().use { input ->
-                java.io.FileOutputStream(tempAudioFile).use { output ->
+                FileOutputStream(tempAudioFile).use { output ->
                     val buffer = ByteArray(8 * 1024)
                     var bytesCopied = 0L
                     var read: Int
@@ -124,7 +208,7 @@ class DownloadRepositoryImpl @Inject constructor(
             runCatching {
                 val lyricsResponse = monkifyApi.getLyrics(track.id)
                 if (lyricsResponse.content.isNotBlank()) {
-                    val finalLyricsFile = getLyricsFile(track.id)
+                    val finalLyricsFile = File(lyricsDir, "${track.id}.lrc")
                     finalLyricsFile.writeText(lyricsResponse.content)
                 }
             }
@@ -138,6 +222,31 @@ class DownloadRepositoryImpl @Inject constructor(
             }
             stateFlow.value = DownloadState.Error(e.message ?: "Error en la descarga")
             Result.failure(e)
+        } finally {
+            _downloadingTrackIds.value = _downloadingTrackIds.value - track.id
+        }
+    }
+
+    override suspend fun downloadTracks(
+        tracks: List<Track>,
+        onProgress: (completed: Int, total: Int) -> Unit
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        var completed = 0
+        for (track in tracks) {
+            if (!isTrackDownloaded(track.id)) {
+                downloadTrack(track)
+            }
+            completed++
+            onProgress(completed, tracks.size)
+        }
+        Result.success(Unit)
+    }
+
+    override suspend fun toggleDownload(track: Track) {
+        if (isTrackDownloaded(track.id)) {
+            deleteDownloadedTrack(track.id)
+        } else {
+            downloadTrack(track)
         }
     }
 

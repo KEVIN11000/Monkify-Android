@@ -36,6 +36,9 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -45,8 +48,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,10 +65,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
+import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
@@ -73,6 +80,7 @@ import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,16 +101,26 @@ fun FullScreenPlayer(
     val isFavorite by viewModel.isCurrentFavorite.collectAsState()
     val isDownloaded by viewModel.isCurrentDownloaded.collectAsState()
     val isDownloading by viewModel.isCurrentDownloading.collectAsState()
+    val downloadState by viewModel.currentDownloadState.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
 
     val context = LocalContext.current
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showDeleteDownloadDialog by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
     var showDeviceSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    LaunchedEffect(downloadState) {
+        if (downloadState is DownloadState.Error) {
+            val errorMsg = (downloadState as DownloadState.Error).message
+            Toast.makeText(context, "Error en descarga: $errorMsg", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 
     fun formatTime(ms: Long): String {
         val totalSeconds = ms / 1000
@@ -234,21 +252,64 @@ fun FullScreenPlayer(
                 }
 
                 // Botón Descargar
-                IconButton(onClick = { viewModel.toggleDownload() }) {
-                    if (isDownloading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = MonkifyPrimary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
-                            contentDescription = if (isDownloaded) "Descargada" else "Descargar pista",
-                            tint = if (isDownloaded) MonkifyPrimary else MonkifyGray
-                        )
+                IconButton(onClick = {
+                    when (downloadState) {
+                        is DownloadState.Downloaded -> {
+                            showDeleteDownloadDialog = true
+                        }
+                        is DownloadState.Downloading -> {
+                            val progress = (downloadState as DownloadState.Downloading).progressPercent
+                            Toast.makeText(context, "Descargando pista ($progress%)...", Toast.LENGTH_SHORT).show()
+                        }
+                        else -> {
+                            viewModel.toggleDownload()
+                        }
+                    }
+                }) {
+                    when (val state = downloadState) {
+                        is DownloadState.Downloading -> {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(28.dp)) {
+                                if (state.progressPercent > 0) {
+                                    CircularProgressIndicator(
+                                        progress = { state.progressPercent / 100f },
+                                        modifier = Modifier.size(28.dp),
+                                        color = MonkifyPrimary,
+                                        strokeWidth = 2.5.dp
+                                    )
+                                    Text(
+                                        text = "${state.progressPercent}%",
+                                        color = MonkifyPrimary,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(22.dp),
+                                        color = MonkifyPrimary,
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+                        }
+                        is DownloadState.Downloaded -> {
+                            Icon(
+                                imageVector = Icons.Default.DownloadDone,
+                                contentDescription = "Descargada (clic para eliminar)",
+                                tint = MonkifyPrimary
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Descargar pista",
+                                tint = MonkifyGray
+                            )
+                        }
                     }
                 }
+
 
                 // Botón Favorito
                 IconButton(onClick = { viewModel.toggleFavorite() }) {
@@ -489,4 +550,44 @@ fun FullScreenPlayer(
             }
         )
     }
+
+    if (showDeleteDownloadDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDownloadDialog = false },
+            containerColor = MonkifyDarkGray,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Eliminar descarga",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MonkifyOnBackground
+                )
+            },
+            text = {
+                Text(
+                    text = "¿Deseas eliminar \"$title\" del almacenamiento local de tu dispositivo?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MonkifyGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDownloadDialog = false
+                        viewModel.toggleDownload()
+                        Toast.makeText(context, "Descarga eliminada", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) {
+                    Text("Eliminar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDownloadDialog = false }) {
+                    Text("Cancelar", color = MonkifyGray)
+                }
+            }
+        )
+    }
 }
+

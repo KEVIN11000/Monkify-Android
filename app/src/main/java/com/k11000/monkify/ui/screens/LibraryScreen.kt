@@ -17,27 +17,35 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import android.widget.Toast
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -66,8 +74,20 @@ import androidx.compose.runtime.setValue
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 MB"
+    val mb = bytes.toDouble() / (1024.0 * 1024.0)
+    return if (mb < 1024.0) {
+        String.format(java.util.Locale.US, "%.1f MB", mb)
+    } else {
+        val gb = mb / 1024.0
+        String.format(java.util.Locale.US, "%.2f GB", gb)
+    }
+}
+
 @Composable
 fun LibraryScreen(
+
     onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
     viewModel: LibraryViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
@@ -78,10 +98,14 @@ fun LibraryScreen(
     val displayedTracks by viewModel.displayedTracks.collectAsState()
     val favoriteTracks by viewModel.favoriteTracks.collectAsState()
     val downloadedTracks by viewModel.downloadedTracks.collectAsState()
+    val totalStorageBytes by viewModel.totalStorageBytes.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
+    val context = LocalContext.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var trackToDeleteDownload by remember { mutableStateOf<Track?>(null) }
+
 
     Column(
         modifier = Modifier
@@ -201,7 +225,40 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Barra informativa de almacenamiento ocupado bajo el chip Descargas
+        if (selectedFilter == LibraryFilter.DOWNLOADS && downloadedTracks.isNotEmpty()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MonkifyDarkGray.copy(alpha = 0.7f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DownloadDone,
+                        contentDescription = null,
+                        tint = MonkifyPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "${downloadedTracks.size} canciones · ${formatBytes(totalStorageBytes)}",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MonkifyOnBackground
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         // Dynamic Library Content
+
         if (selectedFilter == LibraryFilter.PLAYLISTS) {
             if (isLoadingPlaylists) {
                 Box(
@@ -273,12 +330,16 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(displayedTracks, key = { _, track -> track.id }) { index, track ->
+                    val isTrackDownloaded = track.id in downloadedIds || track.streamUrl.startsWith("/")
                     LibraryTrackItem(
                         track = track,
-                        isDownloaded = track.id in downloadedIds || track.streamUrl.startsWith("/"),
+                        isDownloaded = isTrackDownloaded,
                         onClick = {
                             playerViewModel.playQueue(displayedTracks, index)
-                        }
+                        },
+                        onDeleteClick = if (isTrackDownloaded && selectedFilter == LibraryFilter.DOWNLOADS) {
+                            { trackToDeleteDownload = track }
+                        } else null
                     )
                 }
             }
@@ -293,8 +354,58 @@ fun LibraryScreen(
                 }
             )
         }
+
+        if (trackToDeleteDownload != null) {
+            val track = trackToDeleteDownload!!
+            AlertDialog(
+                onDismissRequest = { trackToDeleteDownload = null },
+                containerColor = MonkifyDarkGray,
+                shape = RoundedCornerShape(16.dp),
+                title = {
+                    Text(
+                        text = "Eliminar descarga",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MonkifyOnBackground
+                    )
+                },
+                text = {
+                    Text(
+                        text = "¿Deseas eliminar \"${track.title}\" del almacenamiento local?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MonkifyGray
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val id = track.id
+                            trackToDeleteDownload = null
+                            viewModel.deleteDownload(id) { res ->
+                                res.fold(
+                                    onSuccess = {
+                                        Toast.makeText(context, "Descarga eliminada", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFailure = {
+                                        Toast.makeText(context, "Error al eliminar descarga", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    ) {
+                        Text("Eliminar", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { trackToDeleteDownload = null }) {
+                        Text("Cancelar", color = MonkifyGray)
+                    }
+                }
+            )
+        }
     }
 }
+
 
 @Composable
 fun LibraryFilterChip(
@@ -321,6 +432,7 @@ fun LibraryTrackItem(
     track: Track,
     isDownloaded: Boolean,
     onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -376,6 +488,21 @@ fun LibraryTrackItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
+        if (onDeleteClick != null) {
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar descarga",
+                    tint = MonkifyGray,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
         Icon(
             imageVector = Icons.Default.PlayArrow,
             contentDescription = "Reproducir",
@@ -384,6 +511,7 @@ fun LibraryTrackItem(
         )
     }
 }
+
 
 @Composable
 fun LibraryPlaylistItem(

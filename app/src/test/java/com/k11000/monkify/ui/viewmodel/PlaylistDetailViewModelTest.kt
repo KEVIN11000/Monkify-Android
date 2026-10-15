@@ -12,12 +12,19 @@ import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.remote.dto.toDomain
+import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.ui.screens.viewmodel.PlaylistDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -74,6 +81,48 @@ class PlaylistDetailViewModelTest {
         override suspend fun addTrackToPlaylist(playlistId: String, trackId: String): Result<Unit> = Result.success(Unit)
         override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): Result<Unit> = removeTrackHandler(playlistId, trackId)
     }
+
+    private class FakeDownloadRepository(
+        initialDownloaded: Set<String> = emptySet()
+    ) : DownloadRepository {
+        val downloadedSet = MutableStateFlow(initialDownloaded)
+        override val downloadedTrackIds: Flow<Set<String>> = downloadedSet
+        override val downloadingTrackIds: StateFlow<Set<String>> = MutableStateFlow(emptySet())
+        var downloadTracksCalledWith: List<Track>? = null
+
+        override fun getDownloadState(trackId: String): Flow<DownloadState> = flowOf(DownloadState.NotDownloaded)
+        override suspend fun downloadTrack(track: Track): Result<String> {
+            downloadedSet.value = downloadedSet.value + track.id
+            return Result.success("/downloads/${track.id}.mp3")
+        }
+        override suspend fun downloadTracks(
+            tracks: List<Track>,
+            onProgress: (completed: Int, total: Int) -> Unit
+        ): Result<Unit> {
+            downloadTracksCalledWith = tracks
+            tracks.forEachIndexed { index, track ->
+                downloadedSet.value = downloadedSet.value + track.id
+                onProgress(index + 1, tracks.size)
+            }
+            return Result.success(Unit)
+        }
+        override suspend fun deleteDownloadedTrack(trackId: String): Result<Unit> {
+            downloadedSet.value = downloadedSet.value - trackId
+            return Result.success(Unit)
+        }
+        override suspend fun toggleDownload(track: Track) {
+            if (isTrackDownloaded(track.id)) {
+                deleteDownloadedTrack(track.id)
+            } else {
+                downloadTrack(track)
+            }
+        }
+        override fun isTrackDownloaded(trackId: String): Boolean = trackId in downloadedSet.value
+        override fun getLocalLyrics(trackId: String): String? = null
+        override fun getLocalAudioPath(trackId: String): String? = null
+        override fun getTotalDownloadsSizeBytes(): Long = 0L
+    }
+
 
     private fun sampleTrackDto(id: String, title: String, artist: String) = BackendTrackDto(
         id = id,
@@ -281,4 +330,60 @@ class PlaylistDetailViewModelTest {
         assertTrue(repoDeleteCalled)
         assertTrue(resultSuccess)
     }
+
+    @Test
+    fun `downloadAllTracks descarga todas las canciones de la playlist y reporta progreso`() = runTest(testDispatcher) {
+        val testTracks = listOf(
+            sampleTrackDto("t1", "Track 1", "Artist 1"),
+            sampleTrackDto("t2", "Track 2", "Artist 2")
+        )
+        val fakeApi = FakeMonkifyApi(tracksHandler = { testTracks })
+        val fakeDownloadRepo = FakeDownloadRepository()
+        val viewModel = PlaylistDetailViewModel(fakeApi, null, fakeDownloadRepo)
+
+        viewModel.loadPlaylist("pl_download", "Download Playlist")
+        advanceUntilIdle()
+
+        var downloadResultSuccess = false
+        viewModel.downloadAllTracks { res ->
+            downloadResultSuccess = res.isSuccess
+        }
+        advanceUntilIdle()
+
+        assertTrue(downloadResultSuccess)
+        assertFalse(viewModel.isDownloadingAll.value)
+        assertEquals(Pair(2, 2), viewModel.downloadProgress.value)
+        assertEquals(listOf("t1", "t2"), fakeDownloadRepo.downloadTracksCalledWith?.map { it.id })
+        assertEquals(setOf("t1", "t2"), fakeDownloadRepo.downloadedSet.value)
+    }
+
+    @Test
+    fun `downloadedTrackIds refleja reactivamente las canciones descargadas de la playlist`() = runTest(testDispatcher) {
+        val fakeApi = FakeMonkifyApi()
+        val fakeDownloadRepo = FakeDownloadRepository(initialDownloaded = setOf("t1", "t3"))
+        val viewModel = PlaylistDetailViewModel(fakeApi, null, fakeDownloadRepo)
+
+        advanceUntilIdle()
+        assertTrue(viewModel.downloadedTrackIds.value.contains("t1"))
+        assertTrue(viewModel.downloadedTrackIds.value.contains("t3"))
+        assertFalse(viewModel.downloadedTrackIds.value.contains("t2"))
+    }
+
+    @Test
+    fun `toggleDownloadTrack descarga y alterna estado de cancion en la playlist`() = runTest(testDispatcher) {
+        val fakeApi = FakeMonkifyApi()
+        val fakeDownloadRepo = FakeDownloadRepository()
+        val viewModel = PlaylistDetailViewModel(fakeApi, null, fakeDownloadRepo)
+
+        val track = Track("t_toggle", "Toggle Title", "Artist", "Album", 120000, null, "https://stream")
+
+        viewModel.toggleDownloadTrack(track)
+        advanceUntilIdle()
+        assertTrue(fakeDownloadRepo.isTrackDownloaded("t_toggle"))
+
+        viewModel.toggleDownloadTrack(track)
+        advanceUntilIdle()
+        assertFalse(fakeDownloadRepo.isTrackDownloaded("t_toggle"))
+    }
 }
+

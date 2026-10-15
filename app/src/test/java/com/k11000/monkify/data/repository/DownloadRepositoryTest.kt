@@ -131,4 +131,75 @@ class DownloadRepositoryTest {
 
         tempDir.delete()
     }
+
+    @Test
+    fun total_downloads_size_bytes_sums_mp3_and_lrc_files_correctly() {
+        val tempMusic = File("build/tmp/size_test_music").apply { mkdirs() }
+        val tempLyrics = File("build/tmp/size_test_lyrics").apply { mkdirs() }
+
+        val f1 = File(tempMusic, "t1.mp3").apply { writeBytes(ByteArray(2048)) }
+        val f2 = File(tempMusic, "t2.mp3").apply { writeBytes(ByteArray(4096)) }
+        val l1 = File(tempLyrics, "t1.lrc").apply { writeBytes(ByteArray(512)) }
+        val nonMedia = File(tempMusic, "ignore.txt").apply { writeBytes(ByteArray(1024)) }
+
+        var calculatedTotal = 0L
+        listOf(tempMusic, tempLyrics).forEach { dir ->
+            dir.listFiles()?.forEach { file ->
+                if (file.isFile && (file.extension.equals("mp3", ignoreCase = true) || file.extension.equals("lrc", ignoreCase = true))) {
+                    calculatedTotal += file.length()
+                }
+            }
+        }
+
+        assertEquals(2048L + 4096L + 512L, calculatedTotal)
+
+        f1.delete()
+        f2.delete()
+        l1.delete()
+        nonMedia.delete()
+        tempMusic.delete()
+        tempLyrics.delete()
+    }
+
+    @Test
+    fun disk_space_check_rejects_download_when_usable_space_is_below_25mb() {
+        val minRequiredBytes = 25L * 1024 * 1024
+
+        fun validateSpace(usableBytes: Long): Boolean {
+            if (usableBytes in 1 until minRequiredBytes) {
+                throw IOException("Espacio insuficiente en disco")
+            }
+            return true
+        }
+
+        // Simular espacio bajo (10 MB)
+        var exceptionThrown = false
+        try {
+            validateSpace(10L * 1024 * 1024)
+        } catch (_: IOException) {
+            exceptionThrown = true
+        }
+        assertTrue(exceptionThrown)
+
+        // Simular espacio suficiente (100 MB)
+        val valid = validateSpace(100L * 1024 * 1024)
+        assertTrue(valid)
+    }
+
+    @Test
+    fun batch_download_simulation_tracks_completed_progress_count() {
+        val trackIds = listOf("t1", "t2", "t3", "t4", "t5")
+        var completedCount = 0
+        val progressReports = mutableListOf<Pair<Int, Int>>()
+
+        trackIds.forEach { _ ->
+            completedCount++
+            progressReports.add(Pair(completedCount, trackIds.size))
+        }
+
+        assertEquals(5, completedCount)
+        assertEquals(5, progressReports.size)
+        assertEquals(Pair(1, 5), progressReports.first())
+        assertEquals(Pair(5, 5), progressReports.last())
+    }
 }

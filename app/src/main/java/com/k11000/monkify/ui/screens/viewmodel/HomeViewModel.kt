@@ -2,8 +2,8 @@ package com.k11000.monkify.ui.screens.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.k11000.monkify.data.repository.DownloadRepository
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

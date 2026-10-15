@@ -18,7 +18,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+
 import org.junit.Before
 import org.junit.Test
 
@@ -236,4 +238,60 @@ class LibraryViewModelTest {
         assertTrue(successCallback)
         assertEquals(0, viewModel.playlists.value.size)
     }
+
+    private class FakeDownloadRepo(
+        var totalBytes: Long = 0L,
+        initialDownloaded: Set<String> = emptySet()
+    ) : com.k11000.monkify.domain.repository.DownloadRepository {
+        val downloadedSet = MutableStateFlow(initialDownloaded)
+        override val downloadedTrackIds: Flow<Set<String>> = downloadedSet
+        override val downloadingTrackIds: kotlinx.coroutines.flow.StateFlow<Set<String>> = MutableStateFlow(emptySet())
+        var deleteCalledWith: String? = null
+
+        override fun getDownloadState(trackId: String) = kotlinx.coroutines.flow.flowOf(com.k11000.monkify.domain.model.DownloadState.NotDownloaded)
+        override suspend fun downloadTrack(track: Track): Result<String> = Result.success("/path")
+        override suspend fun downloadTracks(tracks: List<Track>, onProgress: (completed: Int, total: Int) -> Unit): Result<Unit> = Result.success(Unit)
+        override suspend fun deleteDownloadedTrack(trackId: String): Result<Unit> {
+            deleteCalledWith = trackId
+            downloadedSet.value = downloadedSet.value - trackId
+            totalBytes = (totalBytes - 1000000L).coerceAtLeast(0L)
+            return Result.success(Unit)
+        }
+        override suspend fun toggleDownload(track: Track) {}
+        override fun isTrackDownloaded(trackId: String): Boolean = trackId in downloadedSet.value
+        override fun getLocalLyrics(trackId: String): String? = null
+        override fun getLocalAudioPath(trackId: String): String? = null
+        override fun getTotalDownloadsSizeBytes(): Long = totalBytes
+    }
+
+    @Test
+    fun `totalStorageBytes refleja el tamano total calculado desde DownloadRepository`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakeDownloadRepo = FakeDownloadRepo(totalBytes = 38400000L, initialDownloaded = setOf("t1", "t2"))
+        val viewModel = LibraryViewModel(localRepo, downloadRepository = fakeDownloadRepo)
+
+        advanceUntilIdle()
+        assertEquals(38400000L, viewModel.totalStorageBytes.value)
+    }
+
+    @Test
+    fun `deleteDownload invoca eliminacion y actualiza tamano y estado`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakeDownloadRepo = FakeDownloadRepo(totalBytes = 15000000L, initialDownloaded = setOf("t_del"))
+        val viewModel = LibraryViewModel(localRepo, downloadRepository = fakeDownloadRepo)
+
+        advanceUntilIdle()
+        var deleteResult: Result<Unit>? = null
+        viewModel.deleteDownload("t_del") { res ->
+            deleteResult = res
+        }
+        advanceUntilIdle()
+
+        assertEquals("t_del", fakeDownloadRepo.deleteCalledWith)
+        assertTrue(deleteResult?.isSuccess == true)
+        assertFalse(viewModel.totalStorageBytes.value == 15000000L)
+    }
 }
+
