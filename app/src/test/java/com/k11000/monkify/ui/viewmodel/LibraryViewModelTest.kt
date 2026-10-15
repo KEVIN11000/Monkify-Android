@@ -301,5 +301,50 @@ class LibraryViewModelTest {
         assertTrue(deleteResult?.isSuccess == true)
         assertFalse(viewModel.totalStorageBytes.value == 15000000L)
     }
+
+    @Test
+    fun `onSearchQueryChange filtra reactivamente canciones y playlists`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakePlaylistRepo = FakePlaylistRepo()
+
+        val track1 = Track("t1", "Bohemian Rhapsody", "Queen", "A Night at the Opera", 354000, null, "https://stream/1")
+        val track2 = Track("t2", "Starboy", "The Weeknd", "Starboy", 230000, null, "https://stream/2")
+
+        localRepo.saveTrack(track1, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(track2, isFavorite = true, isDownloaded = false)
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo, playlistRepository = fakePlaylistRepo)
+        advanceUntilIdle()
+
+        assertEquals(2, viewModel.displayedTracks.value.size)
+        assertEquals(1, viewModel.filteredPlaylists.value.size)
+
+        // Buscar por título de canción
+        viewModel.onSearchQueryChange("Bohemian")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.displayedTracks.value.size)
+        assertEquals("t1", viewModel.displayedTracks.value.first().id)
+
+        // Buscar por artista
+        viewModel.onSearchQueryChange("Weeknd")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.displayedTracks.value.size)
+        assertEquals("t2", viewModel.displayedTracks.value.first().id)
+
+        // Buscar por nombre de playlist
+        viewModel.onSearchQueryChange("Lofi")
+        advanceUntilIdle()
+        assertEquals(0, viewModel.displayedTracks.value.size)
+        assertEquals(1, viewModel.filteredPlaylists.value.size)
+        assertEquals("Lofi Beats", viewModel.filteredPlaylists.value.first().name)
+
+        // Limpiar búsqueda
+        viewModel.onSearchQueryChange("")
+        advanceUntilIdle()
+        assertEquals(2, viewModel.displayedTracks.value.size)
+        assertEquals(1, viewModel.filteredPlaylists.value.size)
+    }
 }
 

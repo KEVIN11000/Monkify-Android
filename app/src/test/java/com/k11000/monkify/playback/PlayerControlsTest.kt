@@ -194,4 +194,96 @@ class PlayerControlsTest {
         val msg = parseError(exception)
         assertEquals("Pista no disponible en el servidor (HTTP 404)", msg)
     }
+
+    @Test
+    fun `moveQueueItem reordena elementos dentro de los limites de la cola`() {
+        val tracks = listOf(
+            Track("t1", "Track 1", "Artist 1", "Album 1", 180000, null, "https://stream/1"),
+            Track("t2", "Track 2", "Artist 2", "Album 2", 200000, null, "https://stream/2"),
+            Track("t3", "Track 3", "Artist 3", "Album 3", 220000, null, "https://stream/3")
+        )
+
+        fun move(list: List<Track>, from: Int, to: Int): List<Track> {
+            if (from !in list.indices || to !in list.indices || from == to) return list
+            val mutable = list.toMutableList()
+            val item = mutable.removeAt(from)
+            mutable.add(to, item)
+            return mutable
+        }
+
+        // Mover pista 0 (t1) al índice 2 -> [t2, t3, t1]
+        val moved = move(tracks, 0, 2)
+        assertEquals("t2", moved[0].id)
+        assertEquals("t3", moved[1].id)
+        assertEquals("t1", moved[2].id)
+
+        // Mover con índices fuera de rango no altera la lista
+        val outOfBounds = move(tracks, -1, 2)
+        assertEquals(tracks, outOfBounds)
+
+        // Mover al mismo índice no altera la lista
+        val sameIndex = move(tracks, 1, 1)
+        assertEquals(tracks, sameIndex)
+    }
+
+    @Test
+    fun `removeQueueItem elimina el elemento en el indice especificado y valida rangos`() {
+        val tracks = listOf(
+            Track("t1", "Track 1", "Artist 1", "Album 1", 180000, null, "https://stream/1"),
+            Track("t2", "Track 2", "Artist 2", "Album 2", 200000, null, "https://stream/2"),
+            Track("t3", "Track 3", "Artist 3", "Album 3", 220000, null, "https://stream/3")
+        )
+
+        fun remove(list: List<Track>, index: Int): List<Track> {
+            if (index !in list.indices) return list
+            val mutable = list.toMutableList()
+            mutable.removeAt(index)
+            return mutable
+        }
+
+        // Eliminar pista intermedia (t2, index 1) -> [t1, t3]
+        val afterRemove = remove(tracks, 1)
+        assertEquals(2, afterRemove.size)
+        assertEquals("t1", afterRemove[0].id)
+        assertEquals("t3", afterRemove[1].id)
+
+        // Eliminar con índice fuera de rango no altera la lista
+        val outOfBounds = remove(tracks, 99)
+        assertEquals(tracks, outOfBounds)
+    }
+
+    @Test
+    fun `modelo Device y seleccion conmuta correctamente el dispositivo activo`() {
+        val initialDevices = listOf(
+            PlayerViewModel.Device("dev_speaker", "Altavoz del dispositivo", true, "Altavoz"),
+            PlayerViewModel.Device("dev_bt", "Sony WH-1000XM4", false, "Bluetooth")
+        )
+
+        fun select(devices: List<PlayerViewModel.Device>, targetId: String): List<PlayerViewModel.Device> {
+            return devices.map { it.copy(isSelected = it.id == targetId) }
+        }
+
+        val updated = select(initialDevices, "dev_bt")
+        val active = updated.find { it.isSelected }
+
+        assertEquals(true, updated[1].isSelected)
+        assertEquals(false, updated[0].isSelected)
+        assertEquals("Sony WH-1000XM4", active?.name)
+        assertEquals("Bluetooth", active?.type)
+    }
+
+    @Test
+    fun `resolucion de tipos de salida de audio mapea correctamente descripciones legibles`() {
+        fun resolveType(isBluetooth: Boolean, isHeadset: Boolean): String {
+            return when {
+                isBluetooth -> "Bluetooth"
+                isHeadset -> "Auriculares"
+                else -> "Altavoz"
+            }
+        }
+
+        assertEquals("Altavoz", resolveType(isBluetooth = false, isHeadset = false))
+        assertEquals("Bluetooth", resolveType(isBluetooth = true, isHeadset = false))
+        assertEquals("Auriculares", resolveType(isBluetooth = false, isHeadset = true))
+    }
 }

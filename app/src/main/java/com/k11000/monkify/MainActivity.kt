@@ -223,16 +223,30 @@ class MainActivity : ComponentActivity() {
                             animationSpec = tween(durationMillis = 180)
                         )
                     ) {
-                        FullScreenPlayer(
-                            viewModel = playerViewModel,
-                            onClose = { showFullScreenPlayer = false },
-                            onNavigateToPlaylist = { playlistId, name ->
-                                showFullScreenPlayer = false
-                                navController.navigate(com.k11000.monkify.ui.navigation.Destinations.playlistDetail(playlistId, name))
-                            }
-                        )
+                    FullScreenPlayer(
+                        viewModel = playerViewModel,
+                        onClose = { showFullScreenPlayer = false },
+                        onNavigateToPlaylist = { playlistId, name ->
+                            showFullScreenPlayer = false
+                            navController.navigate(com.k11000.monkify.ui.navigation.Destinations.playlistDetail(playlistId, name))
+                        },
+                        onEnterPip = {
+                            enterPipMode()
+                        }
+                    )
                     }
                 }
+            }
+        }
+    }
+
+    fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val isPlaying = playerViewModel.isPlaying.value
+                enterPictureInPictureMode(buildPipParams(isPlaying))
+            } catch (e: Exception) {
+                com.k11000.monkify.util.AppLogger.e("MainActivity", "Error al entrar en modo PiP", e)
             }
         }
     }

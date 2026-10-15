@@ -38,18 +38,26 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.text.style.TextAlign
+import com.k11000.monkify.ui.screens.viewmodel.HomeFilter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -104,6 +112,8 @@ fun HomeScreen(
     val hasMore by viewModel.hasMore.collectAsState()
     val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
     val downloadingTrackIds by viewModel.downloadingTrackIds.collectAsState()
+    val selectedFilter by viewModel.selectedFilter.collectAsState()
+    var showNovedadesModal by remember { mutableStateOf(false) }
 
     val settingsState by settingsViewModel.uiState.collectAsState()
     val isZenCleared by playerViewModel.isZenCleared.collectAsState()
@@ -198,7 +208,7 @@ fun HomeScreen(
                     }
                 )
                 Row {
-                    IconButton(onClick = { /* TODO: Notificaciones */ }) {
+                    IconButton(onClick = { showNovedadesModal = true }) {
                         Icon(
                             imageVector = Icons.Default.Notifications,
                             contentDescription = "Notifications",
@@ -226,17 +236,56 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(text = "Todo", isSelected = true)
-                FilterChip(text = "Música", isSelected = false)
-                FilterChip(text = "Podcasts", isSelected = false)
+                HomeFilter.values().forEach { filter ->
+                    FilterChip(
+                        text = filter.displayName,
+                        isSelected = selectedFilter == filter,
+                        onClick = { viewModel.setFilter(filter) }
+                    )
+                }
             }
         }
 
-        item { ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
+        if (selectedFilter == HomeFilter.PODCASTS) {
+            item {
+                ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Podcasts,
+                            contentDescription = null,
+                            tint = MonkifyGray,
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Text(
+                            text = "Aún no tienes podcasts en tu biblioteca",
+                            color = MonkifyOnBackground,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Puedes importar episodios pegando enlaces desde el buscador o explorar tu música en 'Todo'.",
+                            color = MonkifyGray,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            item { ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
 
-        // Grilla 2x3 de Reproducción Rápida con datos reales
-        item {
-            val quickItems = if (recentTracks.isNotEmpty()) {
+            // Grilla 2x3 de Reproducción Rápida con datos reales
+            item {
+                val quickItems = if (recentTracks.isNotEmpty()) {
                 recentTracks.take(6)
             } else {
                 emptyList()
@@ -414,6 +463,7 @@ fun HomeScreen(
                 }
             }
         }
+        }
     }
 
         // Capa 3: Overlay gestual exclusivo para Modo Zen despejado (al frente de la jerarquía)
@@ -423,15 +473,23 @@ fun HomeScreen(
                 statusBarPadding = statusBarPadding
             )
         }
+
+        if (showNovedadesModal) {
+            NovedadesBottomSheet(onDismiss = { showNovedadesModal = false })
+        }
     }
 }
 
 @Composable
-fun FilterChip(text: String, isSelected: Boolean) {
+fun FilterChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit = {}
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = if (isSelected) MonkifyPrimary else MonkifyDarkGray,
-        onClick = { /* TODO */ }
+        onClick = onClick
     ) {
         Text(
             text = text,
@@ -439,6 +497,133 @@ fun FilterChip(text: String, isSelected: Boolean) {
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NovedadesBottomSheet(
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MonkifyDarkGray
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MonkifyPrimary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MonkifyPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        text = "Novedades de Monkify",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Versión activa v0.3.0 • Release Candidate",
+                        color = MonkifyGray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MonkifyBackground)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                NovedadItem(
+                    emoji = "🎛️",
+                    title = "Reordenamiento en Cola y Salida de Audio Real",
+                    description = "Mueve o elimina pistas de la cola sobre la marcha y detecta altavoz, auriculares o Bluetooth vía AudioManager."
+                )
+                NovedadItem(
+                    emoji = "📺",
+                    title = "Modo Picture-in-Picture (PiP) Manual",
+                    description = "Activa la ventana flotante con controles de reproducción desde la barra superior del reproductor."
+                )
+                NovedadItem(
+                    emoji = "📋",
+                    title = "Pegado Inteligente de Enlaces de Spotify",
+                    description = "Importa canciones y playlists al servidor en la nube pegando enlaces directamente desde el portapapeles."
+                )
+                NovedadItem(
+                    emoji = "➕",
+                    title = "Creación Rápida y Búsqueda en Biblioteca",
+                    description = "Crea playlists con el botón '+' superior y filtra canciones en tiempo real con el nuevo buscador integrado."
+                )
+                NovedadItem(
+                    emoji = "🩺",
+                    title = "Diagnóstico y Centro de Soporte",
+                    description = "Envía comentarios y adjunta los últimos registros técnicos de la aplicación desde Ajustes."
+                )
+            }
+
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MonkifyPrimary)
+            ) {
+                Text(
+                    text = "Entendido",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NovedadItem(
+    emoji: String,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(text = emoji, style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = description,
+                color = MonkifyGray,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }
 

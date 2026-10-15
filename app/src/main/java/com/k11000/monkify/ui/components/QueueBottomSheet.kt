@@ -19,7 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,6 +65,8 @@ fun QueueBottomSheet(
     onDismiss: () -> Unit,
     onTrackClick: (Int) -> Unit,
     onSaveQueueAsPlaylist: (String, (Result<Unit>) -> Unit) -> Unit,
+    onMoveTrack: ((Int, Int) -> Unit)? = null,
+    onRemoveTrack: ((Int) -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     val context = LocalContext.current
@@ -235,6 +240,51 @@ fun QueueBottomSheet(
                                 color = MonkifyGray,
                                 style = MaterialTheme.typography.bodySmall
                             )
+
+                            if (onMoveTrack != null || onRemoveTrack != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (onMoveTrack != null) {
+                                        IconButton(
+                                            onClick = { onMoveTrack(index, index - 1) },
+                                            enabled = index > 0,
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.KeyboardArrowUp,
+                                                contentDescription = "Subir pista",
+                                                tint = if (index > 0) MonkifyGray else MonkifyGray.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { onMoveTrack(index, index + 1) },
+                                            enabled = index < queue.size - 1,
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.KeyboardArrowDown,
+                                                contentDescription = "Bajar pista",
+                                                tint = if (index < queue.size - 1) MonkifyGray else MonkifyGray.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    if (onRemoveTrack != null) {
+                                        IconButton(
+                                            onClick = { onRemoveTrack(index) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Eliminar pista",
+                                                tint = Color(0xFFEF5350),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

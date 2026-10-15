@@ -27,8 +27,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -119,11 +119,24 @@ fun SearchScreen(
                 color = MonkifyOnBackground,
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
             )
-            IconButton(onClick = { /* TODO */ }) {
+            IconButton(
+                onClick = {
+                    val clip = clipboardManager.getText()?.text?.trim()
+                    if (clip.isNullOrBlank()) {
+                        Toast.makeText(context, "El portapapeles está vacío", Toast.LENGTH_SHORT).show()
+                    } else if (clip.contains("spotify.com")) {
+                        viewModel.ingestSpotifyUrl(clip)
+                        Toast.makeText(context, "Enlace registrado para descarga en la nube", Toast.LENGTH_SHORT).show()
+                    } else {
+                        viewModel.onQueryChange(clip)
+                        Toast.makeText(context, "Texto pegado en el buscador", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            ) {
                 Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "Scan",
-                    tint = MonkifyOnBackground
+                    imageVector = Icons.Default.ContentPaste,
+                    contentDescription = "Pegar enlace de Spotify",
+                    tint = MonkifyPrimary
                 )
             }
         }

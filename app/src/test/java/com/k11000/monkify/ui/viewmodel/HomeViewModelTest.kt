@@ -149,4 +149,18 @@ class HomeViewModelTest {
         viewModel.requestSync()
         assertTrue(fakeScheduler.immediateSyncCalled)
     }
+
+    @Test
+    fun `setFilter conmuta reactivamente entre ALL, MUSIC y PODCASTS`() = runBlocking {
+        val fakeRepo = FakeTrackRepository { _, _ -> emptyList() }
+        val viewModel = HomeViewModel(fakeRepo)
+
+        assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.ALL, viewModel.selectedFilter.value)
+
+        viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.MUSIC)
+        assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.MUSIC, viewModel.selectedFilter.value)
+
+        viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS)
+        assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS, viewModel.selectedFilter.value)
+    }
 }

@@ -63,7 +63,13 @@ class SearchViewModelTest {
             }
         }
 
-        override suspend fun requestIngest(url: String): Result<IngestResponse> = error("unused")
+        var ingestResult: Result<IngestResponse> = Result.success(IngestResponse("task_123", "accepted", "Encolada"))
+        var requestedUrl: String? = null
+
+        override suspend fun requestIngest(url: String): Result<IngestResponse> {
+            requestedUrl = url
+            return ingestResult
+        }
     }
 
     @Test
@@ -124,5 +130,32 @@ class SearchViewModelTest {
         viewModel.onTrackSelected(sampleTrack)
         assertEquals("t1", viewModel.selectedTrack.value?.id)
         assertEquals("Track 1", viewModel.selectedTrack.value?.title)
+    }
+
+    @Test
+    fun `ingestSpotifyUrl con url de Spotify valida invoca repositorio y actualiza ingestState a Success`() = runTest(testDispatcher) {
+        val fakeRepo = FakeTrackRepository()
+        fakeRepo.ingestResult = Result.success(IngestResponse("task_abc", "accepted", "Tarea encolada"))
+        val viewModel = SearchViewModel(fakeRepo)
+
+        viewModel.ingestSpotifyUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+        runCurrent()
+
+        assertEquals("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT", fakeRepo.requestedUrl)
+        assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Success)
+        val success = viewModel.ingestState.value as com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Success
+        assertEquals("Tarea encolada", success.message)
+    }
+
+    @Test
+    fun `ingestSpotifyUrl con url no de Spotify actualiza ingestState a Error sin llamar repositorio`() = runTest(testDispatcher) {
+        val fakeRepo = FakeTrackRepository()
+        val viewModel = SearchViewModel(fakeRepo)
+
+        viewModel.ingestSpotifyUrl("https://youtube.com/watch?v=123")
+        runCurrent()
+
+        assertEquals(null, fakeRepo.requestedUrl)
+        assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error)
     }
 }

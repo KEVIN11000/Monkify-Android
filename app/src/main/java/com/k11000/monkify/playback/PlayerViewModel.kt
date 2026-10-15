@@ -2,7 +2,10 @@ package com.k11000.monkify.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -256,6 +259,37 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        if (fromIndex !in currentQueue.indices || toIndex !in currentQueue.indices || fromIndex == toIndex) {
+            return
+        }
+        val mutable = currentQueue.toMutableList()
+        val item = mutable.removeAt(fromIndex)
+        mutable.add(toIndex, item)
+        currentQueue = mutable
+        _queue.value = mutable
+
+        try {
+            mediaController?.moveMediaItem(fromIndex, toIndex)
+        } catch (e: Exception) {
+            com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error al mover MediaItem en ExoPlayer", e)
+        }
+    }
+
+    fun removeQueueItem(index: Int) {
+        if (index !in currentQueue.indices) return
+        val mutable = currentQueue.toMutableList()
+        mutable.removeAt(index)
+        currentQueue = mutable
+        _queue.value = mutable
+
+        try {
+            mediaController?.removeMediaItem(index)
+        } catch (e: Exception) {
+            com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error al remover MediaItem de ExoPlayer", e)
+        }
+    }
+
     fun saveCurrentQueueAsPlaylist(name: String, onResult: (Result<Unit>) -> Unit = {}) {
         val tracksToSave = currentQueue.ifEmpty { listOfNotNull(currentTrack ?: resolveCurrentTrack()) }
         if (tracksToSave.isEmpty()) {
@@ -382,20 +416,98 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // Monkify Connect Devices
-    data class Device(val id: String, val name: String, val isSelected: Boolean)
+    // Salidas de Audio del Sistema (Monkify Audio Route)
+    data class Device(
+        val id: String,
+        val name: String,
+        val isSelected: Boolean,
+        val type: String = "Altavoz"
+    )
 
-    private val _devices = MutableStateFlow(
+    private val _devices = MutableStateFlow<List<Device>>(
         listOf(
-            Device("this_device", "Este Dispositivo (Android 15)", true),
-            Device("desktop_pc", "Monkify Desktop (PC Sala)", false),
-            Device("tv_living", "Monkify TV (Living)", false)
+            Device("this_device", "Altavoz del dispositivo", true, "Altavoz")
         )
     )
     val devices: StateFlow<List<Device>> = _devices.asStateFlow()
 
-    private val _activeDeviceName = MutableStateFlow("Este Dispositivo")
+    private val _activeDeviceName = MutableStateFlow("Altavoz del dispositivo")
     val activeDeviceName: StateFlow<String> = _activeDeviceName.asStateFlow()
+
+    fun refreshAudioDevices() {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            if (audioManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val outputDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                if (outputDevices.isNotEmpty()) {
+                    val deviceList = outputDevices.map { dev ->
+                        val (friendlyName, typeDesc) = resolveAudioDeviceDescription(dev)
+                        Device(
+                            id = "dev_${dev.id}",
+                            name = friendlyName,
+                            isSelected = isDeviceLikelyActive(dev, audioManager),
+                            type = typeDesc
+                        )
+                    }
+                    val hasActive = deviceList.any { it.isSelected }
+                    val finalDevices = if (!hasActive && deviceList.isNotEmpty()) {
+                        deviceList.mapIndexed { i, d -> if (i == 0) d.copy(isSelected = true) else d }
+                    } else {
+                        deviceList
+                    }
+                    _devices.value = finalDevices
+                    val active = finalDevices.firstOrNull { it.isSelected } ?: finalDevices.firstOrNull()
+                    if (active != null) {
+                        _activeDeviceName.value = active.name
+                    }
+                    return
+                }
+            }
+        } catch (e: Exception) {
+            com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error al obtener dispositivos de audio", e)
+        }
+        _devices.value = listOf(
+            Device("default_speaker", "Altavoz del dispositivo", isSelected = true, type = "Altavoz")
+        )
+        _activeDeviceName.value = "Altavoz del dispositivo"
+    }
+
+    private fun resolveAudioDeviceDescription(dev: AudioDeviceInfo): Pair<String, String> {
+        val prodName = dev.productName?.toString()?.takeIf { it.isNotBlank() }
+        return when (dev.type) {
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER ->
+                Pair(prodName ?: "Altavoz del dispositivo", "Altavoz")
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_DEVICE ->
+                Pair(prodName ?: "Auriculares con cable", "Auriculares")
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER ->
+                Pair(prodName ?: "Dispositivo Bluetooth", "Bluetooth")
+            else ->
+                Pair(prodName ?: "Salida de audio (${dev.id})", "Audio")
+        }
+    }
+
+    private fun isDeviceLikelyActive(dev: AudioDeviceInfo, audioManager: AudioManager): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val comm = audioManager.communicationDevice
+            if (comm != null && comm.id == dev.id) return true
+        }
+        @Suppress("DEPRECATION")
+        return when (dev.type) {
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> audioManager.isBluetoothA2dpOn
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET -> audioManager.isWiredHeadsetOn
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> !audioManager.isBluetoothA2dpOn && !audioManager.isWiredHeadsetOn
+            else -> false
+        }
+    }
 
     fun selectDevice(deviceId: String) {
         _devices.value = _devices.value.map { device ->
@@ -409,6 +521,7 @@ class PlayerViewModel @Inject constructor(
 
     init {
         initializeController()
+        refreshAudioDevices()
     }
 
     private fun initializeController() {

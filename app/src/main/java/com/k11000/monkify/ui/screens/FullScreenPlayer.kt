@@ -1,5 +1,8 @@
 package com.k11000.monkify.ui.screens
 
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -33,14 +36,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -104,6 +113,7 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 fun FullScreenPlayer(
     onClose: () -> Unit = {},
     onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
+    onEnterPip: (() -> Unit)? = null,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -258,6 +268,32 @@ fun FullScreenPlayer(
                         contentDescription = "Monkify Connect",
                         tint = MonkifyPrimary
                     )
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    IconButton(
+                        onClick = {
+                            if (onEnterPip != null) {
+                                onEnterPip()
+                            } else {
+                                val activity = context as? android.app.Activity
+                                try {
+                                    activity?.enterPictureInPictureMode(
+                                        android.app.PictureInPictureParams.Builder()
+                                            .setAspectRatio(android.util.Rational(16, 9))
+                                            .build()
+                                    )
+                                } catch (e: Exception) {
+                                    com.k11000.monkify.util.AppLogger.e("FullScreenPlayer", "Error al entrar en PiP", e)
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PictureInPictureAlt,
+                            contentDescription = "Activar Picture-in-Picture",
+                            tint = MonkifyPrimary
+                        )
+                    }
                 }
             }
         }
@@ -556,8 +592,12 @@ fun FullScreenPlayer(
         }
     }
 
-    // Modal de Selección de Dispositivos (Monkify Connect)
+    // Modal de Selección de Dispositivos (Salida de Audio)
     if (showDeviceSheet) {
+        LaunchedEffect(Unit) {
+            viewModel.refreshAudioDevices()
+        }
+
         ModalBottomSheet(
             onDismissRequest = { showDeviceSheet = false },
             sheetState = sheetState,
@@ -569,19 +609,25 @@ fun FullScreenPlayer(
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "Monkify Connect 🎧",
+                    text = "Salidas de Audio 🎧",
                     color = MonkifyOnBackground,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Escucha en otro dispositivo en tiempo real",
+                    text = "Dispositivos y rutas de audio detectadas en este equipo",
                     color = MonkifyGray,
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
                 devices.forEach { device ->
+                    val deviceIcon = when (device.type) {
+                        "Bluetooth" -> Icons.Default.Bluetooth
+                        "Auriculares" -> Icons.Default.Headphones
+                        else -> Icons.Default.Speaker
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -591,34 +637,77 @@ fun FullScreenPlayer(
                                 viewModel.selectDevice(device.id)
                                 showDeviceSheet = false
                             }
-                            .padding(16.dp),
+                            .padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Devices,
+                                imageVector = deviceIcon,
                                 contentDescription = null,
-                                tint = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground
+                                tint = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground,
+                                modifier = Modifier.size(24.dp)
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = device.name,
-                                color = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = if (device.isSelected) FontWeight.Bold else FontWeight.Normal
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    text = device.name,
+                                    color = if (device.isSelected) MonkifyPrimary else MonkifyOnBackground,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (device.isSelected) FontWeight.Bold else FontWeight.Normal
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            )
+                                Text(
+                                    text = device.type,
+                                    color = MonkifyGray,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                         if (device.isSelected) {
                             Text(
-                                text = "Conectado",
+                                text = "Activo",
                                 color = MonkifyPrimary,
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                             )
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            context.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS))
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No se pudo abrir ajustes de sonido", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MonkifyOnBackground
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MonkifyGray
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Ajustes de sonido del sistema",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MonkifyOnBackground
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -716,6 +805,12 @@ fun FullScreenPlayer(
             },
             onSaveQueueAsPlaylist = { name, callback ->
                 viewModel.saveCurrentQueueAsPlaylist(name, callback)
+            },
+            onMoveTrack = { from, to ->
+                viewModel.moveQueueItem(from, to)
+            },
+            onRemoveTrack = { index ->
+                viewModel.removeQueueItem(index)
             }
         )
     }

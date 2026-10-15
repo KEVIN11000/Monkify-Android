@@ -22,8 +22,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.PlayArrow
@@ -39,6 +45,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -99,11 +107,12 @@ fun LibraryScreen(
     val favoriteTracks by viewModel.favoriteTracks.collectAsState()
     val downloadedTracks by viewModel.downloadedTracks.collectAsState()
     val totalStorageBytes by viewModel.totalStorageBytes.collectAsState()
-    val playlists by viewModel.playlists.collectAsState()
+    val playlists by viewModel.filteredPlaylists.collectAsState()
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
     val context = LocalContext.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var isSearchVisible by remember { mutableStateOf(false) }
     var trackToDeleteDownload by remember { mutableStateOf<Track?>(null) }
 
 
@@ -139,20 +148,62 @@ fun LibraryScreen(
                 modifier = Modifier.weight(1f)
             )
 
-            IconButton(onClick = { /* TODO */ }) {
+            IconButton(onClick = {
+                isSearchVisible = !isSearchVisible
+                if (!isSearchVisible) {
+                    viewModel.onSearchQueryChange("")
+                }
+            }) {
                 Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search in Library",
-                    tint = MonkifyOnBackground
+                    imageVector = if (isSearchVisible) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (isSearchVisible) "Cerrar búsqueda" else "Buscar en biblioteca",
+                    tint = if (isSearchVisible) MonkifyPrimary else MonkifyOnBackground
                 )
             }
-            IconButton(onClick = { /* TODO */ }) {
+            IconButton(onClick = { showCreatePlaylistDialog = true }) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add",
+                    contentDescription = "Crear Playlist",
                     tint = MonkifyOnBackground
                 )
             }
+        }
+
+        AnimatedVisibility(
+            visible = isSearchVisible,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            val searchQuery by viewModel.searchQuery.collectAsState()
+            TextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onSearchQueryChange(it) },
+                placeholder = { Text("Buscar en biblioteca...", color = MonkifyGray) },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = MonkifyGray)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                            Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = MonkifyGray)
+                        }
+                    }
+                },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MonkifyDarkGray,
+                    unfocusedContainerColor = MonkifyDarkGray,
+                    focusedTextColor = MonkifyOnBackground,
+                    unfocusedTextColor = MonkifyOnBackground,
+                    cursorColor = MonkifyPrimary,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

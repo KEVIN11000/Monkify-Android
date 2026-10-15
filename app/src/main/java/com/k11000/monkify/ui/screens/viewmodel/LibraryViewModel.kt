@@ -43,8 +43,23 @@ class LibraryViewModel @Inject constructor(
     private val _selectedFilter = MutableStateFlow(LibraryFilter.ALL)
     val selectedFilter: StateFlow<LibraryFilter> = _selectedFilter.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
+
     private val _playlists = MutableStateFlow<List<PlaylistSummaryDto>>(emptyList())
     val playlists: StateFlow<List<PlaylistSummaryDto>> = _playlists.asStateFlow()
+
+    val filteredPlaylists: StateFlow<List<PlaylistSummaryDto>> = combine(
+        _playlists,
+        _searchQuery
+    ) { list, query ->
+        if (query.isBlank()) list
+        else list.filter { it.name.contains(query, ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoadingPlaylists = MutableStateFlow(false)
     val isLoadingPlaylists: StateFlow<Boolean> = _isLoadingPlaylists.asStateFlow()
@@ -149,13 +164,23 @@ class LibraryViewModel @Inject constructor(
 
     val displayedTracks: StateFlow<List<Track>> = combine(
         _selectedFilter,
+        _searchQuery,
         localTrackRepository.favoriteTracks,
         localTrackRepository.downloadedTracks
-    ) { filter, favorites, downloads ->
-        when (filter) {
+    ) { filter, query, favorites, downloads ->
+        val baseList = when (filter) {
             LibraryFilter.FAVORITES -> favorites
             LibraryFilter.DOWNLOADS -> downloads
             LibraryFilter.ALL, LibraryFilter.PLAYLISTS -> (favorites + downloads).distinctBy { it.id }
+        }
+        if (query.isBlank()) {
+            baseList
+        } else {
+            baseList.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                it.artist.contains(query, ignoreCase = true) ||
+                it.album.contains(query, ignoreCase = true)
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 

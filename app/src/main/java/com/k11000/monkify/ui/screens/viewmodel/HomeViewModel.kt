@@ -16,12 +16,25 @@ import com.k11000.monkify.domain.model.SyncStatus
 import com.k11000.monkify.domain.repository.SyncScheduler
 import javax.inject.Inject
 
+enum class HomeFilter(val displayName: String) {
+    ALL("Todo"),
+    MUSIC("Música"),
+    PODCASTS("Podcasts")
+}
+
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val downloadRepository: DownloadRepository? = null,
     private val syncScheduler: SyncScheduler? = null
 ) : ViewModel() {
+
+    private val _selectedFilter = MutableStateFlow(HomeFilter.ALL)
+    val selectedFilter: StateFlow<HomeFilter> = _selectedFilter.asStateFlow()
+
+    fun setFilter(filter: HomeFilter) {
+        _selectedFilter.value = filter
+    }
 
     val downloadedTrackIds: StateFlow<Set<String>> = downloadRepository?.downloadedTrackIds
         ?.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
