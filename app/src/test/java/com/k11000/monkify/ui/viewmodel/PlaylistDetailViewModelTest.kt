@@ -1,13 +1,19 @@
 package com.k11000.monkify.ui.viewmodel
 
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.ActionResponseDto
+import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
+import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
 import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.data.remote.dto.toDomain
+import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.ui.screens.viewmodel.PlaylistDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,7 +46,9 @@ class PlaylistDetailViewModelTest {
     }
 
     private class FakeMonkifyApi(
-        private val tracksHandler: (playlistId: String) -> List<BackendTrackDto> = { emptyList() }
+        private val tracksHandler: (playlistId: String) -> List<BackendTrackDto> = { emptyList() },
+        private val removeTrackHandler: (playlistId: String, trackId: String) -> ActionResponseDto = { _, _ -> ActionResponseDto(true, "removed") },
+        private val deletePlaylistHandler: (playlistId: String) -> ActionResponseDto = { ActionResponseDto(true, "deleted") }
     ) : MonkifyApi {
         override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<BackendTrackDto> = emptyList()
         override suspend fun login(request: LoginRequest): LoginResponse = LoginResponse("token", "ref", "bearer", 3600)
@@ -48,6 +56,23 @@ class PlaylistDetailViewModelTest {
         override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse(trackId, "lrc", "")
         override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = tracksHandler(id)
+        override suspend fun createPlaylist(request: CreatePlaylistRequest): PlaylistSummaryDto = PlaylistSummaryDto("pl_id", request.name, 0)
+        override suspend fun addTrackToPlaylist(playlistId: String, request: AddTrackToPlaylistRequest): ActionResponseDto = ActionResponseDto(true, "added")
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): ActionResponseDto = removeTrackHandler(playlistId, trackId)
+        override suspend fun deletePlaylist(playlistId: String): ActionResponseDto = deletePlaylistHandler(playlistId)
+    }
+
+    private class FakePlaylistRepository(
+        private val tracksHandler: (playlistId: String) -> List<Track> = { emptyList() },
+        private val removeTrackHandler: (playlistId: String, trackId: String) -> Result<Unit> = { _, _ -> Result.success(Unit) },
+        private val deletePlaylistHandler: (playlistId: String) -> Result<Unit> = { Result.success(Unit) }
+    ) : PlaylistRepository {
+        override suspend fun getPlaylists(limit: Int, offset: Int): Result<List<PlaylistSummaryDto>> = Result.success(emptyList())
+        override suspend fun getPlaylistTracks(playlistId: String): Result<List<Track>> = Result.success(tracksHandler(playlistId))
+        override suspend fun createPlaylist(name: String, description: String?): Result<PlaylistSummaryDto> = Result.success(PlaylistSummaryDto("pl_id", name, 0))
+        override suspend fun deletePlaylist(playlistId: String): Result<Unit> = deletePlaylistHandler(playlistId)
+        override suspend fun addTrackToPlaylist(playlistId: String, trackId: String): Result<Unit> = Result.success(Unit)
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): Result<Unit> = removeTrackHandler(playlistId, trackId)
     }
 
     private fun sampleTrackDto(id: String, title: String, artist: String) = BackendTrackDto(
@@ -104,5 +129,156 @@ class PlaylistDetailViewModelTest {
 
         assertEquals("Chill Morning Vibes", viewModel.playlistName.value)
         assertTrue(viewModel.tracks.value.isEmpty())
+    }
+
+    @Test
+    fun `removeTrack invoca exitosamente la API y remueve la cancion de tracks`() = runTest(testDispatcher) {
+        val testTracks = listOf(
+            sampleTrackDto("t1", "Track 1", "Artist 1"),
+            sampleTrackDto("t2", "Track 2", "Artist 2"),
+            sampleTrackDto("t3", "Track 3", "Artist 3")
+        )
+        val fakeApi = FakeMonkifyApi(tracksHandler = { testTracks })
+        val viewModel = PlaylistDetailViewModel(fakeApi)
+
+        viewModel.loadPlaylist("pl_1", "My Playlist")
+        advanceUntilIdle()
+        assertEquals(3, viewModel.tracks.value.size)
+
+        var resultSuccess = false
+        viewModel.removeTrack("t2") { res ->
+            resultSuccess = res.isSuccess
+        }
+        advanceUntilIdle()
+
+        assertTrue(resultSuccess)
+        assertEquals(2, viewModel.tracks.value.size)
+        assertEquals(listOf("t1", "t3"), viewModel.tracks.value.map { it.id })
+    }
+
+    @Test
+    fun `removeTrack con fallo no modifica el estado tracks y reporta error`() = runTest(testDispatcher) {
+        val testTracks = listOf(
+            sampleTrackDto("t1", "Track 1", "Artist 1"),
+            sampleTrackDto("t2", "Track 2", "Artist 2")
+        )
+        val fakeApi = FakeMonkifyApi(
+            tracksHandler = { testTracks },
+            removeTrackHandler = { _, _ -> throw RuntimeException("HTTP 500 Server Error") }
+        )
+        val viewModel = PlaylistDetailViewModel(fakeApi)
+
+        viewModel.loadPlaylist("pl_1", "My Playlist")
+        advanceUntilIdle()
+        assertEquals(2, viewModel.tracks.value.size)
+
+        var resultFailure = false
+        viewModel.removeTrack("t1") { res ->
+            resultFailure = res.isFailure
+        }
+        advanceUntilIdle()
+
+        assertTrue(resultFailure)
+        assertEquals(2, viewModel.tracks.value.size)
+    }
+
+    @Test
+    fun `deletePlaylist invoca la API y reporta exito`() = runTest(testDispatcher) {
+        var deleteCalledWith: String? = null
+        val fakeApi = FakeMonkifyApi(
+            deletePlaylistHandler = { id ->
+                deleteCalledWith = id
+                ActionResponseDto(true, "deleted")
+            }
+        )
+        val viewModel = PlaylistDetailViewModel(fakeApi)
+
+        viewModel.loadPlaylist("pl_to_delete", "Delete Me")
+        advanceUntilIdle()
+
+        var resultSuccess = false
+        viewModel.deletePlaylist { res ->
+            resultSuccess = res.isSuccess
+        }
+        advanceUntilIdle()
+
+        assertTrue(resultSuccess)
+        assertEquals("pl_to_delete", deleteCalledWith)
+    }
+
+    @Test
+    fun `deletePlaylist con fallo en API reporta error`() = runTest(testDispatcher) {
+        val fakeApi = FakeMonkifyApi(
+            deletePlaylistHandler = { _ -> ActionResponseDto(false, "DB Error") }
+        )
+        val viewModel = PlaylistDetailViewModel(fakeApi)
+
+        viewModel.loadPlaylist("pl_fail_delete", "Delete Fail")
+        advanceUntilIdle()
+
+        var resultFailure = false
+        viewModel.deletePlaylist { res ->
+            resultFailure = res.isFailure
+        }
+        advanceUntilIdle()
+
+        assertTrue(resultFailure)
+    }
+
+    @Test
+    fun `removeTrack con PlaylistRepository delegado funciona y actualiza estado`() = runTest(testDispatcher) {
+        val testTracks = listOf(
+            sampleTrackDto("t1", "Track 1", "Artist 1"),
+            sampleTrackDto("t2", "Track 2", "Artist 2")
+        )
+        val fakeApi = FakeMonkifyApi(tracksHandler = { testTracks })
+        var repoRemoveCalled = false
+        val fakeRepo = FakePlaylistRepository(
+            tracksHandler = { testTracks.map { it.toDomain(com.k11000.monkify.BuildConfig.BASE_URL) } },
+            removeTrackHandler = { plId, trackId ->
+                repoRemoveCalled = (plId == "pl_repo" && trackId == "t1")
+                Result.success(Unit)
+            }
+        )
+        val viewModel = PlaylistDetailViewModel(fakeApi, fakeRepo)
+
+        viewModel.loadPlaylist("pl_repo", "Repo Playlist")
+        advanceUntilIdle()
+
+        var resultSuccess = false
+        viewModel.removeTrack("t1") { res ->
+            resultSuccess = res.isSuccess
+        }
+        advanceUntilIdle()
+
+        assertTrue(repoRemoveCalled)
+        assertTrue(resultSuccess)
+        assertEquals(1, viewModel.tracks.value.size)
+        assertEquals("t2", viewModel.tracks.value.first().id)
+    }
+
+    @Test
+    fun `deletePlaylist con PlaylistRepository delegado funciona correctamente`() = runTest(testDispatcher) {
+        val fakeApi = FakeMonkifyApi()
+        var repoDeleteCalled = false
+        val fakeRepo = FakePlaylistRepository(
+            deletePlaylistHandler = { plId ->
+                repoDeleteCalled = (plId == "pl_repo_del")
+                Result.success(Unit)
+            }
+        )
+        val viewModel = PlaylistDetailViewModel(fakeApi, fakeRepo)
+
+        viewModel.loadPlaylist("pl_repo_del", "Repo Del")
+        advanceUntilIdle()
+
+        var resultSuccess = false
+        viewModel.deletePlaylist { res ->
+            resultSuccess = res.isSuccess
+        }
+        advanceUntilIdle()
+
+        assertTrue(repoDeleteCalled)
+        assertTrue(resultSuccess)
     }
 }

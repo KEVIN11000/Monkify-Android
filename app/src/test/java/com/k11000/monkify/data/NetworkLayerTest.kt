@@ -3,7 +3,10 @@ package com.k11000.monkify.data
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.ActionResponseDto
+import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
+import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
@@ -66,6 +69,10 @@ class NetworkLayerTest {
         override suspend fun getLyrics(trackId: String): LyricsResponse = error("unused")
         override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = result()
+        override suspend fun createPlaylist(request: CreatePlaylistRequest): PlaylistSummaryDto = error("unused")
+        override suspend fun addTrackToPlaylist(playlistId: String, request: AddTrackToPlaylistRequest): ActionResponseDto = error("unused")
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): ActionResponseDto = error("unused")
+        override suspend fun deletePlaylist(playlistId: String): ActionResponseDto = error("unused")
     }
 
     @Test

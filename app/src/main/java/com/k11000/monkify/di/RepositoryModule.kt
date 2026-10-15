@@ -2,8 +2,10 @@ package com.k11000.monkify.di
 
 import com.k11000.monkify.data.repository.DownloadRepositoryImpl
 import com.k11000.monkify.data.repository.OfflineFirstTrackRepository
+import com.k11000.monkify.data.repository.PlaylistRepositoryImpl
 import com.k11000.monkify.data.repository.UpdateRepositoryImpl
 import com.k11000.monkify.domain.repository.DownloadRepository
+import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.domain.repository.TrackRepository
 import com.k11000.monkify.domain.repository.UpdateRepository
 import dagger.Binds
@@ -33,4 +35,10 @@ abstract class RepositoryModule {
     abstract fun bindDownloadRepository(
         downloadRepositoryImpl: DownloadRepositoryImpl
     ): DownloadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaylistRepository(
+        playlistRepositoryImpl: PlaylistRepositoryImpl
+    ): PlaylistRepository
 }

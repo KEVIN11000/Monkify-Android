@@ -103,6 +103,18 @@ class OfflineFirstTrackRepositoryTest {
 
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> =
             emptyList()
+
+        override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto =
+            com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("fake_pl", request.name, 0)
+
+        override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto =
+            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "added", playlistId, request.trackId, 1)
+
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto =
+            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "removed", playlistId, trackId)
+
+        override suspend fun deletePlaylist(playlistId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto =
+            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "deleted", deletedId = playlistId)
     }
 
     private fun sampleEntity(id: String, title: String, artist: String, album: String = "Test Album") = TrackEntity(

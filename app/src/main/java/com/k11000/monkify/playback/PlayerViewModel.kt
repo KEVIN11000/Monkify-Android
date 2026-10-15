@@ -23,8 +23,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.ActionResponseDto
+import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
+import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
+import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.repository.DownloadRepository
 import com.k11000.monkify.data.repository.LocalTrackRepository
+import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.playback.lyrics.LyricLine
 import com.k11000.monkify.playback.lyrics.LrcParser
 
@@ -33,7 +38,8 @@ class PlayerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val localTrackRepository: LocalTrackRepository,
     private val downloadRepository: DownloadRepository,
-    private val monkifyApi: MonkifyApi
+    private val monkifyApi: MonkifyApi,
+    private val playlistRepository: PlaylistRepository? = null
 ) : ViewModel() {
 
     private var mediaController: MediaController? = null
@@ -116,6 +122,95 @@ class PlayerViewModel @Inject constructor(
                 val success = downloadRepository.downloadTrack(track)
                 _isCurrentDownloaded.value = success
                 _isCurrentDownloading.value = false
+            }
+        }
+    }
+
+    private val _availablePlaylists = MutableStateFlow<List<PlaylistSummaryDto>>(emptyList())
+    val availablePlaylists: StateFlow<List<PlaylistSummaryDto>> = _availablePlaylists.asStateFlow()
+
+    private val _isLoadingPlaylists = MutableStateFlow(false)
+    val isLoadingPlaylists: StateFlow<Boolean> = _isLoadingPlaylists.asStateFlow()
+
+    val currentPlayingTrack: Track?
+        get() = currentTrack
+
+    fun loadPlaylistsForDialog() {
+        viewModelScope.launch {
+            _isLoadingPlaylists.value = true
+            try {
+                if (playlistRepository != null) {
+                    val res = playlistRepository.getPlaylists()
+                    res.onSuccess {
+                        _availablePlaylists.value = it
+                    }.onFailure {
+                        _availablePlaylists.value = emptyList()
+                    }
+                } else {
+                    val dtos = monkifyApi.getPlaylists()
+                    _availablePlaylists.value = dtos
+                }
+            } catch (_: Exception) {
+                _availablePlaylists.value = emptyList()
+            } finally {
+                _isLoadingPlaylists.value = false
+            }
+        }
+    }
+
+    fun addCurrentTrackToPlaylist(playlistId: String, onResult: (Result<Unit>) -> Unit = {}) {
+        val track = currentTrack ?: run {
+            onResult(Result.failure(IllegalStateException("No hay pista activa en reproducción")))
+            return
+        }
+        viewModelScope.launch {
+            try {
+                if (playlistRepository != null) {
+                    val res = playlistRepository.addTrackToPlaylist(playlistId, track.id)
+                    onResult(res)
+                } else {
+                    val resp = monkifyApi.addTrackToPlaylist(playlistId, AddTrackToPlaylistRequest(track.id))
+                    if (resp.success) {
+                        onResult(Result.success(Unit))
+                    } else {
+                        onResult(Result.failure(RuntimeException(resp.message)))
+                    }
+                }
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
+
+    fun createPlaylistAndAddCurrentTrack(name: String, onResult: (Result<Unit>) -> Unit = {}) {
+        val track = currentTrack ?: run {
+            onResult(Result.failure(IllegalStateException("No hay pista activa en reproducción")))
+            return
+        }
+        viewModelScope.launch {
+            try {
+                if (playlistRepository != null) {
+                    val createRes = playlistRepository.createPlaylist(name)
+                    createRes.fold(
+                        onSuccess = { createdPl ->
+                            val addRes = playlistRepository.addTrackToPlaylist(createdPl.id, track.id)
+                            onResult(addRes)
+                        },
+                        onFailure = { err ->
+                            onResult(Result.failure(err))
+                        }
+                    )
+                } else {
+                    val pl = monkifyApi.createPlaylist(CreatePlaylistRequest(name = name))
+                    val addResp = monkifyApi.addTrackToPlaylist(pl.id, AddTrackToPlaylistRequest(track.id))
+                    if (addResp.success) {
+                        onResult(Result.success(Unit))
+                    } else {
+                        onResult(Result.failure(RuntimeException(addResp.message)))
+                    }
+                }
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
             }
         }
     }

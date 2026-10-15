@@ -1,5 +1,6 @@
 package com.k11000.monkify.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,9 +23,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,10 +36,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +63,7 @@ import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
+import com.k11000.monkify.ui.theme.MonkifySurface
 
 @Composable
 fun PlaylistDetailScreen(
@@ -67,6 +77,8 @@ fun PlaylistDetailScreen(
     val playlistName by viewModel.playlistName.collectAsState()
     val tracks by viewModel.tracks.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val context = LocalContext.current
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(playlistId) {
         viewModel.loadPlaylist(playlistId, initialName)
@@ -100,6 +112,14 @@ fun PlaylistDetailScreen(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 modifier = Modifier.padding(start = 8.dp)
             )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar playlist",
+                    tint = MonkifyGray
+                )
+            }
         }
 
         LazyColumn(
@@ -121,7 +141,7 @@ fun PlaylistDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlaylistPlay,
+                            imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
                             contentDescription = "Carátula de playlist",
                             tint = MonkifyPrimary,
                             modifier = Modifier.size(80.dp)
@@ -255,6 +275,29 @@ fun PlaylistDetailScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+
+                        // Botón Quitar de Playlist
+                        IconButton(
+                            onClick = {
+                                viewModel.removeTrack(track.id) { result ->
+                                    result.fold(
+                                        onSuccess = {
+                                            Toast.makeText(context, "Canción quitada de la playlist", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onFailure = { err ->
+                                            Toast.makeText(context, err.message ?: "Error al quitar canción", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Quitar de playlist",
+                                tint = MonkifyGray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -263,5 +306,57 @@ fun PlaylistDetailScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            containerColor = MonkifySurface,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(
+                    text = "Eliminar playlist",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MonkifyOnBackground
+                )
+            },
+            text = {
+                Text(
+                    text = "¿Estás seguro de que deseas eliminar \"$displayName\"? Esta acción no se puede deshacer.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MonkifyGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.deletePlaylist { result ->
+                            result.fold(
+                                onSuccess = {
+                                    Toast.makeText(context, "Playlist eliminada", Toast.LENGTH_SHORT).show()
+                                    onBack()
+                                },
+                                onFailure = { err ->
+                                    Toast.makeText(context, err.message ?: "Error al eliminar playlist", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE53935),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Eliminar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancelar", color = MonkifyGray)
+                }
+            }
+        )
     }
 }

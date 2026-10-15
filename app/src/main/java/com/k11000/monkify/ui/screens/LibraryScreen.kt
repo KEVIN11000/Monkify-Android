@@ -61,7 +61,10 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.ui.components.CreatePlaylistDialog
 
 @Composable
 fun LibraryScreen(
@@ -78,6 +81,7 @@ fun LibraryScreen(
     val playlists by viewModel.playlists.collectAsState()
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -208,31 +212,38 @@ fun LibraryScreen(
                 ) {
                     CircularProgressIndicator(color = MonkifyPrimary)
                 }
-            } else if (playlists.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No se encontraron playlists disponibles en la nube.",
-                        color = MonkifyGray,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                }
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    itemsIndexed(playlists, key = { _, pl -> pl.id }) { _, pl ->
-                        LibraryPlaylistItem(
-                            playlist = pl,
-                            onClick = { onNavigateToPlaylist(pl.id, pl.name) }
-                        )
+                    item {
+                        CreatePlaylistHeaderItem(onClick = { showCreatePlaylistDialog = true })
+                    }
+                    if (playlists.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Aún no tienes playlists creadas.\nPresiona \"Nueva Playlist\" para comenzar.",
+                                    color = MonkifyGray,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        itemsIndexed(playlists, key = { _, pl -> pl.id }) { _, pl ->
+                            LibraryPlaylistItem(
+                                playlist = pl,
+                                onClick = { onNavigateToPlaylist(pl.id, pl.name) }
+                            )
+                        }
                     }
                 }
             }
@@ -271,6 +282,16 @@ fun LibraryScreen(
                     )
                 }
             }
+        }
+
+        if (showCreatePlaylistDialog) {
+            CreatePlaylistDialog(
+                onDismiss = { showCreatePlaylistDialog = false },
+                onConfirm = { name ->
+                    showCreatePlaylistDialog = false
+                    viewModel.createPlaylist(name)
+                }
+            )
         }
     }
 }
@@ -418,5 +439,48 @@ fun LibraryPlaylistItem(
             tint = MonkifyPrimary,
             modifier = Modifier.size(20.dp)
         )
+    }
+}
+
+@Composable
+fun CreatePlaylistHeaderItem(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .background(MonkifyDarkGray)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MonkifyPrimary.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Crear Playlist",
+                tint = MonkifyPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column {
+            Text(
+                text = "Nueva Playlist",
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = "Crea y organiza tus canciones favoritas",
+                color = MonkifyGray,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
     }
 }

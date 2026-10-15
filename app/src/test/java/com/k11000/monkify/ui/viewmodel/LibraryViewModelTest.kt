@@ -166,4 +166,74 @@ class LibraryViewModelTest {
         assertTrue(viewModel.favoriteTracks.value.isEmpty())
         assertTrue(viewModel.downloadedTracks.value.isEmpty())
     }
+
+    private class FakePlaylistRepo : com.k11000.monkify.domain.repository.PlaylistRepository {
+        val playlists = mutableListOf<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>(
+            com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("pl_1", "Lofi Beats", 5)
+        )
+
+        override suspend fun getPlaylists(limit: Int, offset: Int): Result<List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>> =
+            Result.success(playlists.toList())
+
+        override suspend fun getPlaylistTracks(playlistId: String): Result<List<Track>> =
+            Result.success(emptyList())
+
+        override suspend fun createPlaylist(name: String, description: String?): Result<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> {
+            val newPl = com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("user_pl_${playlists.size + 1}", name, 0)
+            playlists.add(newPl)
+            return Result.success(newPl)
+        }
+
+        override suspend fun deletePlaylist(playlistId: String): Result<Unit> {
+            playlists.removeAll { it.id == playlistId }
+            return Result.success(Unit)
+        }
+
+        override suspend fun addTrackToPlaylist(playlistId: String, trackId: String): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): Result<Unit> =
+            Result.success(Unit)
+    }
+
+    @Test
+    fun `createPlaylist invoca al repositorio y actualiza playlists en el viewModel`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakePlaylistRepo = FakePlaylistRepo()
+        val viewModel = LibraryViewModel(localRepo, playlistRepository = fakePlaylistRepo)
+
+        advanceUntilIdle()
+        assertEquals(1, viewModel.playlists.value.size)
+
+        var successCallback = false
+        viewModel.createPlaylist("Rock Classics") { success ->
+            successCallback = success
+        }
+        advanceUntilIdle()
+
+        assertTrue(successCallback)
+        assertEquals(2, viewModel.playlists.value.size)
+        assertEquals("Rock Classics", viewModel.playlists.value.last().name)
+    }
+
+    @Test
+    fun `deletePlaylist elimina la playlist de la lista en memoria`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakePlaylistRepo = FakePlaylistRepo()
+        val viewModel = LibraryViewModel(localRepo, playlistRepository = fakePlaylistRepo)
+
+        advanceUntilIdle()
+        assertEquals(1, viewModel.playlists.value.size)
+
+        var successCallback = false
+        viewModel.deletePlaylist("pl_1") { success ->
+            successCallback = success
+        }
+        advanceUntilIdle()
+
+        assertTrue(successCallback)
+        assertEquals(0, viewModel.playlists.value.size)
+    }
 }

@@ -73,3 +73,21 @@ data class LyricsResponse(
     val format: String,
     val content: String
 )
+
+data class CreatePlaylistRequest(
+    val name: String,
+    val description: String? = null
+)
+
+data class AddTrackToPlaylistRequest(
+    @SerializedName("track_id") val trackId: String
+)
+
+data class ActionResponseDto(
+    val success: Boolean,
+    val message: String? = null,
+    @SerializedName("playlist_id") val playlistId: String? = null,
+    @SerializedName("track_id") val trackId: String? = null,
+    val position: Int? = null,
+    @SerializedName("deleted_id") val deletedId: String? = null
+)

@@ -1,5 +1,6 @@
 package com.k11000.monkify.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
@@ -61,7 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import coil3.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.components.AddToPlaylistDialog
+import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.LyricsView
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
@@ -89,7 +94,11 @@ fun FullScreenPlayer(
     val isDownloaded by viewModel.isCurrentDownloaded.collectAsState()
     val isDownloading by viewModel.isCurrentDownloading.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
+    val availablePlaylists by viewModel.availablePlaylists.collectAsState()
 
+    val context = LocalContext.current
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
     var showDeviceSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
@@ -212,6 +221,18 @@ fun FullScreenPlayer(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Botón Añadir a Playlist
+                IconButton(onClick = {
+                    viewModel.loadPlaylistsForDialog()
+                    showAddToPlaylistDialog = true
+                }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                        contentDescription = "Añadir a playlist",
+                        tint = MonkifyGray
+                    )
+                }
+
                 // Botón Descargar
                 IconButton(onClick = { viewModel.toggleDownload() }) {
                     if (isDownloading) {
@@ -424,5 +445,48 @@ fun FullScreenPlayer(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+
+    if (showAddToPlaylistDialog) {
+        AddToPlaylistDialog(
+            playlists = availablePlaylists,
+            onDismiss = { showAddToPlaylistDialog = false },
+            onSelectPlaylist = { playlistId ->
+                viewModel.addCurrentTrackToPlaylist(playlistId) { result ->
+                    result.fold(
+                        onSuccess = {
+                            Toast.makeText(context, "Añadida a la playlist", Toast.LENGTH_SHORT).show()
+                            showAddToPlaylistDialog = false
+                        },
+                        onFailure = { err ->
+                            Toast.makeText(context, err.message ?: "Error al añadir a playlist", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            },
+            onCreateNewPlaylist = {
+                showAddToPlaylistDialog = false
+                showCreatePlaylistDialog = true
+            }
+        )
+    }
+
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreatePlaylistDialog = false },
+            onConfirm = { name ->
+                viewModel.createPlaylistAndAddCurrentTrack(name) { result ->
+                    result.fold(
+                        onSuccess = {
+                            Toast.makeText(context, "Playlist creada y canción añadida", Toast.LENGTH_SHORT).show()
+                            showCreatePlaylistDialog = false
+                        },
+                        onFailure = { err ->
+                            Toast.makeText(context, err.message ?: "Error al crear playlist", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        )
     }
 }

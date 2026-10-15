@@ -6,6 +6,7 @@ import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,8 @@ enum class LibraryFilter(val displayName: String) {
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val localTrackRepository: LocalTrackRepository,
-    private val monkifyApi: MonkifyApi? = null
+    private val monkifyApi: MonkifyApi? = null,
+    private val playlistRepository: PlaylistRepository? = null
 ) : ViewModel() {
 
     private val _selectedFilter = MutableStateFlow(LibraryFilter.ALL)
@@ -43,15 +45,71 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun loadPlaylists() {
-        val api = monkifyApi ?: return
         viewModelScope.launch {
             _isLoadingPlaylists.value = true
             try {
-                _playlists.value = api.getPlaylists()
+                if (playlistRepository != null) {
+                    val result = playlistRepository.getPlaylists()
+                    if (result.isSuccess) {
+                        _playlists.value = result.getOrThrow()
+                    }
+                } else if (monkifyApi != null) {
+                    _playlists.value = monkifyApi.getPlaylists()
+                }
             } catch (_: Exception) {
                 // Silencioso o sin conexión
             } finally {
                 _isLoadingPlaylists.value = false
+            }
+        }
+    }
+
+    fun createPlaylist(name: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val repo = playlistRepository
+            if (repo != null) {
+                val result = repo.createPlaylist(name)
+                if (result.isSuccess) {
+                    loadPlaylists()
+                    onResult(true)
+                } else {
+                    onResult(false)
+                }
+            } else if (monkifyApi != null) {
+                try {
+                    val created = monkifyApi.createPlaylist(com.k11000.monkify.data.remote.dto.CreatePlaylistRequest(name))
+                    _playlists.value = _playlists.value + created
+                    onResult(true)
+                } catch (_: Exception) {
+                    onResult(false)
+                }
+            } else {
+                onResult(false)
+            }
+        }
+    }
+
+    fun deletePlaylist(playlistId: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val repo = playlistRepository
+            if (repo != null) {
+                val result = repo.deletePlaylist(playlistId)
+                if (result.isSuccess) {
+                    _playlists.value = _playlists.value.filter { it.id != playlistId }
+                    onResult(true)
+                } else {
+                    onResult(false)
+                }
+            } else if (monkifyApi != null) {
+                try {
+                    monkifyApi.deletePlaylist(playlistId)
+                    _playlists.value = _playlists.value.filter { it.id != playlistId }
+                    onResult(true)
+                } catch (_: Exception) {
+                    onResult(false)
+                }
+            } else {
+                onResult(false)
             }
         }
     }
