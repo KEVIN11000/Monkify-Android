@@ -121,6 +121,25 @@ class PlaylistDetailViewModelTest {
         override fun getLocalLyrics(trackId: String): String? = null
         override fun getLocalAudioPath(trackId: String): String? = null
         override fun getTotalDownloadsSizeBytes(): Long = 0L
+
+        val isDownloading = MutableStateFlow(false)
+        val downloadProgress = MutableStateFlow(Pair(0, 0))
+
+        override fun isPlaylistDownloading(playlistId: String): StateFlow<Boolean> = isDownloading
+        override fun getPlaylistDownloadProgress(playlistId: String): StateFlow<Pair<Int, Int>> = downloadProgress
+
+        override fun downloadPlaylist(playlistId: String, tracks: List<Track>) {
+            downloadTracksCalledWith = tracks
+            isDownloading.value = true
+            tracks.forEachIndexed { index, track ->
+                downloadedSet.value = downloadedSet.value + track.id
+                downloadProgress.value = Pair(index + 1, tracks.size)
+            }
+            isDownloading.value = false
+        }
+        override fun cancelPlaylistDownload(playlistId: String) {
+            isDownloading.value = false
+        }
     }
 
 

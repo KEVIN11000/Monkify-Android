@@ -89,6 +89,7 @@ import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.LyricsView
+import com.k11000.monkify.ui.components.QueueBottomSheet
 import com.k11000.monkify.ui.components.VinylTurntable
 import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.theme.MonkifyBackground
@@ -102,6 +103,7 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 @Composable
 fun FullScreenPlayer(
     onClose: () -> Unit = {},
+    onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -123,6 +125,8 @@ fun FullScreenPlayer(
     val zenModeEnabled by viewModel.zenModeEnabled.collectAsState()
     val zenEngine by viewModel.zenEngine.collectAsState()
     val coverStyle by viewModel.coverStyle.collectAsState()
+    val playbackSource by viewModel.playbackSource.collectAsState()
+    val queue by viewModel.queue.collectAsState()
 
     val context = LocalContext.current
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
@@ -130,15 +134,13 @@ fun FullScreenPlayer(
     var showDeleteDownloadDialog by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
     var showDeviceSheet by remember { mutableStateOf(false) }
-    var isZenImmersive by rememberSaveable { mutableStateOf(false) }
+    var showQueueSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    // Manejo del botón de retroceso: si está en modo Zen inmersivo sale de él; si las letras están visibles las cierra; si no, colapsa el reproductor
+    // Manejo del botón de retroceso: si las letras están visibles las cierra; si no, colapsa el reproductor
     BackHandler(enabled = true) {
-        if (isZenImmersive) {
-            isZenImmersive = false
-        } else if (showLyrics) {
+        if (showLyrics) {
             showLyrics = false
         } else {
             onClose()
@@ -170,14 +172,6 @@ fun FullScreenPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                if (zenModeEnabled) {
-                    isZenImmersive = !isZenImmersive
-                }
-            }
     ) {
         if (zenModeEnabled) {
             ZenBackground(
@@ -201,16 +195,11 @@ fun FullScreenPlayer(
             )
         }
 
-        AnimatedVisibility(
-            visible = !isZenImmersive,
-            enter = fadeIn(animationSpec = tween(280)),
-            exit = fadeOut(animationSpec = tween(200))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
-            ) {
         // Barra Superior
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -224,16 +213,34 @@ fun FullScreenPlayer(
                     tint = MonkifyOnBackground
                 )
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        val plId = playbackSource.playlistId
+                        if (!plId.isNullOrBlank()) {
+                            onNavigateToPlaylist(plId, playbackSource.title)
+                        } else {
+                            showQueueSheet = true
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
                 Text(
-                    text = "REPRODUCIENDO EN",
+                    text = if (!playbackSource.playlistId.isNullOrBlank()) "REPRODUCIENDO DESDE PLAYLIST" else "REPRODUCIENDO DESDE",
                     color = MonkifyGray,
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = activeDeviceName,
+                    text = playbackSource.title.ifBlank { "Lista sin nombre" },
                     color = MonkifyPrimary,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -261,15 +268,7 @@ fun FullScreenPlayer(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    if (zenModeEnabled) {
-                        isZenImmersive = !isZenImmersive
-                    }
-                },
+                .aspectRatio(1f),
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -554,42 +553,8 @@ fun FullScreenPlayer(
                 )
             }
         }
+        }
     }
-        }
-
-        // Modo Zen Inmersivo: Rótulo minimalista en la parte inferior
-        AnimatedVisibility(
-            visible = isZenImmersive,
-            enter = fadeIn(animationSpec = tween(350)),
-            exit = fadeOut(animationSpec = tween(250)),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 56.dp, start = 32.dp, end = 32.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = title,
-                    color = MonkifyOnBackground.copy(alpha = 0.9f),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = artist,
-                    color = MonkifyPrimary.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Toca para mostrar controles",
-                    color = MonkifyGray.copy(alpha = 0.55f),
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
-        }
 
     // Modal de Selección de Dispositivos (Monkify Connect)
     if (showDeviceSheet) {
@@ -740,6 +705,19 @@ fun FullScreenPlayer(
             }
         )
     }
-}
+
+    if (showQueueSheet) {
+        QueueBottomSheet(
+            queue = queue,
+            currentTrackId = viewModel.currentPlayingTrack?.id,
+            onDismiss = { showQueueSheet = false },
+            onTrackClick = { index ->
+                viewModel.skipToQueueIndex(index)
+            },
+            onSaveQueueAsPlaylist = { name, callback ->
+                viewModel.saveCurrentQueueAsPlaylist(name, callback)
+            }
+        )
+    }
 }
 

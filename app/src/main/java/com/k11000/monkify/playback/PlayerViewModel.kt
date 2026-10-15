@@ -41,6 +41,33 @@ import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.playback.lyrics.LyricLine
 import com.k11000.monkify.playback.lyrics.LrcParser
 
+enum class PlaybackSourceType {
+    PLAYLIST,
+    SEARCH,
+    HOME,
+    AD_HOC_QUEUE
+}
+
+data class PlaybackSource(
+    val type: PlaybackSourceType = PlaybackSourceType.AD_HOC_QUEUE,
+    val title: String = "Lista sin nombre",
+    val playlistId: String? = null
+) {
+    companion object {
+        fun playlist(id: String, name: String) = PlaybackSource(
+            type = PlaybackSourceType.PLAYLIST,
+            title = name,
+            playlistId = id
+        )
+
+        fun adHoc(title: String = "Lista sin nombre") = PlaybackSource(
+            type = PlaybackSourceType.AD_HOC_QUEUE,
+            title = title,
+            playlistId = null
+        )
+    }
+}
+
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -115,6 +142,9 @@ class PlayerViewModel @Inject constructor(
     private val _isZenCleared = MutableStateFlow(false)
     val isZenCleared: StateFlow<Boolean> = _isZenCleared.asStateFlow()
 
+    private val _playbackSource = MutableStateFlow(PlaybackSource.adHoc())
+    val playbackSource: StateFlow<PlaybackSource> = _playbackSource.asStateFlow()
+
     private var currentQueue: List<Track> = emptyList()
     private val _queue = MutableStateFlow<List<Track>>(emptyList())
     val queue: StateFlow<List<Track>> = _queue.asStateFlow()
@@ -134,14 +164,38 @@ class PlayerViewModel @Inject constructor(
     val currentDownloadState: StateFlow<DownloadState> = _currentDownloadState.asStateFlow()
 
     private var downloadStateJob: Job? = null
+    private var favoriteJob: Job? = null
+
+    fun setPlaybackSource(source: PlaybackSource) {
+        _playbackSource.value = source
+    }
 
     private fun observeTrackDownloadState(trackId: String) {
         downloadStateJob?.cancel()
+        // Chequeo inmediato en disco para evitar que se muestre como 'no descargado' al cargar
+        val localPath = downloadRepository.getLocalAudioPath(trackId)
+        if (!localPath.isNullOrBlank()) {
+            _isCurrentDownloaded.value = true
+            _currentDownloadState.value = DownloadState.Downloaded(localPath)
+        } else {
+            _isCurrentDownloaded.value = false
+            _currentDownloadState.value = DownloadState.NotDownloaded
+        }
+
         downloadStateJob = viewModelScope.launch {
             downloadRepository.getDownloadState(trackId).collect { state ->
                 _currentDownloadState.value = state
                 _isCurrentDownloaded.value = state is DownloadState.Downloaded
                 _isCurrentDownloading.value = state is DownloadState.Downloading
+            }
+        }
+    }
+
+    private fun observeTrackFavoriteState(trackId: String) {
+        favoriteJob?.cancel()
+        favoriteJob = viewModelScope.launch {
+            localTrackRepository.isFavorite(trackId).collect { isFav ->
+                _isCurrentFavorite.value = isFav
             }
         }
     }
@@ -154,18 +208,88 @@ class PlayerViewModel @Inject constructor(
         _isZenCleared.value = cleared
     }
 
+    fun resolveCurrentTrack(): Track? {
+        if (currentTrack != null) return currentTrack
+        val item = mediaController?.currentMediaItem ?: return null
+        val id = item.mediaId.ifBlank { return null }
+        val resolved = currentQueue.find { it.id == id } ?: Track(
+            id = id,
+            title = item.mediaMetadata.title?.toString() ?: _currentTrackTitle.value,
+            artist = item.mediaMetadata.artist?.toString() ?: _currentTrackArtist.value,
+            album = item.mediaMetadata.albumTitle?.toString() ?: "",
+            durationMs = _duration.value,
+            coverUrl = item.mediaMetadata.artworkUri?.toString() ?: _coverUrl.value,
+            streamUrl = item.localConfiguration?.uri?.toString() ?: ""
+        )
+        currentTrack = resolved
+        return resolved
+    }
+
     fun toggleFavorite() {
-        val track = currentTrack ?: return
+        val track = resolveCurrentTrack() ?: run {
+            com.k11000.monkify.util.AppLogger.w("PlayerViewModel", "toggleFavorite: no hay pista activa en reproducción")
+            return
+        }
         viewModelScope.launch {
-            localTrackRepository.toggleFavorite(track)
-            _isCurrentFavorite.value = !_isCurrentFavorite.value
+            try {
+                localTrackRepository.toggleFavorite(track)
+                com.k11000.monkify.util.AppLogger.i("PlayerViewModel", "toggleFavorite: alternado favorito para '${track.title}' (${track.id})")
+            } catch (e: Exception) {
+                com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error al alternar favorito", e)
+            }
         }
     }
 
     fun toggleDownload() {
-        val track = currentTrack ?: return
+        val track = resolveCurrentTrack() ?: run {
+            com.k11000.monkify.util.AppLogger.w("PlayerViewModel", "toggleDownload: no hay pista activa en reproducción")
+            return
+        }
         viewModelScope.launch {
             downloadRepository.toggleDownload(track)
+        }
+    }
+
+    fun skipToQueueIndex(index: Int) {
+        if (index in currentQueue.indices) {
+            mediaController?.seekTo(index, 0L)
+        }
+    }
+
+    fun saveCurrentQueueAsPlaylist(name: String, onResult: (Result<Unit>) -> Unit = {}) {
+        val tracksToSave = currentQueue.ifEmpty { listOfNotNull(currentTrack ?: resolveCurrentTrack()) }
+        if (tracksToSave.isEmpty()) {
+            onResult(Result.failure(IllegalStateException("No hay pistas activas en la cola para guardar")))
+            return
+        }
+        viewModelScope.launch {
+            try {
+                if (playlistRepository != null) {
+                    val createRes = playlistRepository.createPlaylist(name)
+                    createRes.fold(
+                        onSuccess = { createdPl ->
+                            for (t in tracksToSave) {
+                                playlistRepository.addTrackToPlaylist(createdPl.id, t.id)
+                            }
+                            _playbackSource.value = PlaybackSource.playlist(createdPl.id, name)
+                            onResult(Result.success(Unit))
+                        },
+                        onFailure = { err ->
+                            onResult(Result.failure(err))
+                        }
+                    )
+                } else {
+                    val pl = monkifyApi.createPlaylist(CreatePlaylistRequest(name = name))
+                    for (t in tracksToSave) {
+                        monkifyApi.addTrackToPlaylist(pl.id, AddTrackToPlaylistRequest(t.id))
+                    }
+                    _playbackSource.value = PlaybackSource.playlist(pl.id, name)
+                    onResult(Result.success(Unit))
+                }
+            } catch (e: Exception) {
+                com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error al guardar cola como playlist", e)
+                onResult(Result.failure(e))
+            }
         }
     }
 
@@ -340,20 +464,22 @@ class PlayerViewModel @Inject constructor(
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             super.onMediaItemTransition(mediaItem, reason)
             val mediaId = mediaItem?.mediaId ?: return
-            val track = currentQueue.find { it.id == mediaId }
-            if (track != null) {
-                currentTrack = track
-                _currentTrackTitle.value = track.title
-                _currentTrackArtist.value = track.artist
-                _coverUrl.value = track.coverUrl
-                loadLyricsForTrack(track.id)
-                observeTrackDownloadState(track.id)
-                viewModelScope.launch {
-                    localTrackRepository.isFavorite(track.id).collect { isFav ->
-                        _isCurrentFavorite.value = isFav
-                    }
-                }
-            }
+            val track = currentQueue.find { it.id == mediaId } ?: Track(
+                id = mediaId,
+                title = mediaItem.mediaMetadata.title?.toString() ?: _currentTrackTitle.value,
+                artist = mediaItem.mediaMetadata.artist?.toString() ?: _currentTrackArtist.value,
+                album = mediaItem.mediaMetadata.albumTitle?.toString() ?: "",
+                durationMs = _duration.value,
+                coverUrl = mediaItem.mediaMetadata.artworkUri?.toString() ?: _coverUrl.value,
+                streamUrl = mediaItem.localConfiguration?.uri?.toString() ?: ""
+            )
+            currentTrack = track
+            _currentTrackTitle.value = track.title
+            _currentTrackArtist.value = track.artist
+            _coverUrl.value = track.coverUrl
+            loadLyricsForTrack(track.id)
+            observeTrackDownloadState(track.id)
+            observeTrackFavoriteState(track.id)
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -369,6 +495,7 @@ class PlayerViewModel @Inject constructor(
             super.onPlayerError(error)
             _isPlaying.value = false
             val errorMsg = parsePlaybackError(error)
+            com.k11000.monkify.util.AppLogger.e("PlayerViewModel", "Error de reproducción: $errorMsg (código=${error.errorCode}, nombre=${error.errorCodeName})", error)
             _playbackError.tryEmit(errorMsg)
         }
     }
@@ -414,8 +541,13 @@ class PlayerViewModel @Inject constructor(
         _lyrics.value = LrcParser.parse(lrcContent)
     }
 
-    fun playQueue(tracks: List<Track>, startIndex: Int = 0) {
+    fun playQueue(
+        tracks: List<Track>,
+        startIndex: Int = 0,
+        source: PlaybackSource = PlaybackSource.adHoc()
+    ) {
         if (tracks.isEmpty()) return
+        _playbackSource.value = source
         currentQueue = tracks
         _queue.value = tracks
 
@@ -428,12 +560,7 @@ class PlayerViewModel @Inject constructor(
         _coverUrl.value = activeTrack.coverUrl
         loadLyricsForTrack(activeTrack.id)
         observeTrackDownloadState(activeTrack.id)
-
-        viewModelScope.launch {
-            localTrackRepository.isFavorite(activeTrack.id).collect { isFav ->
-                _isCurrentFavorite.value = isFav
-            }
-        }
+        observeTrackFavoriteState(activeTrack.id)
 
         val controller = mediaController ?: return
 
@@ -474,8 +601,8 @@ class PlayerViewModel @Inject constructor(
         controller.play()
     }
 
-    fun playTrack(track: Track) {
-        playQueue(listOf(track), 0)
+    fun playTrack(track: Track, source: PlaybackSource = PlaybackSource.adHoc()) {
+        playQueue(listOf(track), 0, source)
     }
 
     fun playTestTrack() {

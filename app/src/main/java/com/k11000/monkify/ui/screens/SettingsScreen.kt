@@ -17,17 +17,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import android.widget.Toast
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,19 +44,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.ui.components.UpdateDialog
+import com.k11000.monkify.util.AppLogger
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,6 +99,10 @@ fun SettingsScreen(
     }
 
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    var showLogsDialog by remember { mutableStateOf(false) }
+    var feedbackComment by remember { mutableStateOf("") }
+    var attachLogs by remember { mutableStateOf(true) }
 
     uiState.availableUpdate?.let { update ->
         UpdateDialog(
@@ -449,6 +467,224 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sección 5: Diagnóstico y Logs del Sistema
+            SettingsSectionHeader(title = "DIAGNÓSTICO Y REGISTROS", icon = Icons.Default.BugReport)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MonkifyDarkGray)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Visor de Logs y Eventos",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MonkifyOnBackground
+                    )
+                    Text(
+                        text = "Registra eventos de streaming, errores de audio, descargas y estado en vivo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MonkifyGray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { showLogsDialog = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MonkifyPrimary,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Ver Logs", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                val logsText = AppLogger.getLogsAsText()
+                                if (logsText.isNotBlank()) {
+                                    clipboardManager.setText(AnnotatedString(logsText))
+                                    Toast.makeText(context, "Logs copiados al portapapeles 📋", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "No hay logs registrados aún", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Copiar", color = MonkifyOnBackground, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(MonkifyGray.copy(alpha = 0.3f))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Reporte de Errores y Soporte",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MonkifyOnBackground
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Describe cualquier fallo o escribe tus comentarios. Puedes adjuntar los registros técnicos recientes para resolverlo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MonkifyGray
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = feedbackComment,
+                        onValueChange = { feedbackComment = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(115.dp),
+                        placeholder = {
+                            Text(
+                                "Escribe tu reporte o comentario (ej. error 404 en canción, problema al pausar...)",
+                                color = MonkifyGray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = MonkifyOnBackground),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MonkifyPrimary,
+                            unfocusedBorderColor = MonkifyGray.copy(alpha = 0.5f),
+                            cursorColor = MonkifyPrimary
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Adjuntar últimos registros de diagnóstico",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MonkifyOnBackground
+                        )
+                        Switch(
+                            checked = attachLogs,
+                            onCheckedChange = { attachLogs = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = MonkifyPrimary,
+                                uncheckedThumbColor = MonkifyGray,
+                                uncheckedTrackColor = MonkifyDarkGray
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val comment = feedbackComment.trim()
+                                if (comment.isBlank()) {
+                                    Toast.makeText(context, "Por favor escribe un comentario antes de compartir", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                val reportBuilder = StringBuilder()
+                                reportBuilder.appendLine("=== REPORTE DE SOPORTE MONKIFY ===")
+                                reportBuilder.appendLine("Fecha: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                                reportBuilder.appendLine("Versión: ${BuildConfig.VERSION_NAME} (code: ${BuildConfig.VERSION_CODE})")
+                                reportBuilder.appendLine("Dispositivo: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})")
+                                reportBuilder.appendLine("--- COMENTARIO ---")
+                                reportBuilder.appendLine(comment)
+
+                                if (attachLogs) {
+                                    reportBuilder.appendLine("--- REGISTROS RECIENTES (Últimos eventos) ---")
+                                    val logs = AppLogger.getLogsAsText().takeLast(3000)
+                                    reportBuilder.appendLine(logs.ifBlank { "Sin eventos registrados." })
+                                }
+                                reportBuilder.appendLine("==================================")
+
+                                val reportText = reportBuilder.toString()
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, reportText)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Reporte de Soporte Monkify - ${android.os.Build.MODEL}")
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, "Enviar reporte de soporte vía...")
+                                try {
+                                    context.startActivity(shareIntent)
+                                } catch (_: Exception) {
+                                    clipboardManager.setText(AnnotatedString(reportText))
+                                    Toast.makeText(context, "Reporte copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MonkifyPrimary,
+                                contentColor = Color.Black
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Compartir", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val comment = feedbackComment.trim()
+                                if (comment.isBlank()) {
+                                    Toast.makeText(context, "Por favor escribe un comentario antes de copiar", Toast.LENGTH_SHORT).show()
+                                    return@OutlinedButton
+                                }
+
+                                val reportBuilder = StringBuilder()
+                                reportBuilder.appendLine("=== REPORTE DE SOPORTE MONKIFY ===")
+                                reportBuilder.appendLine("Fecha: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                                reportBuilder.appendLine("Versión: ${BuildConfig.VERSION_NAME} (code: ${BuildConfig.VERSION_CODE})")
+                                reportBuilder.appendLine("Dispositivo: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, API ${android.os.Build.VERSION.SDK_INT})")
+                                reportBuilder.appendLine("--- COMENTARIO ---")
+                                reportBuilder.appendLine(comment)
+
+                                if (attachLogs) {
+                                    reportBuilder.appendLine("--- REGISTROS RECIENTES (Últimos eventos) ---")
+                                    val logs = AppLogger.getLogsAsText().takeLast(3000)
+                                    reportBuilder.appendLine(logs.ifBlank { "Sin eventos registrados." })
+                                }
+                                reportBuilder.appendLine("==================================")
+
+                                clipboardManager.setText(AnnotatedString(reportBuilder.toString()))
+                                Toast.makeText(context, "Reporte completo copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Copiar Reporte", color = MonkifyOnBackground, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
         }
 
         SnackbarHost(
@@ -457,6 +693,66 @@ fun SettingsScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 16.dp)
         )
+
+        if (showLogsDialog) {
+            val logsList by AppLogger.logsFlow.collectAsState()
+            AlertDialog(
+                onDismissRequest = { showLogsDialog = false },
+                title = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Logs del Sistema (${logsList.size})",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MonkifyOnBackground
+                        )
+                        IconButton(onClick = { AppLogger.clear() }) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "Limpiar logs",
+                                tint = MonkifyGray
+                            )
+                        }
+                    }
+                },
+                text = {
+                    val logScroll = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(360.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black)
+                            .padding(8.dp)
+                            .verticalScroll(logScroll)
+                    ) {
+                        Text(
+                            text = if (logsList.isEmpty()) "No hay logs registrados en esta sesión." else logsList.joinToString("\n\n") { it.toString() },
+                            color = Color(0xFF4ADE80),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val logsText = AppLogger.getLogsAsText()
+                        clipboardManager.setText(AnnotatedString(logsText))
+                        Toast.makeText(context, "Logs copiados al portapapeles 📋", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Copiar Todo", color = MonkifyPrimary, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLogsDialog = false }) {
+                        Text("Cerrar", color = MonkifyGray)
+                    }
+                },
+                containerColor = MonkifyDarkGray
+            )
+        }
     }
 }
 

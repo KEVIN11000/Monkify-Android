@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.playback.PlaybackSource
 import com.k11000.monkify.ui.screens.viewmodel.PlaylistDetailViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
@@ -186,7 +187,10 @@ fun PlaylistDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Button(
-                                onClick = { playerViewModel.playQueue(tracks, 0) },
+                                onClick = {
+                                    val source = PlaybackSource.playlist(playlistId, playlistName.ifBlank { initialName })
+                                    playerViewModel.playQueue(tracks, 0, source)
+                                },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MonkifyPrimary,
                                     contentColor = Color.Black
@@ -201,18 +205,21 @@ fun PlaylistDetailScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    if (!isDownloadingAll && !allDownloaded) {
+                                    if (isDownloadingAll) {
+                                        viewModel.cancelDownloadAll()
+                                        Toast.makeText(context, "Descarga de playlist cancelada", Toast.LENGTH_SHORT).show()
+                                    } else if (!allDownloaded) {
                                         viewModel.downloadAllTracks { res ->
                                             res.fold(
                                                 onSuccess = {
-                                                    Toast.makeText(context, "Descarga de playlist completada", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "Descargando playlist en segundo plano...", Toast.LENGTH_SHORT).show()
                                                 },
                                                 onFailure = { err ->
                                                     Toast.makeText(context, err.message ?: "Error al descargar", Toast.LENGTH_SHORT).show()
                                                 }
                                             )
                                         }
-                                    } else if (allDownloaded) {
+                                    } else {
                                         Toast.makeText(context, "Todas las canciones están descargadas", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -288,7 +295,10 @@ fun PlaylistDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { playerViewModel.playQueue(tracks, index) }
+                            .clickable {
+                                val source = PlaybackSource.playlist(playlistId, playlistName.ifBlank { initialName })
+                                playerViewModel.playQueue(tracks, index, source)
+                            }
                             .padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

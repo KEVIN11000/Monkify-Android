@@ -1,10 +1,19 @@
 package com.k11000.monkify.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +35,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,15 +55,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
@@ -63,6 +82,8 @@ import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
+import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 @Composable
 fun HomeScreen(
@@ -135,24 +156,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Capa 2: Si está despejado, overlay táctil para restaurar
-        if (isEffectivelyCleared) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { playerViewModel.setZenCleared(false) }
-                    .padding(bottom = 120.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Toca la pantalla o la barra para volver",
-                    color = MonkifyGray.copy(alpha = 0.65f),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-
-        // Capa 3: Contenido de tarjetas y secciones con animación fluida de desvanecimiento
+        // Capa 2: Contenido de tarjetas y secciones con animación fluida de desvanecimiento
         LazyColumn(
             state = listState,
             userScrollEnabled = !isEffectivelyCleared,
@@ -162,6 +166,13 @@ fun HomeScreen(
                     alpha = contentAlpha
                     scaleX = contentScale
                     scaleY = contentScale
+                }
+                .pointerInput(settingsState.zenModeEnabled, isEffectivelyCleared) {
+                    if (settingsState.zenModeEnabled && !isEffectivelyCleared) {
+                        detectTapGestures {
+                            playerViewModel.setZenCleared(true)
+                        }
+                    }
                 }
                 .padding(top = statusBarPadding + 16.dp),
             contentPadding = PaddingValues(bottom = 96.dp)
@@ -178,7 +189,13 @@ fun HomeScreen(
                 Text(
                     text = "Buenas noches",
                     color = MonkifyOnBackground,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                    }
                 )
                 Row {
                     IconButton(onClick = { /* TODO: Notificaciones */ }) {
@@ -199,7 +216,7 @@ fun HomeScreen(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
 
         // Chips de filtro
         item {
@@ -215,7 +232,7 @@ fun HomeScreen(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(24.dp)) }
+        item { ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
 
         // Grilla 2x3 de Reproducción Rápida con datos reales
         item {
@@ -269,7 +286,7 @@ fun HomeScreen(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(32.dp)) }
+        item { ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
 
         // Carrusel: Escuchado recientemente
         if (recentTracks.isNotEmpty()) {
@@ -278,9 +295,16 @@ fun HomeScreen(
                     text = "Escuchado recientemente",
                     color = MonkifyOnBackground,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                        }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -295,7 +319,7 @@ fun HomeScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(32.dp))
+                ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
             }
         }
 
@@ -306,9 +330,16 @@ fun HomeScreen(
                     text = "Hecho para ti",
                     color = MonkifyOnBackground,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                        }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -321,7 +352,7 @@ fun HomeScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(32.dp))
+                ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
             }
         }
 
@@ -331,9 +362,16 @@ fun HomeScreen(
                 text = "Todas las canciones",
                 color = MonkifyOnBackground,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                    }
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            ZenSpacer(12.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
         }
 
         if (feedTracks.isEmpty() && isLoading) {
@@ -377,6 +415,14 @@ fun HomeScreen(
             }
         }
     }
+
+        // Capa 3: Overlay gestual exclusivo para Modo Zen despejado (al frente de la jerarquía)
+        if (isEffectivelyCleared) {
+            ZenGestureOverlay(
+                playerViewModel = playerViewModel,
+                statusBarPadding = statusBarPadding
+            )
+        }
     }
 }
 
@@ -676,3 +722,205 @@ private fun formatDuration(durationMs: Long): String {
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
 }
+
+@Composable
+private fun ZenSpacer(
+    height: Dp,
+    zenEnabled: Boolean,
+    onClick: () -> Unit
+) {
+    Spacer(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (zenEnabled) onClick()
+            }
+    )
+}
+
+@Composable
+private fun ZenGestureOverlay(
+    playerViewModel: PlayerViewModel,
+    statusBarPadding: Dp,
+    modifier: Modifier = Modifier
+) {
+    val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
+    val currentArtist by playerViewModel.currentTrackArtist.collectAsState()
+
+    var feedbackIcon by remember { mutableStateOf<ImageVector?>(null) }
+    var feedbackText by remember { mutableStateOf("") }
+    var feedbackTrigger by remember { mutableStateOf(0) }
+
+    LaunchedEffect(feedbackTrigger) {
+        if (feedbackTrigger > 0) {
+            delay(750)
+            feedbackIcon = null
+            feedbackText = ""
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Área receptora de gestos que cubre toda la pantalla
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    var lastTapTime = 0L
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = true)
+                        val startTime = System.currentTimeMillis()
+                        var totalDragX = 0f
+                        var isDrag = false
+                        val slop = viewConfiguration.touchSlop
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                val now = System.currentTimeMillis()
+                                val duration = now - startTime
+                                if (!isDrag && duration < 500) {
+                                    if (now - lastTapTime < 350) {
+                                        // Doble toque: Restaurar tarjetas
+                                        playerViewModel.setZenCleared(false)
+                                        lastTapTime = 0L
+                                    } else {
+                                        lastTapTime = now
+                                        // Toque simple: Pausar o reanudar
+                                        val willPlay = !playerViewModel.isPlaying.value
+                                        playerViewModel.togglePlayPause()
+                                        feedbackIcon = if (willPlay) Icons.Default.PlayArrow else Icons.Default.Pause
+                                        feedbackText = if (willPlay) "Reanudar" else "Pausado"
+                                        feedbackTrigger++
+                                    }
+                                } else if (isDrag) {
+                                    val swipeThreshold = 90f
+                                    if (totalDragX < -swipeThreshold) {
+                                        // Deslizar a la izquierda: Siguiente canción
+                                        playerViewModel.skipToNext()
+                                        feedbackIcon = Icons.Default.SkipNext
+                                        feedbackText = "Siguiente"
+                                        feedbackTrigger++
+                                    } else if (totalDragX > swipeThreshold) {
+                                        // Deslizar a la derecha: Canción anterior
+                                        playerViewModel.skipToPrevious()
+                                        feedbackIcon = Icons.Default.SkipPrevious
+                                        feedbackText = "Anterior"
+                                        feedbackTrigger++
+                                    }
+                                }
+                                break
+                            }
+                            val dx = change.position.x - down.position.x
+                            val dy = change.position.y - down.position.y
+                            totalDragX = dx
+                            if (abs(dx) > slop || abs(dy) > slop) {
+                                isDrag = true
+                                change.consume()
+                            }
+                        }
+                    }
+                }
+        )
+
+        // Pill superior para volver a la vista normal
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.Black.copy(alpha = 0.55f),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = statusBarPadding + 16.dp)
+                .clickable { playerViewModel.setZenCleared(false) }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Volver",
+                    tint = MonkifyOnBackground.copy(alpha = 0.85f),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Modo Zen • Toca para volver",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MonkifyOnBackground.copy(alpha = 0.85f)
+                )
+            }
+        }
+
+        // Indicador visual animado de acción (Play, Pausa, Siguiente, Anterior)
+        AnimatedVisibility(
+            visible = feedbackIcon != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.7f),
+            exit = fadeOut() + scaleOut(targetScale = 0.9f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .padding(horizontal = 28.dp, vertical = 20.dp)
+            ) {
+                feedbackIcon?.let { icon ->
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = feedbackText,
+                        tint = MonkifyPrimary,
+                        modifier = Modifier.size(54.dp)
+                    )
+                }
+                if (feedbackText.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = feedbackText,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MonkifyOnBackground
+                    )
+                }
+            }
+        }
+
+        // Información inferior de la pista y guía de gestos
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 110.dp, start = 24.dp, end = 24.dp)
+        ) {
+            if (currentTitle.isNotBlank()) {
+                Text(
+                    text = currentTitle,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MonkifyOnBackground.copy(alpha = 0.95f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = currentArtist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MonkifyPrimary.copy(alpha = 0.9f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            Text(
+                text = "Toca para pausar/reanudar • Desliza para cambiar • Doble toque para volver",
+                style = MaterialTheme.typography.labelSmall,
+                color = MonkifyGray.copy(alpha = 0.75f)
+            )
+        }
+    }
+}
+
+

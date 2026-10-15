@@ -22,6 +22,12 @@ interface DownloadRepository {
     fun getLocalAudioPath(trackId: String): String?
     fun getTotalDownloadsSizeBytes(): Long
 
+    // Descargas de playlists completas en segundo plano persistente
+    fun downloadPlaylist(playlistId: String, tracks: List<Track>)
+    fun cancelPlaylistDownload(playlistId: String)
+    fun isPlaylistDownloading(playlistId: String): StateFlow<Boolean>
+    fun getPlaylistDownloadProgress(playlistId: String): StateFlow<Pair<Int, Int>>
+
     // Métodos de compatibilidad y conveniencia
     suspend fun isDownloaded(trackId: String): Boolean = isTrackDownloaded(trackId)
     suspend fun removeDownload(trackId: String): Result<Unit> = deleteDownloadedTrack(trackId)

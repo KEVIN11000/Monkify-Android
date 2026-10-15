@@ -9,6 +9,7 @@ import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,8 +47,13 @@ class PlaylistDetailViewModel @Inject constructor(
 
     private var currentPlaylistId: String? = null
     val currentId: String? get() = currentPlaylistId
+    private var playlistDownloadJob: Job? = null
 
     fun downloadAllTracks(onComplete: (Result<Unit>) -> Unit = {}) {
+        val plId = currentPlaylistId ?: run {
+            onComplete(Result.failure(IllegalStateException("No hay playlist seleccionada")))
+            return
+        }
         val tracksToDownload = _tracks.value
         if (tracksToDownload.isEmpty()) {
             onComplete(Result.success(Unit))
@@ -58,20 +64,13 @@ class PlaylistDetailViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            _isDownloadingAll.value = true
-            _downloadProgress.value = Pair(0, tracksToDownload.size)
-            try {
-                val result = repo.downloadTracks(tracksToDownload) { completed, total ->
-                    _downloadProgress.value = Pair(completed, total)
-                }
-                onComplete(result)
-            } catch (e: Exception) {
-                onComplete(Result.failure(e))
-            } finally {
-                _isDownloadingAll.value = false
-            }
-        }
+        repo.downloadPlaylist(plId, tracksToDownload)
+        onComplete(Result.success(Unit))
+    }
+
+    fun cancelDownloadAll() {
+        val plId = currentPlaylistId ?: return
+        downloadRepository?.cancelPlaylistDownload(plId)
     }
 
     fun toggleDownloadTrack(track: Track) {
@@ -86,6 +85,23 @@ class PlaylistDetailViewModel @Inject constructor(
         if (!name.isNullOrBlank()) {
             _playlistName.value = name
         }
+
+        playlistDownloadJob?.cancel()
+        playlistDownloadJob = viewModelScope.launch {
+            downloadRepository?.let { repo ->
+                launch {
+                    repo.isPlaylistDownloading(playlistId).collect { isDl ->
+                        _isDownloadingAll.value = isDl
+                    }
+                }
+                launch {
+                    repo.getPlaylistDownloadProgress(playlistId).collect { progress ->
+                        _downloadProgress.value = progress
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             try {

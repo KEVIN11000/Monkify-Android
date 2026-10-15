@@ -7,12 +7,18 @@ import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.DownloadRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.k11000.monkify.util.AppLogger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
@@ -34,6 +40,19 @@ class DownloadRepositoryImpl @Inject constructor(
 
     private val _downloadingTrackIds = MutableStateFlow<Set<String>>(emptySet())
     override val downloadingTrackIds: StateFlow<Set<String>> = _downloadingTrackIds.asStateFlow()
+
+    private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val activePlaylistJobs = ConcurrentHashMap<String, Job>()
+    private val playlistProgressMap = ConcurrentHashMap<String, MutableStateFlow<Pair<Int, Int>>>()
+    private val playlistDownloadingMap = ConcurrentHashMap<String, MutableStateFlow<Boolean>>()
+
+    override fun isPlaylistDownloading(playlistId: String): StateFlow<Boolean> {
+        return playlistDownloadingMap.computeIfAbsent(playlistId) { MutableStateFlow(false) }.asStateFlow()
+    }
+
+    override fun getPlaylistDownloadProgress(playlistId: String): StateFlow<Pair<Int, Int>> {
+        return playlistProgressMap.computeIfAbsent(playlistId) { MutableStateFlow(Pair(0, 0)) }.asStateFlow()
+    }
 
     override val downloadedTrackIds: Flow<Set<String>> = localTrackRepository.downloadedTracks.map { tracks ->
         tracks.map { it.id }.toSet()
@@ -88,6 +107,15 @@ class DownloadRepositoryImpl @Inject constructor(
                 DownloadState.NotDownloaded
             }
             MutableStateFlow(initialState)
+        }
+        // Reconciliación síncrona: si no está en progreso activo, verificar la presencia física del archivo en almacenamiento
+        val current = flow.value
+        if (current !is DownloadState.Downloading) {
+            val isDownloaded = isTrackDownloaded(trackId)
+            val expected = if (isDownloaded) DownloadState.Downloaded(getAudioFile(trackId).absolutePath) else DownloadState.NotDownloaded
+            if (current != expected) {
+                flow.value = expected
+            }
         }
         return flow.asStateFlow()
     }
@@ -278,6 +306,50 @@ class DownloadRepositoryImpl @Inject constructor(
             localTrackRepository.removeDownload(trackId)
             val stateFlow = downloadStates[trackId]
             stateFlow?.value = DownloadState.NotDownloaded
+        }
+    }
+
+    override fun downloadPlaylist(playlistId: String, tracks: List<Track>) {
+        if (activePlaylistJobs.containsKey(playlistId)) {
+            AppLogger.w("DownloadRepo", "La playlist $playlistId ya está descargándose actualmente")
+            return
+        }
+
+        val progressFlow = playlistProgressMap.computeIfAbsent(playlistId) { MutableStateFlow(Pair(0, 0)) }
+        val downloadingFlow = playlistDownloadingMap.computeIfAbsent(playlistId) { MutableStateFlow(false) }
+
+        val job = repoScope.launch {
+            downloadingFlow.value = true
+            progressFlow.value = Pair(0, tracks.size)
+            AppLogger.i("DownloadRepo", "Iniciando descarga en segundo plano de playlist $playlistId (${tracks.size} canciones)")
+
+            var completed = 0
+            try {
+                for (track in tracks) {
+                    if (!isActive) break
+                    if (!isTrackDownloaded(track.id)) {
+                        downloadTrack(track)
+                    }
+                    completed++
+                    progressFlow.value = Pair(completed, tracks.size)
+                }
+                AppLogger.i("DownloadRepo", "Descarga de playlist $playlistId finalizada: $completed/${tracks.size}")
+            } catch (e: Exception) {
+                AppLogger.e("DownloadRepo", "Error durante descarga de playlist $playlistId", e)
+            } finally {
+                downloadingFlow.value = false
+                activePlaylistJobs.remove(playlistId)
+            }
+        }
+        activePlaylistJobs[playlistId] = job
+    }
+
+    override fun cancelPlaylistDownload(playlistId: String) {
+        val job = activePlaylistJobs.remove(playlistId)
+        if (job != null) {
+            job.cancel()
+            AppLogger.i("DownloadRepo", "Descarga de playlist $playlistId cancelada por el usuario")
+            playlistDownloadingMap[playlistId]?.value = false
         }
     }
 }

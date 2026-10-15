@@ -1,6 +1,7 @@
 package com.k11000.monkify.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +93,11 @@ fun SearchScreen(
             }
             else -> {}
         }
+    }
+
+    // Interceptar el retroceso del sistema para restaurar la vista de exploración inicial si hay una búsqueda activa
+    BackHandler(enabled = searchQuery.isNotBlank()) {
+        viewModel.clearQuery()
     }
 
     Column(
@@ -330,6 +336,7 @@ fun SearchScreen(
                             .height(92.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(category.color)
+                            .clickable { viewModel.onQueryChange(category.name) }
                             .padding(12.dp)
                     ) {
                         Text(

@@ -265,6 +265,11 @@ class LibraryViewModelTest {
         override fun getLocalLyrics(trackId: String): String? = null
         override fun getLocalAudioPath(trackId: String): String? = null
         override fun getTotalDownloadsSizeBytes(): Long = totalBytes
+
+        override fun downloadPlaylist(playlistId: String, tracks: List<Track>) {}
+        override fun cancelPlaylistDownload(playlistId: String) {}
+        override fun isPlaylistDownloading(playlistId: String): kotlinx.coroutines.flow.StateFlow<Boolean> = MutableStateFlow(false)
+        override fun getPlaylistDownloadProgress(playlistId: String): kotlinx.coroutines.flow.StateFlow<Pair<Int, Int>> = MutableStateFlow(Pair(0, 0))
     }
 
     @Test

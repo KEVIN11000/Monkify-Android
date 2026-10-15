@@ -179,6 +179,7 @@ class MainActivity : ComponentActivity() {
                             Column {
                                 AnimatedVisibility(visible = !showFullScreenPlayer) {
                                     MiniPlayer(
+                                        viewModel = playerViewModel,
                                         onExpand = { showFullScreenPlayer = true }
                                     )
                                 }
@@ -198,7 +199,8 @@ class MainActivity : ComponentActivity() {
                         MonkifyNavGraph(
                             navController = navController,
                             innerPadding = innerPadding,
-                            homeScrollTrigger = homeScrollTrigger
+                            homeScrollTrigger = homeScrollTrigger,
+                            playerViewModel = playerViewModel
                         )
                     }
 
@@ -222,7 +224,12 @@ class MainActivity : ComponentActivity() {
                         )
                     ) {
                         FullScreenPlayer(
-                            onClose = { showFullScreenPlayer = false }
+                            viewModel = playerViewModel,
+                            onClose = { showFullScreenPlayer = false },
+                            onNavigateToPlaylist = { playlistId, name ->
+                                showFullScreenPlayer = false
+                                navController.navigate(com.k11000.monkify.ui.navigation.Destinations.playlistDetail(playlistId, name))
+                            }
                         )
                     }
                 }
@@ -232,9 +239,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (playerViewModel.isPlaying.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            enterPictureInPictureMode(buildPipParams(playerViewModel.isPlaying.value))
-        }
+        // No forzar PiP automáticamente al salir o pulsar inicio; la música continúa reproduciéndose en segundo plano
     }
 
     override fun onPictureInPictureModeChanged(

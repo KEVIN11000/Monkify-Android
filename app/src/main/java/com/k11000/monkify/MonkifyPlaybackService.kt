@@ -4,11 +4,13 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
 import com.k11000.monkify.playback.PlaybackConfig
 import com.k11000.monkify.playback.PlaybackNotificationConfig
+import com.k11000.monkify.util.AppLogger
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
@@ -69,9 +71,12 @@ class MonkifyPlaybackService : MediaSessionService() {
             }
         }
 
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+        val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+
         val cacheDataSourceFactory = CacheDataSource.Factory()
             .setCache(cache)
-            .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())
+            .setUpstreamDataSourceFactory(defaultDataSourceFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         val player = ExoPlayer.Builder(this)
@@ -80,6 +85,15 @@ class MonkifyPlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(PlaybackConfig.HANDLE_BECOMING_NOISY)
             .setWakeMode(PlaybackConfig.WAKE_MODE)
             .build()
+
+        player.addListener(object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                AppLogger.e("PlaybackService", "Error en ExoPlayer: ${error.errorCodeName} - ${error.message}", error)
+            }
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                AppLogger.i("PlaybackService", "Transición de pista: id=${mediaItem?.mediaId}, uri=${mediaItem?.localConfiguration?.uri}")
+            }
+        })
 
         val sessionActivity = PendingIntent.getActivity(
             this,

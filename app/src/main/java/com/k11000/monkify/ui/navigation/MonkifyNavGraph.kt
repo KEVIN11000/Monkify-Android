@@ -9,6 +9,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.screens.HomeScreen
 import com.k11000.monkify.ui.screens.LibraryScreen
 import com.k11000.monkify.ui.screens.PlaylistDetailScreen
@@ -19,7 +21,8 @@ import com.k11000.monkify.ui.screens.SettingsScreen
 fun MonkifyNavGraph(
     navController: NavHostController,
     innerPadding: PaddingValues,
-    homeScrollTrigger: Int = 0
+    homeScrollTrigger: Int = 0,
+    playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
     NavHost(
         navController = navController,
@@ -28,15 +31,17 @@ fun MonkifyNavGraph(
     ) {
         composable(BottomNavItem.Home.route) {
             HomeScreen(
+                playerViewModel = playerViewModel,
                 onNavigateToSettings = { navController.navigate(Destinations.SETTINGS) },
                 scrollToTopTrigger = homeScrollTrigger
             )
         }
         composable(BottomNavItem.Search.route) {
-            SearchScreen()
+            SearchScreen(playerViewModel = playerViewModel)
         }
         composable(BottomNavItem.Library.route) {
             LibraryScreen(
+                playerViewModel = playerViewModel,
                 onNavigateToPlaylist = { playlistId, name ->
                     navController.navigate(Destinations.playlistDetail(playlistId, name))
                 }
@@ -57,6 +62,7 @@ fun MonkifyNavGraph(
             PlaylistDetailScreen(
                 playlistId = playlistId,
                 initialName = name,
+                playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() }
             )
         }
