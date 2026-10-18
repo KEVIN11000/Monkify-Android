@@ -202,14 +202,12 @@ fun QueueBottomSheet(
                             Spacer(modifier = Modifier.width(8.dp))
 
                             // Miniatura de carátula
-                            AsyncImage(
-                                model = track.coverUrl ?: "https://via.placeholder.com/80",
+                            TrackArtwork(
+                                coverUrl = track.coverUrl,
                                 contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.DarkGray)
+                                shape = RoundedCornerShape(6.dp),
+                                iconSize = 20.dp,
+                                modifier = Modifier.size(42.dp)
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))

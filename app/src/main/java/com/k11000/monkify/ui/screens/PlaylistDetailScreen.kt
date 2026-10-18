@@ -311,29 +311,13 @@ fun PlaylistDetailScreen(
                         )
 
                         // Carátula pequeña o Icono
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MonkifyDarkGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (!track.coverUrl.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = track.coverUrl,
-                                    contentDescription = track.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = MonkifyGray,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
+                        com.k11000.monkify.ui.components.TrackArtwork(
+                            coverUrl = track.coverUrl,
+                            contentDescription = track.title,
+                            shape = RoundedCornerShape(8.dp),
+                            iconSize = 22.dp,
+                            modifier = Modifier.size(46.dp)
+                        )
 
                         Spacer(modifier = Modifier.width(14.dp))
 

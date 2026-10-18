@@ -79,8 +79,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
+import com.k11000.monkify.ui.components.TrackArtwork
 
 private fun formatBytes(bytes: Long): String {
     if (bytes <= 0L) return "0 MB"
@@ -95,8 +97,8 @@ private fun formatBytes(bytes: Long): String {
 
 @Composable
 fun LibraryScreen(
-
     onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
+    onNavigateToAlbum: (String, String, String?) -> Unit = { _, _, _ -> },
     viewModel: LibraryViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
@@ -109,6 +111,8 @@ fun LibraryScreen(
     val totalStorageBytes by viewModel.totalStorageBytes.collectAsState()
     val playlists by viewModel.filteredPlaylists.collectAsState()
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
+    val albums by viewModel.filteredAlbums.collectAsState()
+    val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
     val context = LocalContext.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -236,6 +240,11 @@ fun LibraryScreen(
                 isSelected = selectedFilter == LibraryFilter.PLAYLISTS,
                 onClick = { viewModel.setFilter(LibraryFilter.PLAYLISTS) }
             )
+            LibraryFilterChip(
+                text = "Álbumes (${albums.size})",
+                isSelected = selectedFilter == LibraryFilter.ALBUMS,
+                onClick = { viewModel.setFilter(LibraryFilter.ALBUMS) }
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -262,13 +271,18 @@ fun LibraryScreen(
                         LibraryFilter.FAVORITES -> "Tus canciones favoritas"
                         LibraryFilter.DOWNLOADS -> "Música descargada offline"
                         LibraryFilter.PLAYLISTS -> "Playlists en la nube"
+                        LibraryFilter.ALBUMS -> "Álbumes del catálogo"
                     },
                     color = MonkifyOnBackground,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
                 )
             }
             Text(
-                text = if (selectedFilter == LibraryFilter.PLAYLISTS) "${playlists.size} listas" else "${displayedTracks.size} pistas",
+                text = when (selectedFilter) {
+                    LibraryFilter.PLAYLISTS -> "${playlists.size} listas"
+                    LibraryFilter.ALBUMS -> "${albums.size} álbumes"
+                    else -> "${displayedTracks.size} pistas"
+                },
                 color = MonkifyGray,
                 style = MaterialTheme.typography.bodySmall
             )
@@ -355,6 +369,46 @@ fun LibraryScreen(
                     }
                 }
             }
+        } else if (selectedFilter == LibraryFilter.ALBUMS) {
+            if (isLoadingAlbums) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = MonkifyPrimary)
+                }
+            } else if (albums.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No se encontraron álbumes disponibles.",
+                        color = MonkifyGray,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(albums, key = { idx, alb -> "${alb.album}_$idx" }) { _, alb ->
+                        LibraryAlbumItem(
+                            album = alb,
+                            onClick = {
+                                onNavigateToAlbum(alb.album, alb.artist, alb.coverUrl)
+                            }
+                        )
+                    }
+                }
+            }
         } else if (displayedTracks.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -365,7 +419,7 @@ fun LibraryScreen(
                 val emptyMessage = when (selectedFilter) {
                     LibraryFilter.FAVORITES -> "No tienes canciones marcadas como favoritas aún.\nToca el corazón en el reproductor para agregarlas."
                     LibraryFilter.DOWNLOADS -> "No tienes canciones descargadas.\nToca el botón de descarga para escuchar sin conexión."
-                    LibraryFilter.ALL, LibraryFilter.PLAYLISTS -> "Tu biblioteca local está vacía.\nGuarda pistas como favoritas o descárgalas para verlas aquí."
+                    LibraryFilter.ALL, LibraryFilter.PLAYLISTS, LibraryFilter.ALBUMS -> "Tu biblioteca local está vacía.\nGuarda pistas como favoritas o descárgalas para verlas aquí."
                 }
                 Text(
                     text = emptyMessage,
@@ -495,14 +549,12 @@ fun LibraryTrackItem(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.coverUrl ?: "https://via.placeholder.com/150",
+        TrackArtwork(
+            coverUrl = track.coverUrl,
             contentDescription = track.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color.DarkGray)
+            shape = RoundedCornerShape(6.dp),
+            iconSize = 22.dp,
+            modifier = Modifier.size(48.dp)
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -663,3 +715,58 @@ fun CreatePlaylistHeaderItem(onClick: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun LibraryAlbumItem(
+    album: AlbumSummaryDto,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MonkifyDarkGray)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TrackArtwork(
+            coverUrl = album.coverUrl,
+            contentDescription = album.album,
+            shape = RoundedCornerShape(6.dp),
+            iconSize = 24.dp,
+            isAlbum = true,
+            modifier = Modifier.size(52.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = album.album,
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "${album.artist} • ${album.trackCount} canciones",
+                color = MonkifyGray,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = "Ver álbum",
+            tint = MonkifyPrimary,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+

@@ -2,6 +2,7 @@ package com.k11000.monkify.data.remote.api
 
 import com.k11000.monkify.data.remote.dto.ActionResponseDto
 import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
+import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
 import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
 import com.k11000.monkify.data.remote.dto.IngestRequest
@@ -25,6 +26,18 @@ interface MonkifyApi {
         @Query("offset") offset: Int = 0,
         @Query("q") query: String? = null
     ): List<BackendTrackDto>
+
+    @GET("albums")
+    suspend fun getAlbums(
+        @Query("q") query: String? = null,
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0
+    ): List<AlbumSummaryDto> = emptyList()
+
+    @GET("albums/tracks")
+    suspend fun getAlbumTracks(
+        @Query("album") album: String
+    ): List<BackendTrackDto> = emptyList()
 
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse

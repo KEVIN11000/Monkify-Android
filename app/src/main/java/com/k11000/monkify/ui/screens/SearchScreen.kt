@@ -59,6 +59,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.components.TrackArtwork
 import com.k11000.monkify.ui.screens.viewmodel.IngestUiState
 import com.k11000.monkify.ui.screens.viewmodel.SearchViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
@@ -379,14 +380,12 @@ fun SearchResultTrackItem(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.coverUrl ?: "https://via.placeholder.com/150",
+        TrackArtwork(
+            coverUrl = track.coverUrl,
             contentDescription = track.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color.DarkGray)
+            shape = RoundedCornerShape(6.dp),
+            iconSize = 22.dp,
+            modifier = Modifier.size(48.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(

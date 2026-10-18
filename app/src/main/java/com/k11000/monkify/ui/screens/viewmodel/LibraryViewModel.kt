@@ -3,6 +3,7 @@ package com.k11000.monkify.ui.screens.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.model.Track
@@ -24,7 +25,8 @@ enum class LibraryFilter(val displayName: String) {
     ALL("Todo"),
     FAVORITES("Favoritos"),
     DOWNLOADS("Descargas"),
-    PLAYLISTS("Playlists")
+    PLAYLISTS("Playlists"),
+    ALBUMS("Álbumes")
 }
 
 @HiltViewModel
@@ -64,6 +66,48 @@ class LibraryViewModel @Inject constructor(
     private val _isLoadingPlaylists = MutableStateFlow(false)
     val isLoadingPlaylists: StateFlow<Boolean> = _isLoadingPlaylists.asStateFlow()
 
+    private val _albums = MutableStateFlow<List<AlbumSummaryDto>>(emptyList())
+    val albums: StateFlow<List<AlbumSummaryDto>> = _albums.asStateFlow()
+
+    private val _isLoadingAlbums = MutableStateFlow(false)
+    val isLoadingAlbums: StateFlow<Boolean> = _isLoadingAlbums.asStateFlow()
+
+    val filteredAlbums: StateFlow<List<AlbumSummaryDto>> = combine(
+        _albums,
+        _searchQuery,
+        localTrackRepository.favoriteTracks,
+        localTrackRepository.downloadedTracks
+    ) { remoteAlbums, query, favorites, downloads ->
+        val baseAlbums = if (remoteAlbums.isNotEmpty()) {
+            remoteAlbums
+        } else {
+            deriveLocalAlbums((favorites + downloads).distinctBy { it.id })
+        }
+        if (query.isBlank()) {
+            baseAlbums
+        } else {
+            baseAlbums.filter {
+                it.album.contains(query, ignoreCase = true) ||
+                it.artist.contains(query, ignoreCase = true)
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private fun deriveLocalAlbums(tracks: List<Track>): List<AlbumSummaryDto> {
+        return tracks
+            .filter { it.album.isNotBlank() }
+            .groupBy { it.album.trim() }
+            .map { (albumName, albumTracks) ->
+                AlbumSummaryDto(
+                    album = albumName,
+                    artist = albumTracks.firstOrNull()?.artist ?: "",
+                    trackCount = albumTracks.size,
+                    coverUrl = albumTracks.firstNotNullOfOrNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }
+                )
+            }
+            .sortedWith(compareByDescending<AlbumSummaryDto> { it.trackCount }.thenBy { it.album.lowercase() })
+    }
+
     fun deleteDownload(trackId: String, onComplete: (Result<Unit>) -> Unit = {}) {
         viewModelScope.launch {
             try {
@@ -83,8 +127,32 @@ class LibraryViewModel @Inject constructor(
 
     init {
         loadPlaylists()
+        loadAlbums()
     }
 
+    fun loadAlbums() {
+        viewModelScope.launch {
+            _isLoadingAlbums.value = true
+            try {
+                val remote = monkifyApi?.getAlbums(limit = 100, offset = 0) ?: emptyList()
+                if (remote.isNotEmpty()) {
+                    _albums.value = remote
+                } else {
+                    val localTracks = localTrackRepository.getAllLocalTracks()
+                    if (localTracks.isNotEmpty()) {
+                        _albums.value = deriveLocalAlbums(localTracks)
+                    }
+                }
+            } catch (_: Exception) {
+                val localTracks = localTrackRepository.getAllLocalTracks()
+                if (localTracks.isNotEmpty()) {
+                    _albums.value = deriveLocalAlbums(localTracks)
+                }
+            } finally {
+                _isLoadingAlbums.value = false
+            }
+        }
+    }
 
     fun loadPlaylists() {
         viewModelScope.launch {
@@ -171,7 +239,7 @@ class LibraryViewModel @Inject constructor(
         val baseList = when (filter) {
             LibraryFilter.FAVORITES -> favorites
             LibraryFilter.DOWNLOADS -> downloads
-            LibraryFilter.ALL, LibraryFilter.PLAYLISTS -> (favorites + downloads).distinctBy { it.id }
+            LibraryFilter.ALL, LibraryFilter.PLAYLISTS, LibraryFilter.ALBUMS -> (favorites + downloads).distinctBy { it.id }
         }
         if (query.isBlank()) {
             baseList
@@ -186,5 +254,9 @@ class LibraryViewModel @Inject constructor(
 
     fun setFilter(filter: LibraryFilter) {
         _selectedFilter.value = filter
+        if (filter == LibraryFilter.ALBUMS && _albums.value.isEmpty()) {
+            loadAlbums()
+        }
     }
 }
+

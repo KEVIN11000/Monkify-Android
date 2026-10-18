@@ -212,10 +212,12 @@ fun VinylTurntable(
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = coverUrl ?: "https://via.placeholder.com/300",
+                TrackArtwork(
+                    coverUrl = coverUrl,
                     contentDescription = "Carátula en disco de vinilo",
-                    contentScale = ContentScale.Crop,
+                    shape = CircleShape,
+                    iconSize = 36.dp,
+                    isAlbum = true,
                     modifier = Modifier.fillMaxSize()
                 )
 

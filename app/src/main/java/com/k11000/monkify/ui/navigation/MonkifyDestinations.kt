@@ -24,7 +24,15 @@ object Destinations {
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
     const val PLAYLIST_DETAIL = "playlist_detail/{playlistId}?name={name}"
+    const val ALBUM_DETAIL = "album_detail?album={album}&artist={artist}&coverUrl={coverUrl}"
 
     fun playlistDetail(playlistId: String, name: String = ""): String =
         "playlist_detail/$playlistId?name=${java.net.URLEncoder.encode(name, "UTF-8")}"
+
+    fun albumDetail(album: String, artist: String = "", coverUrl: String? = null): String {
+        val encAlbum = java.net.URLEncoder.encode(album, "UTF-8")
+        val encArtist = java.net.URLEncoder.encode(artist, "UTF-8")
+        val encCover = java.net.URLEncoder.encode(coverUrl ?: "", "UTF-8")
+        return "album_detail?album=$encAlbum&artist=$encArtist&coverUrl=$encCover"
+    }
 }

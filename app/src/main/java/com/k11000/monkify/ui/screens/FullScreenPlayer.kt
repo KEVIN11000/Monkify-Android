@@ -99,6 +99,7 @@ import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.LyricsView
 import com.k11000.monkify.ui.components.QueueBottomSheet
+import com.k11000.monkify.ui.components.TrackArtwork
 import com.k11000.monkify.ui.components.VinylTurntable
 import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.theme.MonkifyBackground
@@ -349,14 +350,13 @@ fun FullScreenPlayer(
                                     .clip(RoundedCornerShape(24.dp))
                                     .background(MonkifyPrimary.copy(alpha = 0.22f))
                             )
-                            AsyncImage(
-                                model = coverUrl ?: "https://via.placeholder.com/500",
+                            TrackArtwork(
+                                coverUrl = coverUrl,
                                 contentDescription = "Carátula de álbum",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color.DarkGray)
+                                shape = RoundedCornerShape(16.dp),
+                                iconSize = 80.dp,
+                                isAlbum = true,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }

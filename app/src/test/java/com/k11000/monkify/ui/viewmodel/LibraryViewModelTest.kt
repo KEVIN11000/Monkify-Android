@@ -346,5 +346,36 @@ class LibraryViewModelTest {
         assertEquals(2, viewModel.displayedTracks.value.size)
         assertEquals(1, viewModel.filteredPlaylists.value.size)
     }
-}
 
+    @Test
+    fun `loadAlbums deriva albumes locales como fallback offline y filtra con searchQuery`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+
+        val track1 = Track("t1", "Bohemian Rhapsody", "Queen", "A Night at the Opera", 354000, "https://cover/queen.jpg", "https://stream/1")
+        val track2 = Track("t2", "Love of My Life", "Queen", "A Night at the Opera", 218000, "https://cover/queen.jpg", "https://stream/2")
+        val track3 = Track("t3", "Starboy", "The Weeknd", "Starboy", 230000, "https://cover/weeknd.jpg", "https://stream/3")
+
+        localRepo.saveTrack(track1, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(track2, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(track3, isFavorite = false, isDownloaded = true, localPath = "/local/3.mp3")
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+
+        viewModel.setFilter(LibraryFilter.ALBUMS)
+        advanceUntilIdle()
+
+        assertEquals(LibraryFilter.ALBUMS, viewModel.selectedFilter.value)
+        assertEquals(2, viewModel.filteredAlbums.value.size)
+        assertEquals("A Night at the Opera", viewModel.filteredAlbums.value.first().album)
+        assertEquals(2, viewModel.filteredAlbums.value.first().trackCount)
+
+        // Filtrar álbumes por artista o nombre
+        viewModel.onSearchQueryChange("Weeknd")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.filteredAlbums.value.size)
+        assertEquals("Starboy", viewModel.filteredAlbums.value.first().album)
+    }
+}

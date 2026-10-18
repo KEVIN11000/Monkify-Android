@@ -82,6 +82,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil3.compose.AsyncImage
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.ui.components.TrackArtwork
 import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
 import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
@@ -96,6 +97,7 @@ import kotlin.math.abs
 @Composable
 fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToAlbum: (String, String, String?) -> Unit = { _, _, _ -> },
     scrollToTopTrigger: Int = 0,
     viewModel: HomeViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel(),
@@ -364,7 +366,13 @@ fun HomeScreen(
                             subtitle = track.artist,
                             coverUrl = track.coverUrl,
                             isDownloaded = track.id in downloadedTrackIds,
-                            onClick = { playerViewModel.playTrack(track) }
+                            onClick = {
+                                if (track.album.isNotBlank()) {
+                                    onNavigateToAlbum(track.album, track.artist, track.coverUrl)
+                                } else {
+                                    playerViewModel.playTrack(track)
+                                }
+                            }
                         )
                     }
                 }
@@ -542,7 +550,7 @@ fun NovedadesBottomSheet(
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "Versión activa v0.3.0 • Release Candidate",
+                        text = "Versión activa v0.4.0 • Release",
                         color = MonkifyGray,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -558,29 +566,24 @@ fun NovedadesBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 NovedadItem(
+                    emoji = "🖼️",
+                    title = "Carátulas Oficiales en Todo el Catálogo",
+                    description = "Más de 8.600 canciones enriquecidas con sus portadas originales de Spotify y arte vectorial nativo."
+                )
+                NovedadItem(
+                    emoji = "💿",
+                    title = "Exploración y Descarga de Álbumes",
+                    description = "Nuevo filtro 'Álbumes' en Tu Biblioteca y vista de detalle para reproducir o descargar álbumes completos offline."
+                )
+                NovedadItem(
+                    emoji = "🌐",
+                    title = "Títulos Traducidos y Artistas Normalizados",
+                    description = "Canciones en japonés, coreano, chino y cirílico muestran su nombre original junto con su traducción al español entre paréntesis."
+                )
+                NovedadItem(
                     emoji = "🎛️",
-                    title = "Reordenamiento en Cola y Salida de Audio Real",
-                    description = "Mueve o elimina pistas de la cola sobre la marcha y detecta altavoz, auriculares o Bluetooth vía AudioManager."
-                )
-                NovedadItem(
-                    emoji = "📺",
-                    title = "Modo Picture-in-Picture (PiP) Manual",
-                    description = "Activa la ventana flotante con controles de reproducción desde la barra superior del reproductor."
-                )
-                NovedadItem(
-                    emoji = "📋",
-                    title = "Pegado Inteligente de Enlaces de Spotify",
-                    description = "Importa canciones y playlists al servidor en la nube pegando enlaces directamente desde el portapapeles."
-                )
-                NovedadItem(
-                    emoji = "➕",
-                    title = "Creación Rápida y Búsqueda en Biblioteca",
-                    description = "Crea playlists con el botón '+' superior y filtra canciones en tiempo real con el nuevo buscador integrado."
-                )
-                NovedadItem(
-                    emoji = "🩺",
-                    title = "Diagnóstico y Centro de Soporte",
-                    description = "Envía comentarios y adjunta los últimos registros técnicos de la aplicación desde Ajustes."
+                    title = "Reordenamiento en Cola y Modo PiP",
+                    description = "Mueve pistas en la cola sobre la marcha, selecciona salida de audio y activa Picture-in-Picture."
                 )
             }
 
@@ -642,13 +645,12 @@ fun QuickGridItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
-            AsyncImage(
-                model = track.coverUrl ?: "https://via.placeholder.com/150",
+            TrackArtwork(
+                coverUrl = track.coverUrl,
                 contentDescription = track.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(54.dp)
-                    .background(Color.DarkGray)
+                shape = RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp),
+                iconSize = 24.dp,
+                modifier = Modifier.size(54.dp)
             )
             if (isDownloaded) {
                 Surface(
@@ -747,14 +749,13 @@ fun AlbumCard(
             .clickable(onClick = onClick)
     ) {
         Box {
-            AsyncImage(
-                model = coverUrl ?: "https://via.placeholder.com/150",
+            TrackArtwork(
+                coverUrl = coverUrl,
                 contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(140.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.DarkGray)
+                shape = RoundedCornerShape(8.dp),
+                iconSize = 48.dp,
+                isAlbum = true,
+                modifier = Modifier.size(140.dp)
             )
             if (isDownloaded) {
                 Surface(
@@ -840,14 +841,12 @@ fun TrackRowItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
-            model = track.coverUrl ?: "https://via.placeholder.com/150",
+        TrackArtwork(
+            coverUrl = track.coverUrl,
             contentDescription = track.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MonkifyDarkGray)
+            shape = RoundedCornerShape(6.dp),
+            iconSize = 22.dp,
+            modifier = Modifier.size(48.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {

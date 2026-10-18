@@ -68,14 +68,12 @@ fun MiniPlayer(
                     .padding(8.dp)
             ) {
                 // Cover
-                AsyncImage(
-                    model = coverUrl ?: "https://via.placeholder.com/150",
+                TrackArtwork(
+                    coverUrl = coverUrl,
                     contentDescription = "Album Cover",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Gray)
+                    shape = RoundedCornerShape(6.dp),
+                    iconSize = 22.dp,
+                    modifier = Modifier.size(42.dp)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))

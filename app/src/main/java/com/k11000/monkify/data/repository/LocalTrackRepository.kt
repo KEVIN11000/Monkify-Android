@@ -80,5 +80,16 @@ class LocalTrackRepository @Inject constructor(
         entities.forEach { trackDao.insertTrack(it) }
         return entities.size
     }
-}
 
+    suspend fun getTracksByAlbum(albumName: String): List<Track> {
+        val target = albumName.trim()
+        if (target.isEmpty()) return emptyList()
+        return trackDao.getAllTracksSnapshot()
+            .filter { it.album.trim().equals(target, ignoreCase = true) }
+            .map { it.toDomain() }
+    }
+
+    suspend fun getAllLocalTracks(): List<Track> {
+        return trackDao.getAllTracksSnapshot().map { it.toDomain() }
+    }
+}
