@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.domain.model.AppUpdate
 import com.k11000.monkify.domain.repository.UpdateRepository
+import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.SupportReportRequestDto
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,16 +25,18 @@ data class SettingsUiState(
     val zenEngine: String = "AURORA",
     val lockScreenEnabled: Boolean = false,
     val isCheckingUpdate: Boolean = false,
-    val availableUpdate: AppUpdate? = null
+    val availableUpdate: AppUpdate? = null,
+    val isSubmittingReport: Boolean = false
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository?,
-    private val updateRepository: UpdateRepository
+    private val updateRepository: UpdateRepository,
+    private val monkifyApi: MonkifyApi? = null
 ) : ViewModel() {
 
-    constructor(updateRepository: UpdateRepository) : this(null, updateRepository)
+    constructor(updateRepository: UpdateRepository) : this(null, updateRepository, null)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -160,5 +164,49 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissUpdateDialog() {
         _uiState.update { it.copy(availableUpdate = null) }
+    }
+
+    fun submitOneClickReport(
+        category: String,
+        message: String,
+        logs: String?,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSubmittingReport = true) }
+            try {
+                val api = monkifyApi
+                if (api == null) {
+                    _uiState.update { it.copy(isSubmittingReport = false) }
+                    onResult(false, "Servicio de soporte no disponible temporalmente")
+                    return@launch
+                }
+                val deviceSummary = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE}, SDK ${android.os.Build.VERSION.SDK_INT})"
+                val diagnosticsText = buildString {
+                    appendLine("Category: $category")
+                    appendLine("Device: $deviceSummary")
+                    if (!logs.isNullOrBlank()) {
+                        appendLine("--- LOGS ---")
+                        appendLine(logs)
+                    }
+                }
+                val request = SupportReportRequestDto(
+                    message = message,
+                    diagnostics = diagnosticsText,
+                    appVersion = "0.4.0",
+                    deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+                )
+                val response = api.submitSupportReport(request)
+                _uiState.update { it.copy(isSubmittingReport = false) }
+                if (response.ok) {
+                    onResult(true, "¡Reporte enviado exitosamente! Gracias por tu feedback.")
+                } else {
+                    onResult(false, "No se pudo procesar el reporte")
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isSubmittingReport = false) }
+                onResult(false, e.localizedMessage ?: "Error de conexión al enviar reporte")
+            }
+        }
     }
 }

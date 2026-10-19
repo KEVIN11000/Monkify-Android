@@ -46,7 +46,7 @@
 
 ## Phase 4: Fondos Visuales (Froggy, Cosmos, Negro Puro) y Reporte en 1 Clic
 
-- [ ] **T005** [US5, US6] Implementar los nuevos fondos visuales (`FROGGY`, `COSMOS`, `NONE`) en `ZenBackground.kt` y el envío de reportes en 1 clic en `SettingsScreen.kt` y `SettingsViewModel.kt`:
+- [x] **T005** [US5, US6] Implementar los nuevos fondos visuales (`FROGGY`, `COSMOS`, `NONE`) en `ZenBackground.kt` y el envío de reportes en 1 clic en `SettingsScreen.kt` y `SettingsViewModel.kt`:
   - En `app/src/main/java/com/monkify/app/ui/components/ZenBackground.kt`: añadir los motores `"FROGGY"` (`FroggyWeatherCanvas` con paisaje nocturno/atardecer, estanque, ranita Froggy, luciérnagas y estrellas), `"COSMOS"` (`CosmosCanvas` con nebulosa y estrellas en parallax) y `"NONE"` (fondo negro puro `#000000` sin animaciones) (Req #16).
   - En `SettingsRepository.kt`, `SettingsViewModel.kt` y `SettingsScreen.kt`: habilitar la selección de los 5 fondos visuales y añadir el envío directo de reportes en 1 clic (`submitOneClickReport`) hacia `POST /api/v1/support/report` con campo opcional de mensaje y feedback visual inmediato sin requerir login en GitHub (Req #16, #18).
   - **Criterio de Aceptación / Verificación**: Ejecutar `.\gradlew.bat testDebugUnitTest` y confirmar que compila y pasa todas las pruebas.

@@ -346,7 +346,7 @@ fun SettingsScreen(
                         FilterChip(
                             selected = uiState.zenEngine == "AURORA",
                             onClick = { viewModel.setZenEngine("AURORA") },
-                            label = { Text("Aurora Boreal") },
+                            label = { Text("Aurora Boreal 🌌", style = MaterialTheme.typography.bodySmall) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MonkifyPrimary,
                                 selectedLabelColor = Color.Black,
@@ -357,7 +357,48 @@ fun SettingsScreen(
                         FilterChip(
                             selected = uiState.zenEngine == "VISUALIZER",
                             onClick = { viewModel.setZenEngine("VISUALIZER") },
-                            label = { Text("Visualizador de Audio") },
+                            label = { Text("Visualizador 🎛️", style = MaterialTheme.typography.bodySmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = uiState.zenEngine == "FROGGY",
+                            onClick = { viewModel.setZenEngine("FROGGY") },
+                            label = { Text("Froggy 🐸", style = MaterialTheme.typography.bodySmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                        FilterChip(
+                            selected = uiState.zenEngine == "COSMOS",
+                            onClick = { viewModel.setZenEngine("COSMOS") },
+                            label = { Text("Cosmos ✨", style = MaterialTheme.typography.bodySmall) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MonkifyPrimary,
+                                selectedLabelColor = Color.Black,
+                                containerColor = MonkifyDarkGray,
+                                labelColor = MonkifyOnBackground
+                            )
+                        )
+                        FilterChip(
+                            selected = uiState.zenEngine == "NONE",
+                            onClick = { viewModel.setZenEngine("NONE") },
+                            label = { Text("Negro ⬛", style = MaterialTheme.typography.bodySmall) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MonkifyPrimary,
                                 selectedLabelColor = Color.Black,
@@ -629,16 +670,66 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    Button(
+                        onClick = {
+                            val comment = feedbackComment.trim()
+                            if (comment.isBlank()) {
+                                Toast.makeText(context, "Por favor describe el problema antes de enviar", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val logsText = if (attachLogs) AppLogger.getLogsAsText().takeLast(3000) else null
+                            viewModel.submitOneClickReport(
+                                category = reportType.name,
+                                message = comment,
+                                logs = logsText
+                            ) { success, msg ->
+                                if (success) {
+                                    feedbackComment = ""
+                                    Toast.makeText(context, "¡Reporte enviado en 1 clic con éxito! 💚", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Error al enviar: $msg", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !uiState.isSubmittingReport,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MonkifyPrimary,
+                            contentColor = Color.Black
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (uiState.isSubmittingReport) {
+                            CircularProgressIndicator(
+                                color = Color.Black,
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Enviando reporte...", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.BugReport,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Enviar Reporte en 1 Clic 🚀", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 val comment = feedbackComment.trim()
                                 if (comment.isBlank()) {
                                     Toast.makeText(context, "Por favor escribe una breve descripción antes de continuar", Toast.LENGTH_SHORT).show()
-                                    return@Button
+                                    return@OutlinedButton
                                 }
 
                                 val logsText = if (attachLogs) AppLogger.getLogsAsText().takeLast(3000) else null
@@ -664,20 +755,17 @@ fun SettingsScreen(
                                     Toast.makeText(context, "No se pudo abrir el navegador. Enlace copiado al portapapeles 📋", Toast.LENGTH_LONG).show()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MonkifyPrimary,
-                                contentColor = Color.Black
-                            ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1.3f)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.OpenInBrowser,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp),
+                                tint = MonkifyOnBackground
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Abrir en GitHub", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                            Text("Abrir en GitHub", color = MonkifyOnBackground, style = MaterialTheme.typography.bodySmall)
                         }
 
                         OutlinedButton(

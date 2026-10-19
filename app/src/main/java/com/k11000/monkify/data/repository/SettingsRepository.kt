@@ -134,5 +134,8 @@ class SettingsRepository @Inject constructor(
         const val DEFAULT_LAST_SYNC_TIMESTAMP: Long = 0L
         const val ZEN_ENGINE_AURORA = "AURORA"
         const val ZEN_ENGINE_VISUALIZER = "VISUALIZER"
+        const val ZEN_ENGINE_FROGGY = "FROGGY"
+        const val ZEN_ENGINE_COSMOS = "COSMOS"
+        const val ZEN_ENGINE_NONE = "NONE"
     }
 }

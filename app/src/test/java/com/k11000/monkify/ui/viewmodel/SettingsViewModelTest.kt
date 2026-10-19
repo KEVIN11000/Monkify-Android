@@ -101,4 +101,40 @@ class SettingsViewModelTest {
         assertNull(state.availableUpdate)
         assertTrue(state.message?.contains("No se pudo verificar actualizaciones") == true)
     }
+
+    private class FakeMonkifyApi(
+        private val reportHandler: (com.k11000.monkify.data.remote.dto.SupportReportRequestDto) -> com.k11000.monkify.data.remote.dto.SupportReportResponseDto
+    ) : com.k11000.monkify.data.remote.api.MonkifyApi {
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = reportHandler(request)
+        override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
+        override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
+        override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
+        override suspend fun getPlaylists(limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> = emptyList()
+        override suspend fun getPlaylistTracks(playlistId: String): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
+        override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto = error("unused")
+        override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun deletePlaylist(playlistId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+    }
+
+    @Test
+    fun submit_one_click_report_notifies_success_when_api_returns_ok() = runTest(testDispatcher) {
+        val fakeRepo = FakeUpdateRepository { Result.failure(IOException()) }
+        val fakeApi = FakeMonkifyApi { req ->
+            assertEquals("Problema con audio", req.message)
+            assertTrue(req.diagnostics.contains("BUG"))
+            com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true, reportId = "rep_123")
+        }
+        val viewModel = SettingsViewModel(settingsRepository = null, updateRepository = fakeRepo, monkifyApi = fakeApi)
+
+        var callbackSuccess: Boolean? = null
+        viewModel.submitOneClickReport("BUG", "Problema con audio", logs = "log data") { success, _ ->
+            callbackSuccess = success
+        }
+        advanceUntilIdle()
+
+        assertTrue(callbackSuccess == true)
+        assertFalse(viewModel.uiState.value.isSubmittingReport)
+    }
 }
