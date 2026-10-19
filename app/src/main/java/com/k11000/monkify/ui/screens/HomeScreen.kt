@@ -582,8 +582,8 @@ fun NovedadesBottomSheet(
                 )
                 NovedadItem(
                     emoji = "🎛️",
-                    title = "Reordenamiento en Cola y Modo PiP",
-                    description = "Mueve pistas en la cola sobre la marcha, selecciona salida de audio y activa Picture-in-Picture."
+                    title = "Reordenamiento en Cola y Monkify Connect",
+                    description = "Mueve pistas en la cola sobre la marcha y selecciona salidas de audio dinámicas."
                 )
             }
 

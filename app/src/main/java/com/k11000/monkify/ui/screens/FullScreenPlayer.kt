@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -114,7 +113,6 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 fun FullScreenPlayer(
     onClose: () -> Unit = {},
     onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
-    onEnterPip: (() -> Unit)? = null,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -183,6 +181,11 @@ fun FullScreenPlayer(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
         if (zenModeEnabled) {
             ZenBackground(
@@ -269,32 +272,6 @@ fun FullScreenPlayer(
                         contentDescription = "Monkify Connect",
                         tint = MonkifyPrimary
                     )
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    IconButton(
-                        onClick = {
-                            if (onEnterPip != null) {
-                                onEnterPip()
-                            } else {
-                                val activity = context as? android.app.Activity
-                                try {
-                                    activity?.enterPictureInPictureMode(
-                                        android.app.PictureInPictureParams.Builder()
-                                            .setAspectRatio(android.util.Rational(16, 9))
-                                            .build()
-                                    )
-                                } catch (e: Exception) {
-                                    com.k11000.monkify.util.AppLogger.e("FullScreenPlayer", "Error al entrar en PiP", e)
-                                }
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PictureInPictureAlt,
-                            contentDescription = "Activar Picture-in-Picture",
-                            tint = MonkifyPrimary
-                        )
-                    }
                 }
             }
         }

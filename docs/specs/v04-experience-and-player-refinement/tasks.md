@@ -36,7 +36,7 @@
   - En `MonkifyPlaybackService.kt` y `LockScreenActivity.kt`: asegurar activación inmediata en el primer bloqueo (`ACTION_SCREEN_OFF` / `Keyguard` y `configureLockScreenFlags()` previo a `setContent`) sincronizando con `PlaybackSessionStateHolder` (Req #17).
   - **Criterio de Aceptación / Verificación**: Ejecutar `.\gradlew.bat testDebugUnitTest` verificando que `LrcParserTest` (con casos LRC y texto estático) y todas las pruebas unitarias pasen.
 
-- [ ] **T004** [US1] Eliminar Picture-in-Picture (PiP) por completo y blindar `FullScreenPlayer` contra toques fantasma:
+- [x] **T004** [US1] Eliminar Picture-in-Picture (PiP) por completo y blindar `FullScreenPlayer` contra toques fantasma:
   - En `app/src/main/AndroidManifest.xml`: eliminar `android:supportsPictureInPicture="true"` (Req #8).
   - En `app/src/main/java/com/monkify/app/MainActivity.kt`: eliminar toda la lógica, receptores y UI de PiP (`isInPipMode`, `pipReceiver`, `enterPipMode`, `PipPlayerContent`) (Req #8).
   - En `app/src/main/java/com/monkify/app/ui/components/FullScreenPlayer.kt`: eliminar el botón e ícono de PiP y agregar consumo de eventos táctiles en el `Box` raíz de `FullScreenPlayer` para que ningún toque en zonas vacías atraviese hacia la pantalla inferior y cambie la canción fuera de la playlist activa (Req #8, #10).
