@@ -83,5 +83,31 @@ class LocalDatabaseTest {
         assertFalse(entityDown.isFavorite)
         assertTrue(entityDown.isDownloaded)
         assertEquals("/local/path.mp3", entityDown.localFilePath)
+        assertEquals(0, entityDown.playCount)
+        assertEquals(0L, entityDown.lastPlayedAt)
+    }
+
+    @Test
+    fun `TrackEntity soporta conteo de reproduccion e historial temporal`() {
+        val entity = TrackEntity(
+            id = "t_history",
+            title = "Test",
+            artist = "Artist",
+            album = "Album",
+            durationMs = 1000L,
+            coverUrl = null,
+            streamUrl = "https://stream/th",
+            playCount = 5,
+            lastPlayedAt = 1729350000000L
+        )
+
+        assertEquals(5, entity.playCount)
+        assertEquals(1729350000000L, entity.lastPlayedAt)
+    }
+
+    @Test
+    fun `MIGRATION_1_2 migra version 1 a 2`() {
+        assertEquals(1, MonkifyDatabase.MIGRATION_1_2.startVersion)
+        assertEquals(2, MonkifyDatabase.MIGRATION_1_2.endVersion)
     }
 }

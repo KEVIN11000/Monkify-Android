@@ -40,6 +40,15 @@ open class NetworkTrackRepository(
     override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<Track> =
         fetchTracks(limit = limit, offset = offset, query = query)
 
+    override suspend fun getLatestUploadedTracks(limit: Int): List<Track> =
+        try {
+            api.getTracks(limit = limit, offset = 0, sort = "latest").map { it.toDomain(baseUrl) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+
     override suspend fun requestIngest(url: String): Result<IngestResponse> =
         try {
             val response = api.ingest(IngestRequest(url))

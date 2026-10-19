@@ -22,7 +22,10 @@ object DatabaseModule {
             context,
             MonkifyDatabase::class.java,
             MonkifyDatabase.DATABASE_NAME
-        ).fallbackToDestructiveMigration(true).build()
+        )
+            .addMigrations(MonkifyDatabase.MIGRATION_1_2)
+            .fallbackToDestructiveMigration(true)
+            .build()
     }
 
     @Provides

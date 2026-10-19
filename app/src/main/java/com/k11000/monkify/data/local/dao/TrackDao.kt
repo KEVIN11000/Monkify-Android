@@ -48,5 +48,20 @@ interface TrackDao {
 
     @Query("SELECT * FROM favorite_tracks")
     suspend fun getAllTracksSnapshot(): List<TrackEntity>
+
+    @Query("UPDATE favorite_tracks SET playCount = playCount + 1, lastPlayedAt = :timestamp WHERE id = :trackId")
+    suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int
+
+    @Query("SELECT * FROM favorite_tracks WHERE lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT :limit")
+    fun getRecentlyPlayedTracks(limit: Int = 12): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM favorite_tracks ORDER BY playCount DESC, lastPlayedAt DESC")
+    fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>>
+
+    @Query("SELECT * FROM favorite_tracks WHERE lastPlayedAt > 0 ORDER BY lastPlayedAt DESC LIMIT :limit")
+    suspend fun getRecentlyPlayedTracksSnapshot(limit: Int = 12): List<TrackEntity>
+
+    @Query("SELECT * FROM favorite_tracks ORDER BY playCount DESC, lastPlayedAt DESC LIMIT :limit")
+    suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int = 50): List<TrackEntity>
 }
 

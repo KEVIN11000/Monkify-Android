@@ -17,7 +17,9 @@ data class TrackEntity(
     val isFavorite: Boolean = true,
     val isDownloaded: Boolean = false,
     val localFilePath: String? = null,
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    val playCount: Int = 0,
+    val lastPlayedAt: Long = 0L
 )
 
 fun TrackEntity.toDomain(): Track = Track(
@@ -33,7 +35,9 @@ fun TrackEntity.toDomain(): Track = Track(
 fun Track.toEntity(
     isFavorite: Boolean = true,
     isDownloaded: Boolean = false,
-    localFilePath: String? = null
+    localFilePath: String? = null,
+    playCount: Int = 0,
+    lastPlayedAt: Long = 0L
 ): TrackEntity = TrackEntity(
     id = id,
     title = title,
@@ -44,5 +48,7 @@ fun Track.toEntity(
     streamUrl = streamUrl,
     isFavorite = isFavorite,
     isDownloaded = isDownloaded,
-    localFilePath = localFilePath
+    localFilePath = localFilePath,
+    playCount = playCount,
+    lastPlayedAt = lastPlayedAt
 )

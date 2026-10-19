@@ -57,7 +57,8 @@ class PlaylistDetailViewModelTest {
         private val removeTrackHandler: (playlistId: String, trackId: String) -> ActionResponseDto = { _, _ -> ActionResponseDto(true, "removed") },
         private val deletePlaylistHandler: (playlistId: String) -> ActionResponseDto = { ActionResponseDto(true, "deleted") }
     ) : MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
         override suspend fun login(request: LoginRequest): LoginResponse = LoginResponse("token", "ref", "bearer", 3600)
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = Response.success(IngestResponse("t1", "OK", "msg"))
         override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse(trackId, "lrc", "")

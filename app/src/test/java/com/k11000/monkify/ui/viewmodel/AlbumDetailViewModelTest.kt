@@ -56,11 +56,12 @@ class AlbumDetailViewModelTest {
     private class FakeMonkifyApi(
         private val albumTracksHandler: (album: String) -> List<BackendTrackDto> = { emptyList() }
     ) : MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
         override suspend fun getAlbumTracks(album: String): List<BackendTrackDto> = albumTracksHandler(album)
         override suspend fun login(request: LoginRequest): LoginResponse = LoginResponse("token", "ref", "bearer", 3600)
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = Response.success(IngestResponse("t1", "OK", "msg"))
         override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse(trackId, "lrc", "")
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
         override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = emptyList()
         override suspend fun createPlaylist(request: CreatePlaylistRequest): PlaylistSummaryDto = PlaylistSummaryDto("pl_id", request.name, 0)
@@ -87,6 +88,15 @@ class AlbumDetailViewModelTest {
         override suspend fun updateFavoriteStatus(id: String, isFavorite: Boolean): Int = 1
         override suspend fun updateDownloadStatus(id: String, isDownloaded: Boolean, localPath: String?): Int = 1
         override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
+        override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int = 1
+        override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
+        override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.sortedByDescending { it.playCount } }
+        override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
+        override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.sortedByDescending { it.playCount }.take(limit)
     }
 
     private class FakeDownloadRepository(

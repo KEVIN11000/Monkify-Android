@@ -63,7 +63,8 @@ class NetworkLayerTest {
     }
 
     private class FakeApi(private val result: () -> List<BackendTrackDto>) : MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?) = result()
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?) = result()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = error("unused")
         override suspend fun login(request: LoginRequest): LoginResponse = error("unused")
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = error("unused")
         override suspend fun getLyrics(trackId: String): LyricsResponse = error("unused")

@@ -98,6 +98,16 @@ class LibraryViewModelTest {
         }
 
         override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
+
+        override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int = 1
+        override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
+        override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.sortedByDescending { it.playCount } }
+        override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
+        override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.sortedByDescending { it.playCount }.take(limit)
     }
 
 

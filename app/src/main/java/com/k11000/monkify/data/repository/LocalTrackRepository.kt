@@ -22,6 +22,10 @@ class LocalTrackRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
+    val recentlyPlayedTracks: Flow<List<Track>> = trackDao.getRecentlyPlayedTracks(limit = 12).map { entities ->
+        entities.map { it.toDomain() }
+    }
+
     fun isFavorite(trackId: String): Flow<Boolean> = trackDao.isFavorite(trackId)
 
     suspend fun toggleFavorite(track: Track) {
@@ -60,6 +64,25 @@ class LocalTrackRepository @Inject constructor(
         }
     }
 
+    suspend fun recordTrackPlayed(trackId: String, timestamp: Long = System.currentTimeMillis()) {
+        val existing = trackDao.getTrackById(trackId)
+        if (existing != null) {
+            trackDao.recordTrackPlay(trackId, timestamp)
+        }
+    }
+
+    suspend fun getRecentlyPlayedSnapshot(limit: Int = 12): List<Track> {
+        return trackDao.getRecentlyPlayedTracksSnapshot(limit).map { it.toDomain() }
+    }
+
+    suspend fun getMostPlayedSnapshot(limit: Int = 50): List<Track> {
+        return trackDao.getTracksOrderedByPlayCountSnapshot(limit).map { it.toDomain() }
+    }
+
+    fun getTracksOrderedByPlayCount(): Flow<List<Track>> = trackDao.getTracksOrderedByPlayCount().map { entities ->
+        entities.map { it.toDomain() }
+    }
+
     suspend fun syncRemoteCatalog(remoteTracks: List<Track>): Int {
         val existingMap = trackDao.getAllTracksSnapshot().associateBy { it.id }
         val entities = remoteTracks.map { track ->
@@ -74,7 +97,10 @@ class LocalTrackRepository @Inject constructor(
                 streamUrl = track.streamUrl,
                 isFavorite = local?.isFavorite ?: false,
                 isDownloaded = local?.isDownloaded ?: false,
-                localFilePath = local?.localFilePath
+                localFilePath = local?.localFilePath,
+                addedAt = local?.addedAt ?: System.currentTimeMillis(),
+                playCount = local?.playCount ?: 0,
+                lastPlayedAt = local?.lastPlayedAt ?: 0L
             )
         }
         entities.forEach { trackDao.insertTrack(it) }

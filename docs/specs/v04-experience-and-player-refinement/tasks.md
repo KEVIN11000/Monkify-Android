@@ -18,7 +18,7 @@
 
 ## Phase 2: Capa de Datos, Persistencia Room y Contratos de Red en Android
 
-- [ ] **T002** [US2, US3, US6] Actualizar DTOs, API Retrofit, base de datos Room (`TrackEntity`, `TrackDao`, `MonkifyDatabase`) y `MusicRepository`:
+- [x] **T002** [US2, US3, US6] Actualizar DTOs, API Retrofit, base de datos Room (`TrackEntity`, `TrackDao`, `MonkifyDatabase`) y `MusicRepository`:
   - En `app/src/main/java/com/monkify/app/data/remote/dto/TrackDto.kt`: agregar `coverUrls: List<String> = emptyList()` a `PlaylistSummaryDto`, y crear `SupportReportRequestDto` y `SupportReportResponseDto` (Req #13, #18).
   - En `app/src/main/java/com/monkify/app/data/remote/MonkifyApi.kt`: añadir parámetro `@Query("sort") sort: String? = null` a `getTracks()` y el método `@POST("support/report") suspend fun submitSupportReport(...)` (Req #5, #18).
   - En `TrackEntity.kt`, `TrackDao.kt` y `MonkifyDatabase.kt`: añadir `playCount: Int = 0` y `lastPlayedAt: Long = 0L`, junto con `recordTrackPlay()`, `getRecentlyPlayedTracks()` y `getTracksOrderedByPlayCount()` (Req #6, #7).

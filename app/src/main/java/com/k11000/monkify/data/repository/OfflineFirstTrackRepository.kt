@@ -18,13 +18,20 @@ class OfflineFirstTrackRepository @Inject constructor(
 ) : TrackRepository {
 
     override fun getRecentTracks(): Flow<List<Track>> = flow {
-        // 1. Emitir inmediatamente el contenido local persistido en Room
+        // 1. Emitir inmediatamente historial reciente si existe
+        val history = trackDao.getRecentlyPlayedTracksSnapshot(limit = PAGE_SIZE).map { it.toDomain() }
+        if (history.isNotEmpty()) {
+            emit(history)
+            return@flow
+        }
+
+        // 2. Si no hay historial, emitir catálogo en caché
         val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
         if (cached.isNotEmpty()) {
             emit(cached)
         }
 
-        // 2. Sincronizar en segundo plano con el backend
+        // 3. Sincronizar en segundo plano con el backend
         try {
             val remote = networkTrackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
             if (remote.isNotEmpty()) {
@@ -34,7 +41,6 @@ class OfflineFirstTrackRepository @Inject constructor(
                 emit(updated)
             }
         } catch (_: Exception) {
-            // En caso de fallo de red, si no se había emitido nada se emite la lista disponible
             if (cached.isEmpty()) {
                 emit(emptyList())
             }
@@ -42,6 +48,19 @@ class OfflineFirstTrackRepository @Inject constructor(
     }
 
     override fun getMadeForYouTracks(): Flow<List<Track>> = flow {
+        // 1. Priorizar pistas de artistas más reproducidos por el usuario
+        val topPlayed = trackDao.getTracksOrderedByPlayCountSnapshot(limit = 50)
+        val topArtists = topPlayed.filter { it.playCount > 0 }.map { it.artist.trim() }.distinct().take(5)
+
+        if (topArtists.isNotEmpty()) {
+            val allTracks = trackDao.getAllTracksSnapshot()
+            val recommended = allTracks.filter { it.artist.trim() in topArtists }.shuffled().take(PAGE_SIZE).map { it.toDomain() }
+            if (recommended.isNotEmpty()) {
+                emit(recommended)
+                return@flow
+            }
+        }
+
         val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
         if (cached.isNotEmpty()) {
             emit(cached.reversed())
@@ -83,6 +102,18 @@ class OfflineFirstTrackRepository @Inject constructor(
         } else {
             trackDao.getPagedTracks(limit = limit, offset = offset).map { it.toDomain() }
         }
+    }
+
+    override suspend fun getLatestUploadedTracks(limit: Int): List<Track> {
+        val remote = networkTrackRepository.getLatestUploadedTracks(limit = limit)
+        if (remote.isNotEmpty()) {
+            return remote
+        }
+        return trackDao.getPagedTracks(limit = limit, offset = 0).map { it.toDomain() }
+    }
+
+    override suspend fun recordTrackPlayed(trackId: String) {
+        trackDao.recordTrackPlay(trackId, System.currentTimeMillis())
     }
 
     override suspend fun requestIngest(url: String): Result<IngestResponse> {

@@ -11,6 +11,8 @@ import com.k11000.monkify.data.remote.dto.LoginRequest
 import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.data.remote.dto.SupportReportRequestDto
+import com.k11000.monkify.data.remote.dto.SupportReportResponseDto
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -24,8 +26,14 @@ interface MonkifyApi {
     suspend fun getTracks(
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("q") query: String? = null
+        @Query("q") query: String? = null,
+        @Query("sort") sort: String? = null
     ): List<BackendTrackDto>
+
+    @POST("support/report")
+    suspend fun submitSupportReport(
+        @Body request: SupportReportRequestDto
+    ): SupportReportResponseDto
 
     @GET("albums")
     suspend fun getAlbums(

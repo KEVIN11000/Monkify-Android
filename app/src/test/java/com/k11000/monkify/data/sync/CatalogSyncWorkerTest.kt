@@ -71,6 +71,16 @@ class CatalogSyncWorkerTest {
         }
 
         override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracks.value
+
+        override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int = 1
+        override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> =
+            tracks.map { list -> list.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
+        override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> =
+            tracks.map { list -> list.sortedByDescending { it.playCount } }
+        override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> =
+            tracks.value.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
+        override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> =
+            tracks.value.sortedByDescending { it.playCount }.take(limit)
     }
 
     @Test

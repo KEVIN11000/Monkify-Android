@@ -80,6 +80,25 @@ class OfflineFirstTrackRepositoryTest {
         }
 
         override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
+
+        override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int {
+            tracksFlow.value = tracksFlow.value.map {
+                if (it.id == trackId) it.copy(playCount = it.playCount + 1, lastPlayedAt = timestamp) else it
+            }
+            return 1
+        }
+
+        override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
+
+        override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> =
+            tracksFlow.map { list -> list.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }) }
+
+        override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
+
+        override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> =
+            tracksFlow.value.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }).take(limit)
     }
 
     private class FakeMonkifyApi(
@@ -88,7 +107,7 @@ class OfflineFirstTrackRepositoryTest {
             Response.success(IngestResponse("task_1", "OK", "Queued"))
         }
     ) : MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<BackendTrackDto> =
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> =
             getTracksHandler(limit, offset, query)
 
         override suspend fun login(request: LoginRequest): LoginResponse =
@@ -99,6 +118,9 @@ class OfflineFirstTrackRepositoryTest {
 
         override suspend fun getLyrics(trackId: String): LyricsResponse =
             LyricsResponse(trackId, "lrc", "")
+
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto =
+            com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true, reportId = "rep_test")
 
         override suspend fun getPlaylists(limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> =
             emptyList()

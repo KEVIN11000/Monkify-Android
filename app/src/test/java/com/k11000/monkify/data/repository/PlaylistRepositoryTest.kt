@@ -27,7 +27,8 @@ class PlaylistRepositoryTest {
         var removeTrackHandler: ((String, String) -> ActionResponseDto)? = null
         var deletePlaylistHandler: ((String) -> ActionResponseDto)? = null
 
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
         override suspend fun login(request: LoginRequest): LoginResponse = error("unused")
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = error("unused")
         override suspend fun getLyrics(trackId: String): LyricsResponse = error("unused")

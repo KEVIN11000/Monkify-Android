@@ -48,7 +48,8 @@ data class PlaylistSummaryDto(
     val id: String,
     val name: String,
     @SerializedName("track_count") val trackCount: Int,
-    @SerializedName("created_at") val createdAt: String? = null
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("cover_urls") val coverUrls: List<String> = emptyList()
 )
 
 data class LoginRequest(val username: String, val password: String)
@@ -69,9 +70,28 @@ data class IngestResponse(
 )
 
 data class LyricsResponse(
-    @SerializedName("track_id") val trackId: String,
-    val format: String,
+    @SerializedName("track_id") val trackId: String = "",
+    @SerializedName("format") val format: String? = "lrc",
+    @SerializedName("content") private val _content: String? = null,
+    @SerializedName("lyrics") val lyrics: String? = null,
+    @SerializedName("synced") val synced: Boolean = false,
+    @SerializedName("source") val source: String? = null
+) {
     val content: String
+        get() = lyrics?.takeIf { it.isNotBlank() } ?: _content.orEmpty()
+}
+
+data class SupportReportRequestDto(
+    val message: String,
+    val diagnostics: String,
+    @SerializedName("app_version") val appVersion: String = "0.4.0",
+    @SerializedName("device_model") val deviceModel: String = ""
+)
+
+data class SupportReportResponseDto(
+    val ok: Boolean = true,
+    @SerializedName("report_id") val reportId: String = "",
+    @SerializedName("github_issue_url") val githubIssueUrl: String? = null
 )
 
 data class CreatePlaylistRequest(
