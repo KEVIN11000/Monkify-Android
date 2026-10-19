@@ -78,7 +78,8 @@ class PlayerViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     private val monkifyApi: MonkifyApi,
     private val playlistRepository: PlaylistRepository? = null,
-    private val settingsRepository: SettingsRepository? = null
+    private val settingsRepository: SettingsRepository? = null,
+    private val stateHolder: PlaybackSessionStateHolder? = null
 ) : ViewModel() {
 
     val zenModeEnabled: StateFlow<Boolean> = settingsRepository?.zenModeEnabled
@@ -519,9 +520,93 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    private var pendingPlayRequest: (() -> Unit)? = null
+
     init {
+        stateHolder?.let { holder ->
+            holder.currentTrack.value?.let { track ->
+                currentTrack = track
+                _currentTrackTitle.value = track.title
+                _currentTrackArtist.value = track.artist
+                _coverUrl.value = track.coverUrl
+            }
+            if (holder.queue.value.isNotEmpty()) {
+                currentQueue = holder.queue.value
+                _queue.value = holder.queue.value
+            }
+            if (holder.lyrics.value.isNotEmpty()) {
+                _lyrics.value = holder.lyrics.value
+            }
+            _playbackSource.value = holder.playbackSource.value
+        }
         initializeController()
         refreshAudioDevices()
+    }
+
+    private fun syncFromController(controller: Player) {
+        val currentItem = controller.currentMediaItem
+        if (currentItem != null) {
+            val mediaId = currentItem.mediaId
+            val title = currentItem.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() } ?: _currentTrackTitle.value
+            val artist = currentItem.mediaMetadata.artist?.toString()?.takeIf { it.isNotBlank() } ?: _currentTrackArtist.value
+            val artworkUri = currentItem.mediaMetadata.artworkUri?.toString() ?: _coverUrl.value
+
+            val track = currentQueue.find { it.id == mediaId }
+                ?: stateHolder?.queue?.value?.find { it.id == mediaId }
+                ?: Track(
+                    id = mediaId,
+                    title = title,
+                    artist = artist,
+                    album = currentItem.mediaMetadata.albumTitle?.toString() ?: "",
+                    durationMs = controller.duration.coerceAtLeast(0L),
+                    coverUrl = artworkUri,
+                    streamUrl = currentItem.localConfiguration?.uri?.toString() ?: ""
+                )
+
+            currentTrack = track
+            _currentTrackTitle.value = track.title
+            _currentTrackArtist.value = track.artist
+            _coverUrl.value = track.coverUrl
+            if (controller.duration > 0) {
+                _duration.value = controller.duration
+            }
+            _currentPosition.value = controller.currentPosition.coerceAtLeast(0L)
+            _isPlaying.value = controller.isPlaying
+
+            stateHolder?.updateCurrentTrack(track)
+
+            if (_queue.value.isEmpty()) {
+                if (stateHolder != null && stateHolder.queue.value.isNotEmpty()) {
+                    currentQueue = stateHolder.queue.value
+                    _queue.value = stateHolder.queue.value
+                } else if (controller.mediaItemCount > 0) {
+                    val reconstructedQueue = mutableListOf<Track>()
+                    for (i in 0 until controller.mediaItemCount) {
+                        val item = controller.getMediaItemAt(i)
+                        val t = Track(
+                            id = item.mediaId,
+                            title = item.mediaMetadata.title?.toString() ?: "Pista ${i + 1}",
+                            artist = item.mediaMetadata.artist?.toString() ?: "",
+                            album = item.mediaMetadata.albumTitle?.toString() ?: "",
+                            durationMs = 0L,
+                            coverUrl = item.mediaMetadata.artworkUri?.toString(),
+                            streamUrl = item.localConfiguration?.uri?.toString() ?: ""
+                        )
+                        reconstructedQueue.add(t)
+                    }
+                    currentQueue = reconstructedQueue
+                    _queue.value = reconstructedQueue
+                    stateHolder?.updateQueue(reconstructedQueue)
+                }
+            }
+
+            observeTrackDownloadState(track.id)
+            observeTrackFavoriteState(track.id)
+
+            if (_lyrics.value.isEmpty()) {
+                loadLyricsForTrack(track.id)
+            }
+        }
     }
 
     private fun initializeController() {
@@ -535,6 +620,10 @@ class PlayerViewModel @Inject constructor(
                 _isShuffleEnabled.value = controller.shuffleModeEnabled
                 _repeatMode.value = controller.repeatMode
                 _isPlaying.value = controller.isPlaying
+                syncFromController(controller)
+
+                pendingPlayRequest?.invoke()
+                pendingPlayRequest = null
             }
         }, ContextCompat.getMainExecutor(context))
         
@@ -590,9 +679,14 @@ class PlayerViewModel @Inject constructor(
             _currentTrackTitle.value = track.title
             _currentTrackArtist.value = track.artist
             _coverUrl.value = track.coverUrl
+            stateHolder?.updateCurrentTrack(track)
             loadLyricsForTrack(track.id)
             observeTrackDownloadState(track.id)
             observeTrackFavoriteState(track.id)
+
+            viewModelScope.launch {
+                localTrackRepository.recordTrackPlayed(track.id)
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -631,24 +725,78 @@ class PlayerViewModel @Inject constructor(
             _isLoadingLyrics.value = true
             _lyrics.value = emptyList()
             try {
-                // Si la pista tiene letras descargadas localmente en disco, cargarlas directamente
+                // 1. Si la pista tiene letras descargadas localmente en disco, cargarlas directamente
                 val localLyrics = downloadRepository.getLocalLyrics(trackId)
                 if (!localLyrics.isNullOrBlank()) {
-                    _lyrics.value = LrcParser.parse(localLyrics)
+                    val parsed = LrcParser.parse(localLyrics)
+                    _lyrics.value = parsed
+                    stateHolder?.updateLyrics(parsed)
                     return@launch
                 }
 
+                // 2. Consulta al API de Monkify
                 val response = monkifyApi.getLyrics(trackId)
                 if (response.content.isNotBlank()) {
-                    _lyrics.value = LrcParser.parse(response.content)
+                    val parsed = LrcParser.parse(response.content)
+                    _lyrics.value = parsed
+                    stateHolder?.updateLyrics(parsed)
+                    return@launch
+                }
+
+                // 3. Fallback directo a LRCLIB si el Worker no tiene letra
+                val track = currentTrack
+                if (track != null && track.title.isNotBlank()) {
+                    val fallback = fetchLrclibClientFallback(track.title, track.artist)
+                    if (!fallback.isNullOrBlank()) {
+                        val parsed = LrcParser.parse(fallback)
+                        _lyrics.value = parsed
+                        stateHolder?.updateLyrics(parsed)
+                    }
                 }
             } catch (_: Exception) {
-                // Silencioso: pista sin letras asociadas
+                val track = currentTrack
+                if (track != null && track.title.isNotBlank()) {
+                    try {
+                        val fallback = fetchLrclibClientFallback(track.title, track.artist)
+                        if (!fallback.isNullOrBlank()) {
+                            val parsed = LrcParser.parse(fallback)
+                            _lyrics.value = parsed
+                            stateHolder?.updateLyrics(parsed)
+                        }
+                    } catch (_: Exception) {}
+                }
             } finally {
                 _isLoadingLyrics.value = false
             }
         }
     }
+
+    private suspend fun fetchLrclibClientFallback(title: String, artist: String): String? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+                val encodedArtist = java.net.URLEncoder.encode(artist, "UTF-8")
+                val url = java.net.URL("https://lrclib.net/api/get?artist_name=$encodedArtist&track_name=$encodedTitle")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.setRequestProperty("User-Agent", "Monkify-Android/0.4.0")
+                if (conn.responseCode == 200) {
+                    val json = conn.inputStream.bufferedReader().use { it.readText() }
+                    val syncedMatch = Regex(""""syncedLyrics":\s*"([^"]+)"""").find(json)
+                    if (syncedMatch != null) {
+                        return@withContext syncedMatch.groupValues[1].replace("\\n", "\n").replace("\\r", "")
+                    }
+                    val plainMatch = Regex(""""plainLyrics":\s*"([^"]+)"""").find(json)
+                    if (plainMatch != null) {
+                        return@withContext plainMatch.groupValues[1].replace("\\n", "\n").replace("\\r", "")
+                    }
+                }
+                null
+            } catch (_: Exception) {
+                null
+            }
+        }
 
     fun setLyricsContent(lrcContent: String) {
         _lyrics.value = LrcParser.parse(lrcContent)
@@ -671,11 +819,21 @@ class PlayerViewModel @Inject constructor(
         _currentTrackTitle.value = activeTrack.title
         _currentTrackArtist.value = activeTrack.artist
         _coverUrl.value = activeTrack.coverUrl
+        stateHolder?.updatePlaybackSource(source)
+        stateHolder?.updateQueue(tracks)
+        stateHolder?.updateCurrentTrack(activeTrack)
+
         loadLyricsForTrack(activeTrack.id)
         observeTrackDownloadState(activeTrack.id)
         observeTrackFavoriteState(activeTrack.id)
 
-        val controller = mediaController ?: return
+        val controller = mediaController
+        if (controller == null) {
+            pendingPlayRequest = {
+                playQueue(tracks, validStartIndex, source)
+            }
+            return
+        }
 
         val mediaItems = tracks.map { track ->
             val metadata = MediaMetadata.Builder()

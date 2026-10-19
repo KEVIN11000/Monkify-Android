@@ -41,7 +41,7 @@ fun LyricsView(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Letras no sincronizadas disponibles para esta pista 🎵",
+                text = "Letra no disponible para esta pista 🎵",
                 color = MonkifyGray,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
@@ -51,11 +51,12 @@ fun LyricsView(
         return
     }
 
-    val activeIndex = LrcParser.getCurrentLineIndex(lyrics, currentPositionMs)
+    val isStatic = lyrics.all { it.timestampMs < 0L }
+    val activeIndex = if (isStatic) -1 else LrcParser.getCurrentLineIndex(lyrics, currentPositionMs)
     val listState = rememberLazyListState()
 
     LaunchedEffect(activeIndex) {
-        if (activeIndex in lyrics.indices) {
+        if (!isStatic && activeIndex in lyrics.indices) {
             val targetIndex = (activeIndex - 2).coerceAtLeast(0)
             listState.animateScrollToItem(targetIndex)
         }
@@ -67,9 +68,13 @@ fun LyricsView(
         modifier = modifier.fillMaxSize()
     ) {
         itemsIndexed(lyrics, key = { index, line -> "${line.timestampMs}_$index" }) { index, line ->
-            val isActive = index == activeIndex
+            val isActive = !isStatic && index == activeIndex
             val textColor by animateColorAsState(
-                targetValue = if (isActive) MonkifyPrimary else MonkifyGray.copy(alpha = 0.5f),
+                targetValue = when {
+                    isActive -> MonkifyPrimary
+                    isStatic -> Color.White.copy(alpha = 0.9f)
+                    else -> MonkifyGray.copy(alpha = 0.5f)
+                },
                 animationSpec = tween(durationMillis = 250),
                 label = "lyric_color"
             )
@@ -82,7 +87,13 @@ fun LyricsView(
                 textAlign = TextAlign.Start,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onLineClick(line.timestampMs) }
+                    .then(
+                        if (line.timestampMs >= 0L) {
+                            Modifier.clickable { onLineClick(line.timestampMs) }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .padding(vertical = 8.dp)
             )
         }

@@ -7,13 +7,17 @@ data class LyricLine(
 
 object LrcParser {
     private val TIMESTAMP_REGEX = Regex("""\[(\d{2}):(\d{2})(?:[.:](\d{2,3}))?\]""")
+    private val METADATA_REGEX = Regex("""^\[[a-zA-Z]{1,10}:.*\]$""")
 
     /**
      * Parsea contenido en formato LRC (con marcas de tiempo [mm:ss.xx])
-     * y retorna una lista ordenada cronológicamente de líneas de letra.
+     * o texto plano estático y retorna una lista ordenada cronológicamente de líneas de letra.
      */
     fun parse(lrcContent: String): List<LyricLine> {
+        if (lrcContent.isBlank()) return emptyList()
+
         val result = mutableListOf<LyricLine>()
+        var foundAnyTimestamp = false
 
         for (rawLine in lrcContent.lineSequence()) {
             val line = rawLine.trim()
@@ -22,6 +26,7 @@ object LrcParser {
             val matches = TIMESTAMP_REGEX.findAll(line).toList()
             if (matches.isEmpty()) continue
 
+            foundAnyTimestamp = true
             val lastMatch = matches.last()
             val text = line.substring(lastMatch.range.last + 1).trim()
 
@@ -39,21 +44,33 @@ object LrcParser {
             }
         }
 
-        return result.sortedBy { it.timestampMs }
+        if (foundAnyTimestamp) {
+            return result.sortedBy { it.timestampMs }
+        }
+
+        // Fallback: texto plano estático sin marcas de tiempo (descartando líneas que sean solo metadatos)
+        return lrcContent.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !METADATA_REGEX.matches(it) }
+            .map { LyricLine(timestampMs = -1L, text = it) }
+            .toList()
     }
 
     /**
      * Encuentra el índice de la línea que debe estar activa y resaltada
      * para la posición actual de reproducción en milisegundos.
-     * Retorna -1 si aún no ha comenzado la primera línea lírica.
+     * Retorna -1 si aún no ha comenzado la primera línea lírica o si es estática.
      */
     fun getCurrentLineIndex(lyrics: List<LyricLine>, currentPositionMs: Long): Int {
         if (lyrics.isEmpty()) return -1
+        if (lyrics.all { it.timestampMs < 0L }) return -1
+
         var activeIndex = -1
         for (i in lyrics.indices) {
-            if (lyrics[i].timestampMs <= currentPositionMs) {
+            val ts = lyrics[i].timestampMs
+            if (ts in 0L..currentPositionMs) {
                 activeIndex = i
-            } else {
+            } else if (ts > currentPositionMs) {
                 break
             }
         }

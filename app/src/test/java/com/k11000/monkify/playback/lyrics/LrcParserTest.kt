@@ -111,6 +111,35 @@ class LrcParserTest {
     }
 
     @Test
+    fun `parse soporta texto plano estatico asignando timestampMs menos uno`() {
+        val plainLyrics = """
+            Is this the real life?
+            Is this just fantasy?
+            Caught in a landslide
+            No escape from reality
+        """.trimIndent()
+
+        val lyrics = LrcParser.parse(plainLyrics)
+
+        assertEquals(4, lyrics.size)
+        assertTrue(lyrics.all { it.timestampMs == -1L })
+        assertEquals("Is this the real life?", lyrics[0].text)
+        assertEquals("No escape from reality", lyrics[3].text)
+    }
+
+    @Test
+    fun `getCurrentLineIndex con letra estatica retorna menos uno en cualquier posicion`() {
+        val plainLyrics = """
+            Linea 1
+            Linea 2
+        """.trimIndent()
+        val lyrics = LrcParser.parse(plainLyrics)
+
+        assertEquals(-1, LrcParser.getCurrentLineIndex(lyrics, 0L))
+        assertEquals(-1, LrcParser.getCurrentLineIndex(lyrics, 15000L))
+    }
+
+    @Test
     fun `seek tactil a una marca de tiempo ubica de inmediato la linea activa correspondiente`() {
         val lyrics = LrcParser.parse(sampleLrc)
 

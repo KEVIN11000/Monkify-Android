@@ -38,7 +38,7 @@
             android:name=".lockscreen.LockScreenActivity"
             android:exported="false"
             android:showWhenLocked="true"
-            android:turnScreenOn="false"
+            android:turnScreenOn="true"
             android:launchMode="singleTop"
             android:theme="@style/Theme.MyApplication"
             android:screenOrientation="portrait" />

@@ -45,9 +45,12 @@ class MonkifyPlaybackService : MediaSessionService() {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+            val action = intent?.action
+            if (action == Intent.ACTION_SCREEN_OFF || action == Intent.ACTION_SCREEN_ON) {
                 val player = mediaSession?.player
-                if (player?.isPlaying == true && isLockScreenPrefEnabled) {
+                val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+                val isLocked = keyguardManager?.isKeyguardLocked ?: true
+                if (player?.isPlaying == true && isLockScreenPrefEnabled && (action == Intent.ACTION_SCREEN_OFF || isLocked)) {
                     val lockIntent = Intent(this@MonkifyPlaybackService, LockScreenActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                     }
@@ -62,7 +65,10 @@ class MonkifyPlaybackService : MediaSessionService() {
         PlaybackNotificationConfig.createNotificationChannel(this)
         setMediaNotificationProvider(PlaybackNotificationConfig.createNotificationProvider(this))
 
-        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
         registerReceiver(screenReceiver, filter)
 
         serviceScope.launch {

@@ -29,7 +29,7 @@
 
 ## Phase 3: Estabilidad del Reproductor, Pantalla de Bloqueo, Cero PiP y Letras
 
-- [ ] **T003** [US1, US5] Implementar `PlaybackSessionStateHolder`, corregir pérdida de estado/cola en `PlayerViewModel` y `MonkifyPlaybackService`, sincronizar `LockScreenActivity` desde el primer bloqueo y soportar letras `.lrc` + texto plano:
+- [x] **T003** [US1, US5] Implementar `PlaybackSessionStateHolder`, corregir pérdida de estado/cola en `PlayerViewModel` y `MonkifyPlaybackService`, sincronizar `LockScreenActivity` desde el primer bloqueo y soportar letras `.lrc` + texto plano:
   - Crear `app/src/main/java/com/monkify/app/player/PlaybackSessionStateHolder.kt` (`@Singleton`) para persistir y compartir la canción activa, metadatos y cola entre `PlayerViewModel`, `MonkifyPlaybackService` y `LockScreenActivity` (Req #9, #17).
   - En `PlayerViewModel.kt`: reconstruir estado e historial al conectar `MediaController`, encolar solicitudes si el controlador aún se está inicializando, registrar cada reproducción en `musicRepository.recordTrackPlayed(track.id)` (Req #6, #9) y añadir fallback LRCLIB para letras en `loadLyricsForTrack()` (Req #2).
   - En `LrcParser.kt` y `LyricsView.kt`: soportar letras en texto plano estático (`timestampMs = -1L`) además de `.lrc` sincronizado, y añadir tests unitarios en `LrcParserTest.kt` (Req #2).
