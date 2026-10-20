@@ -30,6 +30,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import com.k11000.monkify.domain.model.TrackSortOption
+import com.k11000.monkify.ui.components.PlaylistCollageArtwork
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -82,6 +90,10 @@ fun PlaylistDetailScreen(
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val playlistName by viewModel.playlistName.collectAsState()
     val tracks by viewModel.tracks.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
+    val filteredAndSortedTracks by viewModel.filteredAndSortedTracks.collectAsState()
+    var showSortMenu by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
     val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
     val isDownloadingAll by viewModel.isDownloadingAll.collectAsState()
@@ -143,20 +155,13 @@ fun PlaylistDetailScreen(
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(160.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MonkifyDarkGray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
-                            contentDescription = "Carátula de playlist",
-                            tint = MonkifyPrimary,
-                            modifier = Modifier.size(80.dp)
-                        )
-                    }
+                    PlaylistCollageArtwork(
+                        coverUrls = tracks.mapNotNull { it.coverUrl },
+                        contentDescription = "Carátula de playlist",
+                        modifier = Modifier.size(160.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        iconSize = 80.dp
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -189,7 +194,7 @@ fun PlaylistDetailScreen(
                             Button(
                                 onClick = {
                                     val source = PlaybackSource.playlist(playlistId, playlistName.ifBlank { initialName })
-                                    playerViewModel.playQueue(tracks, 0, source)
+                                    playerViewModel.playQueue(filteredAndSortedTracks, 0, source)
                                 },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MonkifyPrimary,
@@ -260,6 +265,102 @@ fun PlaylistDetailScreen(
                             }
                         }
                     }
+
+                    if (tracks.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Buscador interno y selector de ordenamiento
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.onSearchQueryChange(it) },
+                                placeholder = {
+                                    Text(
+                                        text = "Buscar en esta playlist...",
+                                        color = MonkifyGray,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Buscar",
+                                        tint = MonkifyGray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                trailingIcon = {
+                                    if (searchQuery.isNotBlank()) {
+                                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Limpiar",
+                                                tint = MonkifyGray,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MonkifyDarkGray,
+                                    unfocusedContainerColor = MonkifyDarkGray,
+                                    focusedTextColor = MonkifyOnBackground,
+                                    unfocusedTextColor = MonkifyOnBackground,
+                                    cursorColor = MonkifyPrimary,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                            )
+
+                            Box {
+                                IconButton(
+                                    onClick = { showSortMenu = true },
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MonkifyDarkGray)
+                                        .size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = "Ordenar canciones",
+                                        tint = if (sortOption != TrackSortOption.DEFAULT) MonkifyPrimary else MonkifyOnBackground
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSortMenu,
+                                    onDismissRequest = { showSortMenu = false },
+                                    modifier = Modifier.background(MonkifyDarkGray)
+                                ) {
+                                    TrackSortOption.values().forEach { option ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = option.displayName,
+                                                    color = if (sortOption == option) MonkifyPrimary else MonkifyOnBackground,
+                                                    fontWeight = if (sortOption == option) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                viewModel.setSortOption(option)
+                                                showSortMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -275,7 +376,7 @@ fun PlaylistDetailScreen(
                         CircularProgressIndicator(color = MonkifyPrimary)
                     }
                 }
-            } else if (tracks.isEmpty()) {
+            } else if (filteredAndSortedTracks.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -284,20 +385,20 @@ fun PlaylistDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Esta playlist no tiene canciones aún 🎵",
+                            text = if (searchQuery.isNotBlank()) "No se encontraron canciones coincidentes" else "Esta playlist no tiene canciones aún 🎵",
                             color = MonkifyGray,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
             } else {
-                itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                itemsIndexed(filteredAndSortedTracks, key = { _, track -> track.id }) { index, track ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
                                 val source = PlaybackSource.playlist(playlistId, playlistName.ifBlank { initialName })
-                                playerViewModel.playQueue(tracks, index, source)
+                                playerViewModel.playQueue(filteredAndSortedTracks, index, source)
                             }
                             .padding(horizontal = 20.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically

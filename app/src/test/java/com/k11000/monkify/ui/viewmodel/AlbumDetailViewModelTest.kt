@@ -221,4 +221,31 @@ class AlbumDetailViewModelTest {
         assertEquals(listOf("t1", "t2"), fakeDownloadRepo.downloadTracksCalledWith?.map { it.id })
         assertEquals(Pair(2, 2), viewModel.downloadProgress.value)
     }
+
+    @Test
+    fun `filteredAndSortedTracks filtra por query y ordena segun TrackSortOption`() = runTest(testDispatcher) {
+        val dtos = listOf(
+            BackendTrackDto("t1", "Zebra Song", "Artist B", "Album Z", 100000L, null, "/stream/1", false),
+            BackendTrackDto("t2", "Apple Song", "Artist A", "Album Z", 300000L, null, "/stream/2", false),
+            BackendTrackDto("t3", "Berry Song", "Artist C", "Album Z", 200000L, null, "/stream/3", false)
+        )
+        val fakeApi = FakeMonkifyApi(albumTracksHandler = { dtos })
+        val viewModel = AlbumDetailViewModel(fakeApi, null, null)
+
+        viewModel.loadAlbum("Album Z")
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.filteredAndSortedTracks.value.size)
+
+        // Ordenar A-Z
+        viewModel.setSortOption(com.k11000.monkify.domain.model.TrackSortOption.TITLE_ASC)
+        advanceUntilIdle()
+        assertEquals(listOf("Apple Song", "Berry Song", "Zebra Song"), viewModel.filteredAndSortedTracks.value.map { it.title })
+
+        // Filtrar por query
+        viewModel.onSearchQueryChange("berry")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.filteredAndSortedTracks.value.size)
+        assertEquals("Berry Song", viewModel.filteredAndSortedTracks.value.first().title)
+    }
 }

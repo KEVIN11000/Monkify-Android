@@ -388,4 +388,42 @@ class LibraryViewModelTest {
         assertEquals(1, viewModel.filteredAlbums.value.size)
         assertEquals("Starboy", viewModel.filteredAlbums.value.first().album)
     }
+
+    @Test
+    fun `displayedTracks ordena canciones segun LibrarySortOption`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+
+        val t1 = Track("t1", "Zebra", "Artist B", "Album", 100000, null, "https://stream/1")
+        val t2 = Track("t2", "Apple", "Artist A", "Album", 300000, null, "https://stream/2")
+        val t3 = Track("t3", "Banana", "Artist C", "Album", 200000, null, "https://stream/3")
+
+        localRepo.saveTrack(t1, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(t2, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(t3, isFavorite = true, isDownloaded = false)
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+
+        viewModel.setFilter(LibraryFilter.FAVORITES)
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.displayedTracks.value.size)
+
+        // Ordenar A-Z
+        viewModel.setSortOption(com.k11000.monkify.ui.screens.viewmodel.LibrarySortOption.TITLE_ASC)
+        advanceUntilIdle()
+        assertEquals(listOf("Apple", "Banana", "Zebra"), viewModel.displayedTracks.value.map { it.title })
+
+        // Ordenar Z-A
+        viewModel.setSortOption(com.k11000.monkify.ui.screens.viewmodel.LibrarySortOption.TITLE_DESC)
+        advanceUntilIdle()
+        assertEquals(listOf("Zebra", "Banana", "Apple"), viewModel.displayedTracks.value.map { it.title })
+
+        // Ordenar por duración descendente
+        viewModel.setSortOption(com.k11000.monkify.ui.screens.viewmodel.LibrarySortOption.DURATION_DESC)
+        advanceUntilIdle()
+        assertEquals(listOf("Apple", "Banana", "Zebra"), viewModel.displayedTracks.value.map { it.title })
+    }
 }

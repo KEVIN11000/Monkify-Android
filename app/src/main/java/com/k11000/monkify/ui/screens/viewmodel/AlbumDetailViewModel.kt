@@ -7,6 +7,7 @@ import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.toDomain
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.model.TrackSortOption
 import com.k11000.monkify.domain.repository.DownloadRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -46,6 +48,42 @@ class AlbumDetailViewModel @Inject constructor(
 
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
     val tracks: StateFlow<List<Track>> = _tracks.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _sortOption = MutableStateFlow(TrackSortOption.DEFAULT)
+    val sortOption: StateFlow<TrackSortOption> = _sortOption.asStateFlow()
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setSortOption(option: TrackSortOption) {
+        _sortOption.value = option
+    }
+
+    val filteredAndSortedTracks: StateFlow<List<Track>> = combine(
+        _tracks,
+        _searchQuery,
+        _sortOption
+    ) { trackList, query, sort ->
+        val filtered = if (query.isBlank()) {
+            trackList
+        } else {
+            trackList.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                it.artist.contains(query, ignoreCase = true)
+            }
+        }
+        when (sort) {
+            TrackSortOption.DEFAULT -> filtered
+            TrackSortOption.TITLE_ASC -> filtered.sortedBy { it.title.lowercase() }
+            TrackSortOption.TITLE_DESC -> filtered.sortedByDescending { it.title.lowercase() }
+            TrackSortOption.ARTIST_ASC -> filtered.sortedBy { it.artist.lowercase() }
+            TrackSortOption.DURATION_DESC -> filtered.sortedByDescending { it.durationMs }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

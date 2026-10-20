@@ -34,11 +34,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,9 +51,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 
@@ -67,6 +72,7 @@ import coil3.compose.AsyncImage
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.screens.viewmodel.LibraryFilter
+import com.k11000.monkify.ui.screens.viewmodel.LibrarySortOption
 import com.k11000.monkify.ui.screens.viewmodel.LibraryViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
@@ -82,6 +88,7 @@ import androidx.compose.runtime.setValue
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
+import com.k11000.monkify.ui.components.PlaylistCollageArtwork
 import com.k11000.monkify.ui.components.TrackArtwork
 
 private fun formatBytes(bytes: Long): String {
@@ -99,6 +106,7 @@ private fun formatBytes(bytes: Long): String {
 fun LibraryScreen(
     onNavigateToPlaylist: (String, String) -> Unit = { _, _ -> },
     onNavigateToAlbum: (String, String, String?) -> Unit = { _, _, _ -> },
+    scrollToTopTrigger: Int = 0,
     viewModel: LibraryViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
@@ -113,11 +121,20 @@ fun LibraryScreen(
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
     val albums by viewModel.filteredAlbums.collectAsState()
     val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
+    val sortOption by viewModel.sortOption.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
     val context = LocalContext.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var isSearchVisible by remember { mutableStateOf(false) }
     var trackToDeleteDownload by remember { mutableStateOf<Track?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
 
 
     Column(
@@ -249,7 +266,7 @@ fun LibraryScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Sort Header
+        // Sort Header interactivo
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -257,25 +274,64 @@ fun LibraryScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Sort,
-                    contentDescription = "Sort",
-                    tint = MonkifyOnBackground,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when (selectedFilter) {
-                        LibraryFilter.ALL -> "Todo en almacenamiento local"
-                        LibraryFilter.FAVORITES -> "Tus canciones favoritas"
-                        LibraryFilter.DOWNLOADS -> "Música descargada offline"
-                        LibraryFilter.PLAYLISTS -> "Playlists en la nube"
-                        LibraryFilter.ALBUMS -> "Álbumes del catálogo"
-                    },
-                    color = MonkifyOnBackground,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                )
+            Box {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showSortMenu = true }
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sort,
+                        contentDescription = "Ordenar biblioteca",
+                        tint = MonkifyPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = sortOption.displayName,
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false },
+                    modifier = Modifier.background(MonkifyDarkGray)
+                ) {
+                    val applicableOptions = when (selectedFilter) {
+                        LibraryFilter.PLAYLISTS, LibraryFilter.ALBUMS -> listOf(
+                            LibrarySortOption.RECENT,
+                            LibrarySortOption.TITLE_ASC,
+                            LibrarySortOption.TITLE_DESC,
+                            LibrarySortOption.COUNT_DESC
+                        )
+                        else -> listOf(
+                            LibrarySortOption.RECENT,
+                            LibrarySortOption.TITLE_ASC,
+                            LibrarySortOption.TITLE_DESC,
+                            LibrarySortOption.ARTIST_ASC,
+                            LibrarySortOption.DURATION_DESC
+                        )
+                    }
+                    applicableOptions.forEach { opt ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = opt.displayName,
+                                    color = if (opt == sortOption) MonkifyPrimary else MonkifyOnBackground,
+                                    fontWeight = if (opt == sortOption) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                viewModel.setSortOption(opt)
+                                showSortMenu = false
+                            }
+                        )
+                    }
+                }
             }
             Text(
                 text = when (selectedFilter) {
@@ -430,10 +486,67 @@ fun LibraryScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (selectedFilter == LibraryFilter.ALL && displayedTracks.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val shuffled = displayedTracks.shuffled()
+                                    playerViewModel.playQueue(shuffled, 0)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shuffle,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Aleatorio",
+                                    color = Color.Black,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    playerViewModel.playQueue(displayedTracks, 0)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MonkifyDarkGray),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = MonkifyOnBackground,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Desde la primera",
+                                    color = MonkifyOnBackground,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
                 itemsIndexed(displayedTracks, key = { _, track -> track.id }) { index, track ->
                     val isTrackDownloaded = track.id in downloadedIds || track.streamUrl.startsWith("/")
                     LibraryTrackItem(
@@ -629,20 +742,12 @@ fun LibraryPlaylistItem(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        PlaylistCollageArtwork(
+            coverUrls = playlist.coverUrls,
             modifier = Modifier
                 .size(52.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MonkifyDarkGray),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlaylistPlay,
-                contentDescription = null,
-                tint = MonkifyPrimary,
-                modifier = Modifier.size(32.dp)
-            )
-        }
+        )
 
         Spacer(modifier = Modifier.width(16.dp))
 

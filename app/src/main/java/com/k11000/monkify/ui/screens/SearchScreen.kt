@@ -70,6 +70,7 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 
 @Composable
 fun SearchScreen(
+    scrollToResetTrigger: Int = 0,
     viewModel: SearchViewModel = hiltViewModel(),
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
@@ -81,6 +82,12 @@ fun SearchScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val ingestState by viewModel.ingestState.collectAsState()
+
+    LaunchedEffect(scrollToResetTrigger) {
+        if (scrollToResetTrigger > 0) {
+            viewModel.clearQuery()
+        }
+    }
 
     LaunchedEffect(ingestState) {
         when (val state = ingestState) {
@@ -154,7 +161,7 @@ fun SearchScreen(
                 .height(52.dp),
             placeholder = {
                 Text(
-                    text = "¿Qué te apetece escuchar?",
+                    text = "¿Qué te gustaría escuchar?",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodyMedium
                 )

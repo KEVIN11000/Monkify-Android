@@ -17,7 +17,9 @@ import com.k11000.monkify.ui.theme.MonkifyOnBackground
 @Composable
 fun BottomNavBar(
     navController: NavController,
-    onHomeReselect: (() -> Unit)? = null
+    onHomeReselect: (() -> Unit)? = null,
+    onLibraryReselect: (() -> Unit)? = null,
+    onSearchReselect: (() -> Unit)? = null
 ) {
     NavigationBar(
         containerColor = MonkifyBackground,
@@ -34,8 +36,10 @@ fun BottomNavBar(
                 selected = isSelected,
                 onClick = {
                     if (isSelected) {
-                        if (item.route == "home") {
-                            onHomeReselect?.invoke()
+                        when (item.route) {
+                            "home" -> onHomeReselect?.invoke()
+                            "library" -> onLibraryReselect?.invoke()
+                            "search" -> onSearchReselect?.invoke()
                         }
                     } else {
                         if (item.route == "home") {

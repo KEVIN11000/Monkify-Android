@@ -144,12 +144,12 @@ class PlaylistDetailViewModelTest {
     }
 
 
-    private fun sampleTrackDto(id: String, title: String, artist: String) = BackendTrackDto(
+    private fun sampleTrackDto(id: String, title: String, artist: String, durationMs: Long = 200000L) = BackendTrackDto(
         id = id,
         title = title,
         artist = artist,
         album = "Test Album",
-        durationMs = 200000L,
+        durationMs = durationMs,
         coverUrl = "https://cover/$id.jpg",
         streamUrl = "/api/v1/stream/$id",
         isDownloaded = false
@@ -404,6 +404,38 @@ class PlaylistDetailViewModelTest {
         viewModel.toggleDownloadTrack(track)
         advanceUntilIdle()
         assertFalse(fakeDownloadRepo.isTrackDownloaded("t_toggle"))
+    }
+
+    @Test
+    fun `filteredAndSortedTracks filtra por query y ordena segun TrackSortOption`() = runTest(testDispatcher) {
+        val testTracks = listOf(
+            sampleTrackDto("t1", "Zebra", "Artist B", durationMs = 100000L),
+            sampleTrackDto("t2", "Apple", "Artist A", durationMs = 300000L),
+            sampleTrackDto("t3", "Banana", "Artist C", durationMs = 200000L)
+        )
+        val fakeApi = FakeMonkifyApi(tracksHandler = { testTracks })
+        val viewModel = PlaylistDetailViewModel(fakeApi, null, null)
+
+        viewModel.loadPlaylist("pl1", "Mi Playlist")
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.filteredAndSortedTracks.value.size)
+
+        // Ordenar A-Z
+        viewModel.setSortOption(com.k11000.monkify.domain.model.TrackSortOption.TITLE_ASC)
+        advanceUntilIdle()
+        assertEquals(listOf("Apple", "Banana", "Zebra"), viewModel.filteredAndSortedTracks.value.map { it.title })
+
+        // Ordenar Duración
+        viewModel.setSortOption(com.k11000.monkify.domain.model.TrackSortOption.DURATION_DESC)
+        advanceUntilIdle()
+        assertEquals(listOf("Apple", "Banana", "Zebra"), viewModel.filteredAndSortedTracks.value.map { it.title })
+
+        // Filtrar por texto
+        viewModel.onSearchQueryChange("ban")
+        advanceUntilIdle()
+        assertEquals(1, viewModel.filteredAndSortedTracks.value.size)
+        assertEquals("Banana", viewModel.filteredAndSortedTracks.value.first().title)
     }
 }
 

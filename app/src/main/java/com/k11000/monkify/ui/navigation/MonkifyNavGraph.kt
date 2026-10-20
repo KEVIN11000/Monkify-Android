@@ -23,6 +23,8 @@ fun MonkifyNavGraph(
     navController: NavHostController,
     innerPadding: PaddingValues,
     homeScrollTrigger: Int = 0,
+    libraryScrollTrigger: Int = 0,
+    searchResetTrigger: Int = 0,
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
     NavHost(
@@ -41,11 +43,15 @@ fun MonkifyNavGraph(
             )
         }
         composable(BottomNavItem.Search.route) {
-            SearchScreen(playerViewModel = playerViewModel)
+            SearchScreen(
+                playerViewModel = playerViewModel,
+                scrollToResetTrigger = searchResetTrigger
+            )
         }
         composable(BottomNavItem.Library.route) {
             LibraryScreen(
                 playerViewModel = playerViewModel,
+                scrollToTopTrigger = libraryScrollTrigger,
                 onNavigateToPlaylist = { playlistId, name ->
                     navController.navigate(Destinations.playlistDetail(playlistId, name))
                 },

@@ -70,7 +70,7 @@
 
 ## Phase 6: Biblioteca, Detalle de Playlist/Álbum y Barra de Navegación
 
-- [ ] **T007** [US3, US4] Implementar búsqueda y ordenamiento interno en `PlaylistDetailScreen` y `AlbumDetailScreen`, ordenamiento en todas las categorías de `LibraryScreen`, botones `"Aleatorio"` / `"Reproducir desde la primera"` en `"Todo"`, y navegación rápida en `BottomNavBar` / `SearchScreen`:
+- [x] **T007** [US3, US4] Implementar búsqueda y ordenamiento interno en `PlaylistDetailScreen` y `AlbumDetailScreen`, ordenamiento en todas las categorías de `LibraryScreen`, botones `"Aleatorio"` / `"Reproducir desde la primera"` en `"Todo"`, y navegación rápida en `BottomNavBar` / `SearchScreen`:
   - En `PlaylistDetailViewModel.kt`, `PlaylistDetailScreen.kt`, `AlbumDetailViewModel.kt` y `AlbumDetailScreen.kt`: añadir barra de búsqueda interna, selector de ordenamiento (`TrackSortOption`), portada collage en playlists y reproducción respetando la cola de la playlist/álbum (Req #1, #10, #13).
   - En `LibraryViewModel.kt` y `LibraryScreen.kt`: añadir `LibrarySortOption` funcional para todas las categorías (`Todo`, `Favoritas`, `Descargas`, `Playlists`, `Álbumes`), usar `PlaylistCollageArtwork` en los ítems de playlist, y agregar en la pestaña `"Todo"` los botones `"Aleatorio"` y `"Reproducir desde la primera"` sobre el catálogo completo (Req #12, #13, #19).
   - En `BottomNavBar.kt`, `MonkifyNavGraph.kt`, `MainActivity.kt`, `LibraryScreen.kt` y `SearchScreen.kt`: implementar scroll al tope al re-seleccionar `"Tu Biblioteca"` (Req #14), reseteo de búsqueda al re-seleccionar `"Buscar"` (Req #15) y actualizar el placeholder de `SearchScreen` a `"¿Qué te gustaría escuchar?"` (Req #11).

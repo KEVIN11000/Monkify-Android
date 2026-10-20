@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 var showFullScreenPlayer by rememberSaveable { mutableStateOf(false) }
                 var homeScrollTrigger by rememberSaveable { mutableStateOf(0) }
+                var libraryScrollTrigger by rememberSaveable { mutableStateOf(0) }
+                var searchResetTrigger by rememberSaveable { mutableStateOf(0) }
 
                 // Interceptar retroceso del sistema para colapsar el reproductor sin salir de la app
                 BackHandler(enabled = showFullScreenPlayer) {
@@ -104,6 +106,14 @@ class MainActivity : ComponentActivity() {
                                         showFullScreenPlayer = false
                                         playerViewModel.setZenCleared(false)
                                         homeScrollTrigger++
+                                    },
+                                    onLibraryReselect = {
+                                        showFullScreenPlayer = false
+                                        libraryScrollTrigger++
+                                    },
+                                    onSearchReselect = {
+                                        showFullScreenPlayer = false
+                                        searchResetTrigger++
                                     }
                                 )
                             }
@@ -114,6 +124,8 @@ class MainActivity : ComponentActivity() {
                         navController = navController,
                         innerPadding = innerPadding,
                         homeScrollTrigger = homeScrollTrigger,
+                        libraryScrollTrigger = libraryScrollTrigger,
+                        searchResetTrigger = searchResetTrigger,
                         playerViewModel = playerViewModel
                     )
                 }

@@ -10,6 +10,7 @@ import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,12 +30,22 @@ enum class LibraryFilter(val displayName: String) {
     ALBUMS("Álbumes")
 }
 
+enum class LibrarySortOption(val displayName: String) {
+    RECENT("Recientes"),
+    TITLE_ASC("Título A-Z"),
+    TITLE_DESC("Título Z-A"),
+    ARTIST_ASC("Artista"),
+    DURATION_DESC("Duración"),
+    COUNT_DESC("Cantidad de canciones")
+}
+
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val localTrackRepository: LocalTrackRepository,
     private val monkifyApi: MonkifyApi? = null,
     private val playlistRepository: PlaylistRepository? = null,
-    private val downloadRepository: DownloadRepository? = null
+    private val downloadRepository: DownloadRepository? = null,
+    private val trackRepository: com.k11000.monkify.domain.repository.TrackRepository? = null
 ) : ViewModel() {
 
     val totalStorageBytes: StateFlow<Long> = (downloadRepository?.downloadedTrackIds
@@ -55,12 +66,28 @@ class LibraryViewModel @Inject constructor(
     private val _playlists = MutableStateFlow<List<PlaylistSummaryDto>>(emptyList())
     val playlists: StateFlow<List<PlaylistSummaryDto>> = _playlists.asStateFlow()
 
+    private val _catalogTracks = MutableStateFlow<List<Track>>(emptyList())
+    val catalogTracks: StateFlow<List<Track>> = _catalogTracks.asStateFlow()
+
+    private val _sortOption = MutableStateFlow(LibrarySortOption.RECENT)
+    val sortOption: StateFlow<LibrarySortOption> = _sortOption.asStateFlow()
+
+    fun setSortOption(option: LibrarySortOption) {
+        _sortOption.value = option
+    }
+
     val filteredPlaylists: StateFlow<List<PlaylistSummaryDto>> = combine(
         _playlists,
-        _searchQuery
-    ) { list, query ->
-        if (query.isBlank()) list
-        else list.filter { it.name.contains(query, ignoreCase = true) }
+        _searchQuery,
+        _sortOption
+    ) { list, query, sort ->
+        val filtered = if (query.isBlank()) list else list.filter { it.name.contains(query, ignoreCase = true) }
+        when (sort) {
+            LibrarySortOption.RECENT, LibrarySortOption.TITLE_ASC -> filtered.sortedBy { it.name.lowercase() }
+            LibrarySortOption.TITLE_DESC -> filtered.sortedByDescending { it.name.lowercase() }
+            LibrarySortOption.COUNT_DESC -> filtered.sortedByDescending { it.trackCount }
+            else -> filtered.sortedBy { it.name.lowercase() }
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoadingPlaylists = MutableStateFlow(false)
@@ -76,20 +103,28 @@ class LibraryViewModel @Inject constructor(
         _albums,
         _searchQuery,
         localTrackRepository.favoriteTracks,
-        localTrackRepository.downloadedTracks
-    ) { remoteAlbums, query, favorites, downloads ->
+        localTrackRepository.downloadedTracks,
+        _sortOption
+    ) { remoteAlbums, query, favorites, downloads, sort ->
         val baseAlbums = if (remoteAlbums.isNotEmpty()) {
             remoteAlbums
         } else {
             deriveLocalAlbums((favorites + downloads).distinctBy { it.id })
         }
-        if (query.isBlank()) {
+        val filtered = if (query.isBlank()) {
             baseAlbums
         } else {
             baseAlbums.filter {
                 it.album.contains(query, ignoreCase = true) ||
                 it.artist.contains(query, ignoreCase = true)
             }
+        }
+        when (sort) {
+            LibrarySortOption.RECENT, LibrarySortOption.TITLE_ASC -> filtered.sortedBy { it.album.lowercase() }
+            LibrarySortOption.TITLE_DESC -> filtered.sortedByDescending { it.album.lowercase() }
+            LibrarySortOption.ARTIST_ASC -> filtered.sortedBy { it.artist.lowercase() }
+            LibrarySortOption.COUNT_DESC -> filtered.sortedByDescending { it.trackCount }
+            else -> filtered.sortedBy { it.album.lowercase() }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -128,6 +163,20 @@ class LibraryViewModel @Inject constructor(
     init {
         loadPlaylists()
         loadAlbums()
+        loadCatalog()
+    }
+
+    fun loadCatalog() {
+        viewModelScope.launch {
+            try {
+                val tracks = trackRepository?.getTracks(limit = 200, offset = 0) ?: emptyList()
+                if (tracks.isNotEmpty()) {
+                    _catalogTracks.value = tracks
+                }
+            } catch (_: Exception) {
+                // Silencioso o sin conexión
+            }
+        }
     }
 
     fun loadAlbums() {
@@ -230,25 +279,43 @@ class LibraryViewModel @Inject constructor(
     val downloadedTracks: StateFlow<List<Track>> = localTrackRepository.downloadedTracks
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val displayedTracks: StateFlow<List<Track>> = combine(
+    private val rawFilteredTracks: Flow<List<Track>> = combine(
         _selectedFilter,
-        _searchQuery,
         localTrackRepository.favoriteTracks,
-        localTrackRepository.downloadedTracks
-    ) { filter, query, favorites, downloads ->
-        val baseList = when (filter) {
+        localTrackRepository.downloadedTracks,
+        _catalogTracks
+    ) { filter, favorites, downloads, catalog ->
+        when (filter) {
             LibraryFilter.FAVORITES -> favorites
             LibraryFilter.DOWNLOADS -> downloads
-            LibraryFilter.ALL, LibraryFilter.PLAYLISTS, LibraryFilter.ALBUMS -> (favorites + downloads).distinctBy { it.id }
+            LibraryFilter.ALL -> {
+                if (catalog.isNotEmpty()) catalog else (favorites + downloads).distinctBy { it.id }
+            }
+            LibraryFilter.PLAYLISTS, LibraryFilter.ALBUMS -> (favorites + downloads).distinctBy { it.id }
         }
-        if (query.isBlank()) {
-            baseList
+    }
+
+    val displayedTracks: StateFlow<List<Track>> = combine(
+        rawFilteredTracks,
+        _searchQuery,
+        _sortOption
+    ) { tracks, query, sort ->
+        val filtered = if (query.isBlank()) {
+            tracks
         } else {
-            baseList.filter {
+            tracks.filter {
                 it.title.contains(query, ignoreCase = true) ||
                 it.artist.contains(query, ignoreCase = true) ||
                 it.album.contains(query, ignoreCase = true)
             }
+        }
+        when (sort) {
+            LibrarySortOption.RECENT -> filtered
+            LibrarySortOption.TITLE_ASC -> filtered.sortedBy { it.title.lowercase() }
+            LibrarySortOption.TITLE_DESC -> filtered.sortedByDescending { it.title.lowercase() }
+            LibrarySortOption.ARTIST_ASC -> filtered.sortedBy { it.artist.lowercase() }
+            LibrarySortOption.DURATION_DESC -> filtered.sortedByDescending { it.durationMs }
+            LibrarySortOption.COUNT_DESC -> filtered
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -256,6 +323,9 @@ class LibraryViewModel @Inject constructor(
         _selectedFilter.value = filter
         if (filter == LibraryFilter.ALBUMS && _albums.value.isEmpty()) {
             loadAlbums()
+        }
+        if (filter == LibraryFilter.ALL && _catalogTracks.value.isEmpty()) {
+            loadCatalog()
         }
     }
 }

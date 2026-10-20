@@ -67,7 +67,7 @@ fun TrackArtwork(
 @Composable
 fun PlaylistCollageArtwork(
     coverUrls: List<String>?,
-    contentDescription: String?,
+    contentDescription: String? = null,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(6.dp),
     iconSize: Dp = 24.dp
