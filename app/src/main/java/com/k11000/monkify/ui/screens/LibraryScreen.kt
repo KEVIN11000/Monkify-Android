@@ -23,6 +23,18 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.launch
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -122,6 +134,8 @@ fun LibraryScreen(
     val albums by viewModel.filteredAlbums.collectAsState()
     val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
+    val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
+    val isPlaying by playerViewModel.isPlaying.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
     val context = LocalContext.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
@@ -552,6 +566,7 @@ fun LibraryScreen(
                     LibraryTrackItem(
                         track = track,
                         isDownloaded = isTrackDownloaded,
+                        isCurrentPlaying = (track.title == currentTitle && isPlaying),
                         onClick = {
                             playerViewModel.playQueue(displayedTracks, index)
                         },
@@ -646,9 +661,65 @@ fun LibraryFilterChip(
 }
 
 @Composable
+fun AnimatedPlayButton(
+    isPlaying: Boolean = false,
+    contentDescription: String = "Reproducir",
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 38.dp,
+    iconSize: Dp = 20.dp
+) {
+    val scaleAnim = remember { Animatable(1f) }
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .graphicsLayer {
+                scaleX = scaleAnim.value
+                scaleY = scaleAnim.value
+            }
+            .clip(CircleShape)
+            .background(
+                if (isPlaying) MonkifyPrimary.copy(alpha = 0.22f)
+                else Color.White.copy(alpha = 0.08f)
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                try {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                } catch (_: Exception) {}
+                scope.launch {
+                    scaleAnim.animateTo(0.72f, animationSpec = tween(70))
+                    scaleAnim.animateTo(
+                        1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    )
+                }
+                onClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+            contentDescription = contentDescription,
+            tint = MonkifyPrimary,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+@Composable
 fun LibraryTrackItem(
     track: Track,
     isDownloaded: Boolean,
+    isCurrentPlaying: Boolean = false,
     onClick: () -> Unit,
     onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -675,7 +746,7 @@ fun LibraryTrackItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title,
-                color = MonkifyOnBackground,
+                color = if (isCurrentPlaying) MonkifyPrimary else MonkifyOnBackground,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -719,15 +790,15 @@ fun LibraryTrackItem(
             Spacer(modifier = Modifier.width(4.dp))
         }
 
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Reproducir",
-            tint = MonkifyPrimary,
-            modifier = Modifier.size(24.dp)
+        AnimatedPlayButton(
+            isPlaying = isCurrentPlaying,
+            contentDescription = "Reproducir ${track.title}",
+            onClick = onClick,
+            size = 38.dp,
+            iconSize = 20.dp
         )
     }
 }
-
 
 @Composable
 fun LibraryPlaylistItem(
@@ -769,11 +840,11 @@ fun LibraryPlaylistItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Ver playlist",
-            tint = MonkifyPrimary,
-            modifier = Modifier.size(20.dp)
+        AnimatedPlayButton(
+            contentDescription = "Ver playlist ${playlist.name}",
+            onClick = onClick,
+            size = 36.dp,
+            iconSize = 18.dp
         )
     }
 }
@@ -866,12 +937,11 @@ fun LibraryAlbumItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Ver álbum",
-            tint = MonkifyPrimary,
-            modifier = Modifier.size(22.dp)
+        AnimatedPlayButton(
+            contentDescription = "Ver álbum ${album.album}",
+            onClick = onClick,
+            size = 38.dp,
+            iconSize = 20.dp
         )
     }
 }
-

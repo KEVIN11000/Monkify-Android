@@ -14,6 +14,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -276,13 +277,16 @@ fun FullScreenPlayer(
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(if (showLyrics) 12.dp else 28.dp))
 
-        // Área Central: Carátula o Letras Sincronizadas con transición fluida
+        // Área Central: Carátula o Letras Sincronizadas con transición fluida y expansión completa
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f),
+                .then(
+                    if (showLyrics) Modifier.weight(1f)
+                    else Modifier.aspectRatio(1f)
+                ),
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -291,7 +295,8 @@ fun FullScreenPlayer(
                     (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.95f, animationSpec = tween(300)))
                         .togetherWith(fadeOut(animationSpec = tween(200)) + scaleOut(targetScale = 0.95f, animationSpec = tween(200)))
                 },
-                label = "CoverLyricsTransition"
+                label = "CoverLyricsTransition",
+                modifier = Modifier.fillMaxSize()
             ) { isLyricsVisible ->
                 if (isLyricsVisible) {
                     Box(
@@ -313,6 +318,7 @@ fun FullScreenPlayer(
                         VinylTurntable(
                             coverUrl = coverUrl,
                             isPlaying = isPlaying,
+                            trackKey = "${title}_${artist}_${coverUrl}",
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -341,7 +347,7 @@ fun FullScreenPlayer(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(if (showLyrics) 16.dp else 32.dp))
 
         // Título y Artista con acciones de Favorito y Descarga
         Row(
@@ -355,14 +361,16 @@ fun FullScreenPlayer(
                     color = MonkifyOnBackground,
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
                 )
                 Text(
                     text = artist,
                     color = MonkifyGray,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
                 )
             }
 

@@ -66,6 +66,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +94,8 @@ import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
@@ -936,12 +939,18 @@ private fun ZenGestureOverlay(
     statusBarPadding: Dp,
     modifier: Modifier = Modifier
 ) {
-    val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
-    val currentArtist by playerViewModel.currentTrackArtist.collectAsState()
-
     var feedbackIcon by remember { mutableStateOf<ImageVector?>(null) }
     var feedbackText by remember { mutableStateOf("") }
     var feedbackTrigger by remember { mutableStateOf(0) }
+    var showGuideHints by remember { mutableStateOf(true) }
+
+    val scope = rememberCoroutineScope()
+    var pendingTapJob by remember { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(Unit) {
+        delay(3000)
+        showGuideHints = false
+    }
 
     LaunchedEffect(feedbackTrigger) {
         if (feedbackTrigger > 0) {
@@ -972,18 +981,24 @@ private fun ZenGestureOverlay(
                                 val now = System.currentTimeMillis()
                                 val duration = now - startTime
                                 if (!isDrag && duration < 500) {
-                                    if (now - lastTapTime < 350) {
-                                        // Doble toque: Restaurar tarjetas
-                                        playerViewModel.setZenCleared(false)
+                                    if (now - lastTapTime < 320) {
+                                        // Doble toque: Restaurar tarjetas sin alternar reproducción
+                                        pendingTapJob?.cancel()
+                                        pendingTapJob = null
                                         lastTapTime = 0L
+                                        playerViewModel.setZenCleared(false)
                                     } else {
                                         lastTapTime = now
-                                        // Toque simple: Pausar o reanudar
-                                        val willPlay = !playerViewModel.isPlaying.value
-                                        playerViewModel.togglePlayPause()
-                                        feedbackIcon = if (willPlay) Icons.Default.PlayArrow else Icons.Default.Pause
-                                        feedbackText = if (willPlay) "Reanudar" else "Pausado"
-                                        feedbackTrigger++
+                                        pendingTapJob?.cancel()
+                                        pendingTapJob = scope.launch {
+                                            delay(320)
+                                            // Toque simple: Pausar o reanudar
+                                            val willPlay = !playerViewModel.isPlaying.value
+                                            playerViewModel.togglePlayPause()
+                                            feedbackIcon = if (willPlay) Icons.Default.PlayArrow else Icons.Default.Pause
+                                            feedbackText = if (willPlay) "Reanudar" else "Pausado"
+                                            feedbackTrigger++
+                                        }
                                     }
                                 } else if (isDrag) {
                                     val swipeThreshold = 90f
@@ -1015,31 +1030,37 @@ private fun ZenGestureOverlay(
                 }
         )
 
-        // Pill superior para volver a la vista normal
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.Black.copy(alpha = 0.55f),
+        // Pill superior para volver a la vista normal (auto-ocultable tras 3s)
+        AnimatedVisibility(
+            visible = showGuideHints,
+            enter = fadeIn(animationSpec = tween(400)),
+            exit = fadeOut(animationSpec = tween(600)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = statusBarPadding + 16.dp)
-                .clickable { playerViewModel.setZenCleared(false) }
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier.clickable { playerViewModel.setZenCleared(false) }
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Volver",
-                    tint = MonkifyOnBackground.copy(alpha = 0.85f),
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Modo Zen • Toca para volver",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MonkifyOnBackground.copy(alpha = 0.85f)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Volver",
+                        tint = MonkifyOnBackground.copy(alpha = 0.85f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Modo Zen • Toca para volver",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MonkifyOnBackground.copy(alpha = 0.85f)
+                    )
+                }
             }
         }
 
@@ -1077,38 +1098,21 @@ private fun ZenGestureOverlay(
             }
         }
 
-        // Información inferior de la pista y guía de gestos
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        // Guía de gestos inferior (auto-ocultable tras 3s, sin títulos sobre la imagen)
+        AnimatedVisibility(
+            visible = showGuideHints,
+            enter = fadeIn(animationSpec = tween(400)),
+            exit = fadeOut(animationSpec = tween(600)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 110.dp, start = 24.dp, end = 24.dp)
         ) {
-            if (currentTitle.isNotBlank()) {
-                Text(
-                    text = currentTitle,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MonkifyOnBackground.copy(alpha = 0.95f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = currentArtist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MonkifyPrimary.copy(alpha = 0.9f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
             Text(
                 text = "Toca para pausar/reanudar • Desliza para cambiar • Doble toque para volver",
                 style = MaterialTheme.typography.labelSmall,
-                color = MonkifyGray.copy(alpha = 0.75f)
+                color = MonkifyGray.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center
             )
         }
     }
 }
-
-

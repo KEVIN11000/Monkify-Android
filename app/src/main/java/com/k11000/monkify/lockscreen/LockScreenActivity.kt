@@ -110,8 +110,8 @@ class LockScreenActivity : ComponentActivity(), SensorEventListener {
                 val settingsState by settingsViewModel.uiState.collectAsState()
 
                 // Actualizar bandera de pantalla activa según reproducción
-                DisposableEffect(isPlaying) {
-                    if (isPlaying) {
+                DisposableEffect(isPlaying, isCoveredInPocket) {
+                    if (isPlaying && !isCoveredInPocket) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -153,10 +153,23 @@ class LockScreenActivity : ComponentActivity(), SensorEventListener {
 
     private fun unlockAndDismiss() {
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            keyguardManager?.requestDismissKeyguard(this, null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && keyguardManager?.isKeyguardLocked == true) {
+            keyguardManager.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() {
+                    super.onDismissSucceeded()
+                    finish()
+                }
+                override fun onDismissCancelled() {
+                    super.onDismissCancelled()
+                }
+                override fun onDismissError() {
+                    super.onDismissError()
+                    finish()
+                }
+            })
+        } else {
+            finish()
         }
-        finish()
     }
 
     override fun onResume() {

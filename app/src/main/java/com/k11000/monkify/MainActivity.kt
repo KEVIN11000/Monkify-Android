@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -82,6 +83,7 @@ class MainActivity : ComponentActivity() {
                 var homeScrollTrigger by rememberSaveable { mutableStateOf(0) }
                 var libraryScrollTrigger by rememberSaveable { mutableStateOf(0) }
                 var searchResetTrigger by rememberSaveable { mutableStateOf(0) }
+                val isZenCleared by playerViewModel.isZenCleared.collectAsState()
 
                 // Interceptar retroceso del sistema para colapsar el reproductor sin salir de la app
                 BackHandler(enabled = showFullScreenPlayer) {
@@ -96,10 +98,16 @@ class MainActivity : ComponentActivity() {
                             AnimatedVisibility(visible = !showFullScreenPlayer) {
                                 MiniPlayer(
                                     viewModel = playerViewModel,
+                                    isZenPeek = isZenCleared,
+                                    onRestoreZen = { playerViewModel.setZenCleared(false) },
                                     onExpand = { showFullScreenPlayer = true }
                                 )
                             }
-                            AnimatedVisibility(visible = !showFullScreenPlayer) {
+                            AnimatedVisibility(
+                                visible = !showFullScreenPlayer && !isZenCleared,
+                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                            ) {
                                 BottomNavBar(
                                     navController = navController,
                                     onHomeReselect = {

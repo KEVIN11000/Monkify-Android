@@ -169,6 +169,7 @@ class PlayerViewModel @Inject constructor(
 
     private var downloadStateJob: Job? = null
     private var favoriteJob: Job? = null
+    private var lyricsJob: Job? = null
 
     fun setPlaybackSource(source: PlaybackSource) {
         _playbackSource.value = source
@@ -269,6 +270,7 @@ class PlayerViewModel @Inject constructor(
         mutable.add(toIndex, item)
         currentQueue = mutable
         _queue.value = mutable
+        stateHolder?.updateQueue(mutable)
 
         try {
             mediaController?.moveMediaItem(fromIndex, toIndex)
@@ -283,6 +285,7 @@ class PlayerViewModel @Inject constructor(
         mutable.removeAt(index)
         currentQueue = mutable
         _queue.value = mutable
+        stateHolder?.updateQueue(mutable)
 
         try {
             mediaController?.removeMediaItem(index)
@@ -721,7 +724,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun loadLyricsForTrack(trackId: String) {
-        viewModelScope.launch {
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch {
             _isLoadingLyrics.value = true
             _lyrics.value = emptyList()
             try {
@@ -908,6 +912,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
+        _currentPosition.value = positionMs
+        val dur = _duration.value
+        if (dur > 0L) {
+            _progress.value = (positionMs.toFloat() / dur.toFloat()).coerceIn(0f, 1f)
+        }
         mediaController?.seekTo(positionMs)
     }
 
@@ -952,6 +961,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        lyricsJob?.cancel()
+        downloadStateJob?.cancel()
+        favoriteJob?.cancel()
         mediaController?.removeListener(playerListener)
         mediaController?.release()
         super.onCleared()

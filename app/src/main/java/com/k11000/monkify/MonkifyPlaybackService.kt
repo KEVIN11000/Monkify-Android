@@ -21,6 +21,7 @@ import javax.inject.Inject
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.lockscreen.LockScreenActivity
 import kotlinx.coroutines.CoroutineScope
@@ -69,7 +70,7 @@ class MonkifyPlaybackService : MediaSessionService() {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
         }
-        registerReceiver(screenReceiver, filter)
+        ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         serviceScope.launch {
             settingsRepository.lockScreenEnabled.collect { enabled ->

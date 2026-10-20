@@ -56,7 +56,7 @@ fun LyricsView(
     val listState = rememberLazyListState()
 
     LaunchedEffect(activeIndex) {
-        if (!isStatic && activeIndex in lyrics.indices) {
+        if (!isStatic && activeIndex in lyrics.indices && !listState.isScrollInProgress) {
             val targetIndex = (activeIndex - 2).coerceAtLeast(0)
             listState.animateScrollToItem(targetIndex)
         }

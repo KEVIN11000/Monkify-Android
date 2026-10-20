@@ -34,7 +34,8 @@ class LocalTrackRepository @Inject constructor(
             trackDao.insertTrack(track.toEntity(isFavorite = true))
         } else {
             val newFav = !existing.isFavorite
-            if (!newFav && !existing.isDownloaded) {
+            val hasHistory = existing.playCount > 0 || existing.lastPlayedAt > 0L
+            if (!newFav && !existing.isDownloaded && !hasHistory) {
                 trackDao.deleteTrackById(track.id)
             } else {
                 trackDao.updateFavoriteStatus(track.id, newFav)
@@ -57,7 +58,8 @@ class LocalTrackRepository @Inject constructor(
 
     suspend fun removeDownload(trackId: String) {
         val existing = trackDao.getTrackById(trackId) ?: return
-        if (!existing.isFavorite) {
+        val hasHistory = existing.playCount > 0 || existing.lastPlayedAt > 0L
+        if (!existing.isFavorite && !hasHistory) {
             trackDao.deleteTrackById(trackId)
         } else {
             trackDao.updateDownloadStatus(trackId, isDownloaded = false, localPath = null)

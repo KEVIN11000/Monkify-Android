@@ -106,6 +106,30 @@ class LocalDatabaseTest {
     }
 
     @Test
+    fun `regla de preservacion de historial en favorite_tracks previene eliminacion de reproducciones`() {
+        val playedEntity = TrackEntity(
+            id = "t_played",
+            title = "Played Track",
+            artist = "Artist",
+            album = "Album",
+            durationMs = 150000L,
+            coverUrl = null,
+            streamUrl = "https://stream/played",
+            isFavorite = true,
+            isDownloaded = false,
+            playCount = 14,
+            lastPlayedAt = 1729400000000L
+        )
+
+        val newFav = !playedEntity.isFavorite
+        val hasHistory = playedEntity.playCount > 0 || playedEntity.lastPlayedAt > 0L
+        val shouldDelete = !newFav && !playedEntity.isDownloaded && !hasHistory
+
+        assertFalse("No debe eliminar la fila si tiene historial de reproduccion", shouldDelete)
+        assertTrue("Debe registrar que tiene historial previo", hasHistory)
+    }
+
+    @Test
     fun `MIGRATION_1_2 migra version 1 a 2`() {
         assertEquals(1, MonkifyDatabase.MIGRATION_1_2.startVersion)
         assertEquals(2, MonkifyDatabase.MIGRATION_1_2.endVersion)

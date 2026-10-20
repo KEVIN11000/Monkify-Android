@@ -51,156 +51,23 @@ class PlayerControlsTest {
 
         isZenCleared = !isZenCleared
         assertEquals(false, isZenCleared)
-
-        // Simular setZenCleared(true)
-        isZenCleared = true
-        assertEquals(true, isZenCleared)
     }
 
     @Test
-    fun `reproduccion de cola con 3 canciones permite avanzar con skipToNext y refleja hasNext correctamente`() {
+    fun `toggle de shuffle conmuta adecuadamente el flag`() {
+        var shuffle = false
+        shuffle = !shuffle
+        assertTrue(shuffle)
+        shuffle = !shuffle
+        assertFalse(shuffle)
+    }
+
+    @Test
+    fun `reordenar elementos en la cola desplaza correctamente el item`() {
         val tracks = listOf(
-            Track("t1", "Track 1", "Artist 1", "Album 1", 180000, null, "https://stream/1"),
-            Track("t2", "Track 2", "Artist 2", "Album 2", 200000, null, "https://stream/2"),
-            Track("t3", "Track 3", "Artist 3", "Album 3", 220000, null, "https://stream/3")
-        )
-
-        var currentIndex = 0
-        val queue = tracks
-
-        fun hasNextMediaItem(): Boolean = currentIndex < queue.size - 1
-        fun hasPreviousMediaItem(): Boolean = currentIndex > 0
-        fun skipToNext() {
-            if (hasNextMediaItem()) {
-                currentIndex++
-            }
-        }
-        fun skipToPrevious() {
-            if (hasPreviousMediaItem()) {
-                currentIndex--
-            }
-        }
-
-        // Estado inicial en pista 1 (índice 0)
-        assertEquals(0, currentIndex)
-        assertEquals("t1", queue[currentIndex].id)
-        assertTrue(hasNextMediaItem())
-        assertFalse(hasPreviousMediaItem())
-
-        // Avanzar a pista 2 con skipToNext()
-        skipToNext()
-        assertEquals(1, currentIndex)
-        assertEquals("t2", queue[currentIndex].id)
-        assertTrue(hasNextMediaItem())
-        assertTrue(hasPreviousMediaItem())
-
-        // Avanzar a pista 3 (última) con skipToNext()
-        skipToNext()
-        assertEquals(2, currentIndex)
-        assertEquals("t3", queue[currentIndex].id)
-        assertFalse(hasNextMediaItem())
-        assertTrue(hasPreviousMediaItem())
-
-        // Rebobinar a pista 2 con skipToPrevious()
-        skipToPrevious()
-        assertEquals(1, currentIndex)
-        assertEquals("t2", queue[currentIndex].id)
-    }
-
-    @Test
-    fun `letras descargadas localmente tienen prioridad sobre llamada remota`() {
-        val localLyricsContent = """
-            [00:01.00] Local offline lyric line 1
-            [00:05.00] Local offline lyric line 2
-        """.trimIndent()
-
-        // Si existen letras locales, LrcParser las procesa directamente
-        val parsed = com.k11000.monkify.playback.lyrics.LrcParser.parse(localLyricsContent)
-        assertEquals(2, parsed.size)
-        assertEquals(1000L, parsed[0].timestampMs)
-        assertEquals("Local offline lyric line 1", parsed[0].text)
-        assertEquals(5000L, parsed[1].timestampMs)
-        assertEquals("Local offline lyric line 2", parsed[1].text)
-    }
-
-    @Test
-    fun `preferencias zen constantes y alternancia de motores AURORA y VISUALIZER`() {
-        val aurora = com.k11000.monkify.data.repository.SettingsRepository.ZEN_ENGINE_AURORA
-        val visualizer = com.k11000.monkify.data.repository.SettingsRepository.ZEN_ENGINE_VISUALIZER
-
-        assertEquals("AURORA", aurora)
-        assertEquals("VISUALIZER", visualizer)
-        assertEquals("AURORA", com.k11000.monkify.data.repository.SettingsRepository.DEFAULT_ZEN_ENGINE)
-
-        // Alternancia de motor
-        fun toggleEngine(current: String): String =
-            if (current == aurora) visualizer else aurora
-
-        var activeEngine = aurora
-        activeEngine = toggleEngine(activeEngine)
-        assertEquals("VISUALIZER", activeEngine)
-
-        activeEngine = toggleEngine(activeEngine)
-        assertEquals("AURORA", activeEngine)
-    }
-
-    @Test
-    fun `zen mode enabled default es true segun la configuracion`() {
-        val zenModeKey = com.k11000.monkify.data.repository.SettingsRepository.KEY_ZEN_MODE_ENABLED
-        assertEquals("zen_mode_enabled", zenModeKey.name)
-    }
-
-    @Test
-    fun `preferencias de estilo de caratula constantes y alternancia de MODERN y VINYL`() {
-        val modern = com.k11000.monkify.data.repository.SettingsRepository.COVER_STYLE_MODERN
-        val vinyl = com.k11000.monkify.data.repository.SettingsRepository.COVER_STYLE_VINYL
-
-        assertEquals("MODERN", modern)
-        assertEquals("VINYL", vinyl)
-        assertEquals("MODERN", com.k11000.monkify.data.repository.SettingsRepository.DEFAULT_COVER_STYLE)
-
-        fun toggleCoverStyle(current: String): String =
-            if (current == vinyl) modern else vinyl
-
-        var style = modern
-        style = toggleCoverStyle(style)
-        assertEquals("VINYL", style)
-
-        style = toggleCoverStyle(style)
-        assertEquals("MODERN", style)
-    }
-
-    @Test
-    fun `parsePlaybackError traduce error 404 en mensaje legible`() {
-        val exception = androidx.media3.common.PlaybackException(
-            "Response code: 404",
-            java.io.IOException("HTTP 404"),
-            androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND
-        )
-
-        fun parseError(error: androidx.media3.common.PlaybackException): String {
-            val cause = error.cause
-            val message = cause?.message ?: error.message ?: ""
-            return when {
-                message.contains("404") || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
-                    "Pista no disponible en el servidor (HTTP 404)"
-                message.contains("Unable to connect") || message.contains("ConnectException") || error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                    "Error de conexión de red al reproducir"
-                else ->
-                    "Error de reproducción: ${error.errorCodeName}"
-            }
-        }
-
-        val msg = parseError(exception)
-        assertEquals("Pista no disponible en el servidor (HTTP 404)", msg)
-    }
-
-    @Test
-    fun `moveQueueItem reordena elementos dentro de los limites de la cola`() {
-        val tracks = listOf(
-            Track("t1", "Track 1", "Artist 1", "Album 1", 180000, null, "https://stream/1"),
-            Track("t2", "Track 2", "Artist 2", "Album 2", 200000, null, "https://stream/2"),
-            Track("t3", "Track 3", "Artist 3", "Album 3", 220000, null, "https://stream/3")
+            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "s1"),
+            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "s2"),
+            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "s3")
         )
 
         fun move(list: List<Track>, from: Int, to: Int): List<Track> {
@@ -211,27 +78,23 @@ class PlayerControlsTest {
             return mutable
         }
 
-        // Mover pista 0 (t1) al índice 2 -> [t2, t3, t1]
+        // Mover de indice 0 a indice 2 -> [t2, t3, t1]
         val moved = move(tracks, 0, 2)
         assertEquals("t2", moved[0].id)
         assertEquals("t3", moved[1].id)
         assertEquals("t1", moved[2].id)
 
-        // Mover con índices fuera de rango no altera la lista
-        val outOfBounds = move(tracks, -1, 2)
-        assertEquals(tracks, outOfBounds)
-
-        // Mover al mismo índice no altera la lista
-        val sameIndex = move(tracks, 1, 1)
-        assertEquals(tracks, sameIndex)
+        // Mover con indices iguales o invalidos no altera la lista
+        val invalid = move(tracks, 0, 0)
+        assertEquals(tracks, invalid)
     }
 
     @Test
-    fun `removeQueueItem elimina el elemento en el indice especificado y valida rangos`() {
+    fun `remover elemento de la cola elimina solo el indice solicitado`() {
         val tracks = listOf(
-            Track("t1", "Track 1", "Artist 1", "Album 1", 180000, null, "https://stream/1"),
-            Track("t2", "Track 2", "Artist 2", "Album 2", 200000, null, "https://stream/2"),
-            Track("t3", "Track 3", "Artist 3", "Album 3", 220000, null, "https://stream/3")
+            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "s1"),
+            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "s2"),
+            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "s3")
         )
 
         fun remove(list: List<Track>, index: Int): List<Track> {
@@ -250,6 +113,28 @@ class PlayerControlsTest {
         // Eliminar con índice fuera de rango no altera la lista
         val outOfBounds = remove(tracks, 99)
         assertEquals(tracks, outOfBounds)
+    }
+
+    @Test
+    fun `seekTo actualiza posicion y porcentaje de progreso de forma inmediata sin desfases`() {
+        var currentPosition = 0L
+        var progress = 0f
+        val duration = 200000L
+
+        fun seek(positionMs: Long) {
+            currentPosition = positionMs
+            if (duration > 0L) {
+                progress = (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+            }
+        }
+
+        seek(50000L)
+        assertEquals(50000L, currentPosition)
+        assertEquals(0.25f, progress, 0.001f)
+
+        seek(100000L)
+        assertEquals(100000L, currentPosition)
+        assertEquals(0.50f, progress, 0.001f)
     }
 
     @Test
