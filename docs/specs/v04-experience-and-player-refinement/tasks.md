@@ -55,7 +55,7 @@
 
 ## Phase 5: Rediseño de Inicio (`HomeScreen`), Collage de Carátulas y Navegación
 
-- [ ] **T006** [US2, US3] Implementar componente `PlaylistCollageArtwork` y rediseñar `HomeViewModel.kt` y `HomeScreen.kt`:
+- [x] **T006** [US2, US3] Implementar componente `PlaylistCollageArtwork` y rediseñar `HomeViewModel.kt` y `HomeScreen.kt`:
   - En `app/src/main/java/com/monkify/app/ui/components/TrackArtwork.kt`: crear `PlaylistCollageArtwork` capaz de renderizar un mosaico 2x2 (4 carátulas) o 3x2 (6 carátulas) a partir de las primeras canciones de una playlist (Req #13).
   - En `HomeViewModel.kt` y `HomeScreen.kt`:
     - Añadir `HomeFilter.ALBUMS("Álbumes")` junto a `"Música"` y su vista de cuadrícula de álbumes (Req #3).

@@ -50,6 +50,8 @@ class HomeViewModelTest {
         override fun getRecentTracks(): Flow<List<Track>> = flowOf(tracksProvider(6, 0))
         override fun getMadeForYouTracks(): Flow<List<Track>> = flowOf(tracksProvider(10, 0))
         override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<Track> = tracksProvider(limit, offset)
+        override suspend fun getLatestUploadedTracks(limit: Int): List<Track> = tracksProvider(limit, 0)
+        override suspend fun recordTrackPlayed(trackId: String) {}
         override suspend fun requestIngest(url: String): Result<IngestResponse> = error("unused")
     }
 
@@ -63,6 +65,57 @@ class HomeViewModelTest {
         assertEquals(HomeViewModel.PAGE_SIZE, viewModel.feedTracks.value.size)
         assertEquals(6, viewModel.recentTracks.value.size)
         assertTrue(viewModel.hasMore.value)
+    }
+
+    @Test
+    fun `carga inicial expone latestUploadedTracks desde repositorio`() = runBlocking {
+        val fakeRepo = FakeTrackRepository { limit, _ ->
+            createSampleTracks(limit)
+        }
+        val viewModel = HomeViewModel(fakeRepo)
+        assertEquals(6, viewModel.latestUploadedTracks.value.size)
+        assertEquals("track_1", viewModel.latestUploadedTracks.value.first().id)
+    }
+
+    @Test
+    fun `getDynamicGreeting retorna saludo y frase adecuada para las 7 franjas del dia`() {
+        val fakeRepo = FakeTrackRepository { _, _ -> emptyList() }
+        val viewModel = HomeViewModel(fakeRepo)
+
+        // 1. Madrugada (00:00 - 04:59)
+        val madrugada = viewModel.getDynamicGreeting(3)
+        assertEquals("Buenas noches", madrugada.title)
+        assertEquals("La noche es joven y la música no duerme", madrugada.phrase)
+
+        // 2. Amanecer (05:00 - 06:59)
+        val amanecer = viewModel.getDynamicGreeting(5)
+        assertEquals("Buenos días", amanecer.title)
+        assertEquals("Comienza el día con buen ritmo", amanecer.phrase)
+
+        // 3. Mañana (07:00 - 11:59)
+        val manana = viewModel.getDynamicGreeting(9)
+        assertEquals("Buenos días", manana.title)
+        assertEquals("Que la música impulse tu día", manana.phrase)
+
+        // 4. Mediodía (12:00 - 13:59)
+        val mediodia = viewModel.getDynamicGreeting(13)
+        assertEquals("Buenas tardes", mediodia.title)
+        assertEquals("Pausa para disfrutar de tus canciones", mediodia.phrase)
+
+        // 5. Tarde (14:00 - 17:59)
+        val tarde = viewModel.getDynamicGreeting(16)
+        assertEquals("Buenas tardes", tarde.title)
+        assertEquals("Buena música para seguir adelante", tarde.phrase)
+
+        // 6. Atardecer (18:00 - 19:59)
+        val atardecer = viewModel.getDynamicGreeting(19)
+        assertEquals("Buenas tardes", atardecer.title)
+        assertEquals("El día cae, el ritmo sigue", atardecer.phrase)
+
+        // 7. Noche (20:00 - 23:59)
+        val noche = viewModel.getDynamicGreeting(22)
+        assertEquals("Buenas noches", noche.title)
+        assertEquals("Relájate y disfruta del sonido", noche.phrase)
     }
 
     @Test
@@ -151,7 +204,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `setFilter conmuta reactivamente entre ALL, MUSIC y PODCASTS`() = runBlocking {
+    fun `setFilter conmuta reactivamente entre ALL, MUSIC, ALBUMS y PODCASTS`() = runBlocking {
         val fakeRepo = FakeTrackRepository { _, _ -> emptyList() }
         val viewModel = HomeViewModel(fakeRepo)
 
@@ -159,6 +212,9 @@ class HomeViewModelTest {
 
         viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.MUSIC)
         assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.MUSIC, viewModel.selectedFilter.value)
+
+        viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.ALBUMS)
+        assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.ALBUMS, viewModel.selectedFilter.value)
 
         viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS)
         assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS, viewModel.selectedFilter.value)

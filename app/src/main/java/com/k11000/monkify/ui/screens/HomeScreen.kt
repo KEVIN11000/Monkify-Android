@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -108,10 +109,11 @@ fun HomeScreen(
 
     val recentTracks by viewModel.recentTracks.collectAsState()
     val madeForYouTracks by viewModel.madeForYouTracks.collectAsState()
-    val feedTracks by viewModel.feedTracks.collectAsState()
+    val latestUploadedTracks by viewModel.latestUploadedTracks.collectAsState()
+    val albums by viewModel.albums.collectAsState()
+    val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
+    val greeting by viewModel.greeting.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-    val hasMore by viewModel.hasMore.collectAsState()
     val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
     val downloadingTrackIds by viewModel.downloadingTrackIds.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
@@ -140,21 +142,6 @@ fun HomeScreen(
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
         label = "ZenContentScale"
     )
-
-    // Trigger de paginación infinita al aproximarse al final del feed
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val totalCount = listState.layoutInfo.totalItemsCount
-            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            totalCount > 0 && lastVisibleIndex >= totalCount - 4
-        }
-    }
-
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore && hasMore && !isLoadingMore) {
-            viewModel.loadMore()
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -189,7 +176,7 @@ fun HomeScreen(
                 .padding(top = statusBarPadding + 16.dp),
             contentPadding = PaddingValues(bottom = 96.dp)
         ) {
-        // Cabecera
+        // Cabecera Dinámica con Saludo y Frase Motivadora
         item {
             Row(
                 modifier = Modifier
@@ -198,17 +185,30 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Buenas noches",
-                    color = MonkifyOnBackground,
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
-                    }
-                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                        }
+                ) {
+                    Text(
+                        text = greeting.title,
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = greeting.phrase,
+                        color = MonkifyGray,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Row {
                     IconButton(onClick = { showNovedadesModal = true }) {
                         Icon(
@@ -282,197 +282,199 @@ fun HomeScreen(
                     }
                 }
             }
+        } else if (selectedFilter == HomeFilter.ALBUMS) {
+            item { ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
+            if (isLoadingAlbums && albums.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MonkifyPrimary, modifier = Modifier.size(32.dp))
+                    }
+                }
+            } else if (albums.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No se encontraron álbumes disponibles.",
+                            color = MonkifyGray,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        albums.chunked(2).forEach { rowAlbums ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                rowAlbums.forEach { album ->
+                                    AlbumCard(
+                                        title = album.album,
+                                        subtitle = "${album.artist} • ${album.trackCount} temas",
+                                        coverUrl = album.coverUrl,
+                                        onClick = { onNavigateToAlbum(album.album, album.artist, album.coverUrl) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (rowAlbums.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } else {
             item { ZenSpacer(24.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
 
-            // Grilla 2x3 de Reproducción Rápida con datos reales
+            // Grilla 2x3 de Reproducción Rápida con los últimos 6 temas subidos al servidor
             item {
-                val quickItems = if (recentTracks.isNotEmpty()) {
-                recentTracks.take(6)
-            } else {
-                emptyList()
-            }
-
-            if (quickItems.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    quickItems.chunked(2).forEach { rowTracks ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowTracks.forEach { track ->
-                                QuickGridItem(
-                                    track = track,
-                                    isDownloaded = track.id in downloadedTrackIds,
-                                    onClick = { playerViewModel.playTrack(track) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            if (rowTracks.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
+                val quickItems = if (latestUploadedTracks.isNotEmpty()) {
+                    latestUploadedTracks.take(6)
+                } else if (recentTracks.isNotEmpty()) {
+                    recentTracks.take(6)
+                } else {
+                    emptyList()
                 }
-            } else {
-                // Fallback de carga inicial con botón de prueba interactivo
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    QuickGridFallbackItem(
-                        title = "Play Test Track",
-                        onClick = { playerViewModel.playTestTrack() },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
 
-        item { ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
-
-        // Carrusel: Escuchado recientemente
-        if (recentTracks.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Escuchado recientemente",
-                    color = MonkifyOnBackground,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
-                        }
-                )
-                ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(recentTracks) { track ->
-                        AlbumCard(
-                            title = if (track.album.isNotBlank()) track.album else track.title,
-                            subtitle = track.artist,
-                            coverUrl = track.coverUrl,
-                            isDownloaded = track.id in downloadedTrackIds,
-                            onClick = {
-                                if (track.album.isNotBlank()) {
-                                    onNavigateToAlbum(track.album, track.artist, track.coverUrl)
-                                } else {
-                                    playerViewModel.playTrack(track)
+                if (quickItems.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        quickItems.chunked(2).forEach { rowTracks ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowTracks.forEach { track ->
+                                    QuickGridItem(
+                                        track = track,
+                                        isDownloaded = track.id in downloadedTrackIds,
+                                        onClick = { playerViewModel.playTrack(track) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (rowTracks.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        )
-                    }
-                }
-                ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
-            }
-        }
-
-        // Carrusel: Hecho para ti
-        if (madeForYouTracks.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Hecho para ti",
-                    color = MonkifyOnBackground,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
                         }
-                )
-                ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(madeForYouTracks) { track ->
-                        MadeForYouCard(
-                            title = "Mix: ${track.artist}",
-                            subtitle = track.title,
-                            onClick = { playerViewModel.playTrack(track) }
-                        )
                     }
-                }
-                ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
-            }
-        }
-
-        // Sección Principal Paginada: Todas las canciones (Feed Vertical)
-        item {
-            Text(
-                text = "Todas las canciones",
-                color = MonkifyOnBackground,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
+                } else {
+                    // Fallback de carga inicial con botón de prueba interactivo
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                        QuickGridFallbackItem(
+                            title = "Play Test Track",
+                            onClick = { playerViewModel.playTestTrack() },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-            )
-            ZenSpacer(12.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
-        }
-
-        if (feedTracks.isEmpty() && isLoading) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MonkifyPrimary, modifier = Modifier.size(32.dp))
                 }
             }
-        } else {
-            items(feedTracks, key = { it.id }) { track ->
-                TrackRowItem(
-                    track = track,
-                    isDownloaded = track.id in downloadedTrackIds,
-                    isDownloading = track.id in downloadingTrackIds,
-                    onDownloadClick = { viewModel.toggleDownload(track) },
-                    onClick = { playerViewModel.playTrack(track) }
-                )
-            }
-        }
 
-        // Indicador de paginación adicional al pie del feed
-        if (isLoadingMore) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(
-                        color = MonkifyPrimary,
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
+            item { ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) } }
+
+            // Carrusel: Escuchado recientemente
+            if (recentTracks.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Escuchado recientemente",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                            }
                     )
+                    ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(recentTracks) { track ->
+                            AlbumCard(
+                                title = if (track.album.isNotBlank()) track.album else track.title,
+                                subtitle = track.artist,
+                                coverUrl = track.coverUrl,
+                                isDownloaded = track.id in downloadedTrackIds,
+                                onClick = {
+                                    if (track.album.isNotBlank()) {
+                                        onNavigateToAlbum(track.album, track.artist, track.coverUrl)
+                                    } else {
+                                        playerViewModel.playTrack(track)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                }
+            }
+
+            // Carrusel: Hecho para ti
+            if (madeForYouTracks.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Hecho para ti",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                            }
+                    )
+                    ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(madeForYouTracks) { track ->
+                            MadeForYouCard(
+                                title = "Mix: ${track.artist}",
+                                subtitle = track.title,
+                                onClick = { playerViewModel.playTrack(track) }
+                            )
+                        }
+                    }
+                    ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
                 }
             }
         }
         }
-    }
 
         // Capa 3: Overlay gestual exclusivo para Modo Zen despejado (al frente de la jerarquía)
         if (isEffectivelyCleared) {
@@ -741,11 +743,11 @@ fun AlbumCard(
     subtitle: String,
     coverUrl: String?,
     onClick: () -> Unit = {},
-    isDownloaded: Boolean = false
+    isDownloaded: Boolean = false,
+    modifier: Modifier = Modifier.width(140.dp)
 ) {
     Column(
-        modifier = Modifier
-            .width(140.dp)
+        modifier = modifier
             .clickable(onClick = onClick)
     ) {
         Box {
@@ -755,7 +757,9 @@ fun AlbumCard(
                 shape = RoundedCornerShape(8.dp),
                 iconSize = 48.dp,
                 isAlbum = true,
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
             )
             if (isDownloaded) {
                 Surface(

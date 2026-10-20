@@ -18,64 +18,43 @@ class OfflineFirstTrackRepository @Inject constructor(
 ) : TrackRepository {
 
     override fun getRecentTracks(): Flow<List<Track>> = flow {
-        // 1. Emitir inmediatamente historial reciente si existe
-        val history = trackDao.getRecentlyPlayedTracksSnapshot(limit = PAGE_SIZE).map { it.toDomain() }
-        if (history.isNotEmpty()) {
-            emit(history)
-            return@flow
-        }
-
-        // 2. Si no hay historial, emitir catálogo en caché
-        val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
-        if (cached.isNotEmpty()) {
-            emit(cached)
-        }
-
-        // 3. Sincronizar en segundo plano con el backend
-        try {
-            val remote = networkTrackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
-            if (remote.isNotEmpty()) {
-                val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
-                trackDao.insertTracks(entities)
-                val updated = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
-                emit(updated)
-            }
-        } catch (_: Exception) {
-            if (cached.isEmpty()) {
-                emit(emptyList())
+        trackDao.getRecentlyPlayedTracks(limit = PAGE_SIZE).collect { history ->
+            if (history.isNotEmpty()) {
+                emit(history.map { it.toDomain() })
+            } else {
+                val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
+                if (cached.isNotEmpty()) {
+                    emit(cached)
+                } else {
+                    try {
+                        val remote = networkTrackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
+                        if (remote.isNotEmpty()) {
+                            val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
+                            trackDao.insertTracks(entities)
+                        }
+                    } catch (_: Exception) {
+                        emit(emptyList())
+                    }
+                }
             }
         }
     }
 
     override fun getMadeForYouTracks(): Flow<List<Track>> = flow {
-        // 1. Priorizar pistas de artistas más reproducidos por el usuario
-        val topPlayed = trackDao.getTracksOrderedByPlayCountSnapshot(limit = 50)
-        val topArtists = topPlayed.filter { it.playCount > 0 }.map { it.artist.trim() }.distinct().take(5)
-
-        if (topArtists.isNotEmpty()) {
-            val allTracks = trackDao.getAllTracksSnapshot()
-            val recommended = allTracks.filter { it.artist.trim() in topArtists }.shuffled().take(PAGE_SIZE).map { it.toDomain() }
-            if (recommended.isNotEmpty()) {
-                emit(recommended)
-                return@flow
+        trackDao.getTracksOrderedByPlayCount().collect { topEntities ->
+            val topArtists = topEntities.filter { it.playCount > 0 }.map { it.artist.trim() }.distinct().take(5)
+            if (topArtists.isNotEmpty()) {
+                val allTracks = trackDao.getAllTracksSnapshot()
+                val recommended = allTracks.filter { it.artist.trim() in topArtists }.shuffled().take(PAGE_SIZE).map { it.toDomain() }
+                if (recommended.isNotEmpty()) {
+                    emit(recommended)
+                    return@collect
+                }
             }
-        }
-
-        val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
-        if (cached.isNotEmpty()) {
-            emit(cached.reversed())
-        }
-
-        try {
-            val remote = networkTrackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
-            if (remote.isNotEmpty()) {
-                val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
-                trackDao.insertTracks(entities)
-                val updated = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
-                emit(updated.reversed())
-            }
-        } catch (_: Exception) {
-            if (cached.isEmpty()) {
+            val cached = trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
+            if (cached.isNotEmpty()) {
+                emit(cached.reversed())
+            } else {
                 emit(emptyList())
             }
         }
