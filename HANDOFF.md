@@ -1,95 +1,78 @@
 # HANDOFF — Monkify
 
-**Fase cerrada:** Fase v0.4.1 — Auditoría Técnica y Afinamiento Integral de UX/UI
-**Fecha de cierre:** 2026-10-20
-**Estado del build/tests:** ✅ pasando — 35/35 tests en Vitest en `cloudflare-backend` (`npm test`) y suite unitaria + build de Release de Android pasando al 100% en `e:\PG\vcp-s\Monkify-Android-Refine` (`.\gradlew.bat testDebugUnitTest assembleRelease` -> `BUILD SUCCESSFUL`).
+**Fase cerrada:** Fase v0.4.2 — Release Consolidado de Correcciones y Mejoras UX
+**Fecha de cierre:** 2026-10-27
+**Estado del build/tests:** ✅ pasando — 47/47 tests en Vitest en `cloudflare-backend` (`npm test`) y suite unitaria + build de Release de Android pasando al 100% en `e:\PG\vcp-s\Monkify-Android-Refine` (`.\gradlew.bat testDebugUnitTest assembleRelease` -> `BUILD SUCCESSFUL`, APK generado: `app/build/outputs/apk/release/app-release.apk` de 17.7 MB).
 
 ---
 
 ## 1. Estado actual
 
-- **Backend Cloudflare Worker (`cloudflare-backend`):**
-  - Aislamiento DDL: `CREATE TABLE IF NOT EXISTS support_reports` movido a `src/db/schema.sql`.
-  - Manejo de Range Requests en streaming R2: cálculo de `offset` y `length` para suffix ranges (`bytes=-N`) corregido y verificado en `test/index.spec.ts`.
-  - Caché inmutable para streaming de audio (`Cache-Control: public, max-age=31536000, immutable`).
-  - Cache-Control público (24h) y negativo (30s) en proxy de letras LRCLIB con fallback restringido estrictamente a 404.
-  - Manejadores globales JSON en `src/index.ts` para rutas inexistentes (404) y excepciones no capturadas (500).
-  - Validación estricta de tamaño de payload (máximo 64 KB) y sanitización anti-markdown injection en reportes de soporte.
-- **Cliente Android (`Monkify-Android-Refine`):**
-  - Preservación de métricas de reproducción (`playCount`, `lastPlayedAt`) en `favorite_tracks` al desmarcar favorito o borrar descarga en `LocalTrackRepository.kt`.
-  - Prevención de condiciones de carrera en letras con `lyricsJob?.cancel()` y sincronización atómica de cola en `moveQueueItem` y `removeQueueItem` en `PlayerViewModel.kt`.
-  - Actualización inmediata de seek en pausa reflejada en `_currentPosition.value`.
-  - Registro seguro de receiver con `RECEIVER_NOT_EXPORTED` en `MonkifyPlaybackService.kt` para compatibilidad con Android 14+.
-  - Desbloqueo asíncrono en `LockScreenActivity.kt` mediante `KeyguardDismissCallback` y apagado de pantalla en bolsillo (`isCoveredInPocket`).
-  - Modo Zen Despejado: eliminación de textos fijos sobre el lienzo, auto-ocultado de píldora y guía tras 3s con `fadeOut()`, y debouncing canónico de doble toque (320 ms) en `HomeScreen.kt`.
-  - MiniPlayer en modo Peek: se retrae a 18-20 dp con lengüeta interactiva y repliegue animado de `BottomNavBar` en modo Zen en `MainActivity.kt` y `MiniPlayer.kt`.
-  - Vitrola cinemática en `VinylTurntable.kt`: cambio de disco físico deslizándose a la izquierda y entrando por la derecha, rotación a 60 FPS con `graphicsLayer` y desacople seguro del brazo fonocaptor.
-  - Microinteracción elástica táctil con `AnimatedPlayButton` (escala spring 0.72x y respuesta háptica) en tarjetas y filas de `LibraryScreen.kt`.
-  - Expansión vertical completa de `LyricsView` con `Modifier.weight(1f)` en `FullScreenPlayer.kt`, pausa de auto-scroll al deslizar manualmente y `basicMarquee()` en títulos largos.
+- **Carga y decodificación de canciones por álbum corregida:** URLs con caracteres especiales (`%20`, `+`) decodificadas con `URLDecoder.decode(..., "UTF-8")` en `MonkifyNavGraph.kt`, sanitización de nombres en `AlbumDetailViewModel.kt`, y tolerancia en `LocalTrackRepository.kt` y backend Cloudflare `src/routes/albums.ts`. Cubierto por tests unitarios en `AlbumDetailViewModelTest.kt` y `test/index.spec.ts`.
+- **Transición y finalización de cola en modo aleatorio (Shuffle) corregida:** `MonkifyPlaybackService.kt` y `PlayerViewModel.kt` resuelven la selección circular cuando `firstIndex == currentIndex`. Cubierto por tests unitarios en `PlayerControlsTest.kt`.
+- **Botón "Aleatorio" en Biblioteca activa explícitamente shuffle:** `playerViewModel.setShuffleEnabled(true)` activado al pulsar "Aleatorio" en `LibraryScreen.kt`.
+- **Ciclos dinámicos Día/Noche en Zen Froggy y Cosmos HD:** `ZenBackground.kt` con gradientes de cielo, sol/luna procedural con pulso suave, nubes esponjosas estilo Google Weather, iluminación de colinas y estanque, nenúfares, Froggy con mejillas sonrojadas y destellos en los ojos, y partículas contextuales (rocío al amanecer, semillas de diente de león de día, ascuas al atardecer, luciérnagas de noche).
+- **Animaciones zen infinitas y continuas:** Reemplazo de operaciones módulo `%` por armónicos sinusoidales puros (\(\sin\), \(\cos\)) para eliminar cualquier costura o salto perceptible en el reinicio del ciclo. Velocidades reducidas a 30-50s y pulso respiratorio de 6.5-12s. Verificado con `@Preview` en Compose y simulación interactiva en `zen_visualizer_preview.html`.
+- **Cosmos HD optimizado:** Galaxia espiral inclinada a -26°, 4 capas de nebulosas, 72 estrellas con picos de difracción de 4 puntas y meteoros sinusoidales suaves sin saltos perceptibles.
+- **Selección múltiple por lote en Biblioteca:** Modo de selección con encabezado contextual, indicador circular por fila, pulsación prolongada con respuesta háptica (`combinedClickable`), y barra de acciones inferior flotante para descarga masiva, eliminación de favoritos masiva y borrado de descargas masivo en `LibraryScreen.kt` y `LibraryViewModel.kt`. Cubierto por 5 tests unitarios en `LibraryViewModelTest.kt`.
+- **Reconciliación automática y resiliente de descargas:** `DownloadRepositoryImpl.kt` escanea el almacenamiento físico (`musicDir`, almacenamiento interno y carpetas heredadas) en segundo plano al inicializarse, reconciliando pistas existentes con la base de datos Room si fue purgada tras reinstalación. Cubierto por test unitario en `DownloadRepositoryTest.kt`.
+- **Build de producción Release generado:** `app/build/outputs/apk/release/app-release.apk` (17.7 MB, 17,766,562 bytes) compilado exitosamente.
 
 ## 2. Decisiones tomadas en esta fase
 
-- **Decisión:** Desacoplar la inicialización DDL de la tabla de soporte de las peticiones HTTP y moverla a `schema.sql`.
-  **Por qué:** Evita comprobaciones redundantes contra SQLite D1 en cada reporte de soporte en runtime.
-  **Alternativas descartadas:** Mantener `db.prepare(CREATE TABLE IF NOT EXISTS...)` en la ruta de ejecución de `POST /api/v1/support/report`.
-
-- **Decisión:** Retener registros en `favorite_tracks` con `isFavorite = false` y `isDownloaded = false` si tienen métricas (`playCount > 0` o `lastPlayedAt > 0L`).
-  **Por qué:** Evita perder los contadores de reproducción y la cronología para los algoritmos locales de recomendación ("Escuchado recientemente" y "Hecho para ti").
-  **Alternativas descartadas:** Borrado físico incondicional `DELETE FROM favorite_tracks WHERE id = :id`.
-
-- **Decisión:** Implementar debouncing canónico (320 ms) con corrutina cancelable en el gestor de toques del Modo Zen.
-  **Por qué:** Evita que el primer toque de un doble toque alterne la reproducción (pausa/play) cuando la intención del usuario es restaurar la interfaz.
-  **Alternativas descartadas:** Reaccionar inmediatamente al primer toque o requerir interacción exclusiva con la píldora superior.
-
-- **Decisión:** Retraer el `MiniPlayer` a un modo Peek de 18 dp con lengüeta interactiva en lugar de ocultarlo al 100%.
-  **Por qué:** Proporciona un punto de contacto táctil inmediato y discreto en la parte inferior para restaurar la interfaz sin saturar el lienzo visual de la animación ambiental.
-  **Alternativas descartadas:** Ocultar completamente el MiniPlayer sin indicador de recuperación.
+- **Decisión:** Agrupar todos los tickets de soporte del servidor y mejoras en un Release Consolidado (*Release Train* v0.4.2) en lugar de múltiples versiones menores incrementales.
+  **Por qué:** Evitar fatiga de actualizaciones en los usuarios y entregar un salto de calidad integral en una sola versión estable.
+- **Decisión:** Desacoplar y archivar la especificación borrador de Monkify Connect en la rama `backup/monkify-connect-draft`.
+  **Por qué:** El usuario especificó no avanzar en Monkify Connect hasta nuevo aviso para concentrar el esfuerzo en pulir la app principal y atender reportes de usuarios reales.
+- **Decisión:** Modularizar la integración de Rive (`.riv`) y clima en tiempo real para la siguiente fase inmediata, creando la hoja de ruta en `docs/specs/v042-consolidated-fixes-and-polish/weather_froggy_roadmap.md`.
+  **Por qué:** El usuario solicitó terminar primero todos los pendientes del release v0.4.2 y luego abordar Rive + Weather con la biblioteca Open-Meteo y los assets del repositorio `https://github.com/R0rt1z2/Froggy.git`.
+- **Decisión:** Usar funciones armónicas trigonométricas continuas (\(\sin\), \(\cos\)) para las animaciones cíclicas de Canvas en `ZenBackground.kt` en vez de interpolación basada en tiempo y módulo `%`.
+  **Por qué:** El operador de módulo introduce un salto discontinuo perceptible en el reinicio del ciclo; las funciones periódicas puras garantizan derivadas continuas y un bucle infinito imperceptible.
 
 ## 3. Archivos y módulos clave tocados
 
 | Archivo | Cambio |
 |---|---|
-| `cloudflare-backend/src/db/schema.sql` | DDL de `support_reports` incorporado al esquema |
-| `cloudflare-backend/src/routes/support.ts` | Límite de 64 KB, sanitización de diagnósticos y eliminación de DDL en runtime |
-| `cloudflare-backend/src/routes/stream.ts` | Corrección de cálculo de rangos sufijo `bytes=-N` y cabeceras de caché inmutable |
-| `cloudflare-backend/src/routes/tracks.ts` | Cabeceras de caché pública/negativa y restricción de fallback LRCLIB a 404 |
-| `cloudflare-backend/src/index.ts` | Handlers JSON globales para errores 404 y 500 |
-| `cloudflare-backend/test/index.spec.ts` | Tests para suffix ranges, límites de payload y errores 404/500 |
-| `Monkify-Android-Refine/.../LocalTrackRepository.kt` | Preservación de métricas de reproducción en Room |
-| `Monkify-Android-Refine/.../PlayerViewModel.kt` | Cancelación de `lyricsJob`, sincronización atómica de cola y seek instantáneo |
-| `Monkify-Android-Refine/.../MonkifyPlaybackService.kt` | `ContextCompat.registerReceiver` con `RECEIVER_NOT_EXPORTED` |
-| `Monkify-Android-Refine/.../LockScreenActivity.kt` | Desbloqueo asíncrono con `KeyguardDismissCallback` y apagado en bolsillo |
-| `Monkify-Android-Refine/.../HomeScreen.kt` | Supresión de títulos sobre el canvas, auto-hide de guías en 3s y debouncing |
-| `Monkify-Android-Refine/.../MainActivity.kt` | Repliegue de `BottomNavBar` y modo Peek de MiniPlayer en modo Zen |
-| `Monkify-Android-Refine/.../MiniPlayer.kt` | Soporte de `isZenPeek` con lengüeta sutil de 18 dp y `basicMarquee()` |
-| `Monkify-Android-Refine/.../VinylTurntable.kt` | Cambio físico de vinilo (slide izquierda/derecha), desacople de aguja y `graphicsLayer` |
-| `Monkify-Android-Refine/.../FullScreenPlayer.kt` | Expansión vertical `weight(1f)` para letras y `basicMarquee()` |
-| `Monkify-Android-Refine/.../LyricsView.kt` | Pausa de auto-scroll al deslizar manualmente (`!listState.isScrollInProgress`) |
-| `Monkify-Android-Refine/.../LibraryScreen.kt` | `AnimatedPlayButton` elástico tipo spring con respuesta háptica |
-| `Monkify-Android-Refine/.../LocalDatabaseTest.kt` | Test unitario de preservación de métricas |
-| `Monkify-Android-Refine/.../PlayerControlsTest.kt` | Test unitario de cancelación de carrera en letras y cola |
+| `app/.../MonkifyNavGraph.kt` | Decodificación UTF-8 de parámetros de álbum/playlist en navegación para resolver el ticket de álbumes vacíos con espacios o signos más. |
+| `app/.../viewmodel/AlbumDetailViewModel.kt` | Sanitización de nombres de álbum (`cleanAlbum`) y fallback query para evitar listas vacías. |
+| `app/.../data/repository/LocalTrackRepository.kt` | Comparación tolerante de álbumes ignorando espacios/signos más y nuevo método `removeFavorite` preservando descargas e historial. |
+| `cloudflare-backend/src/routes/albums.ts` | Normalización de `+` a espacios con `COLLATE NOCASE` en la base D1. |
+| `app/.../MonkifyPlaybackService.kt` | Solución al bloqueo circular de selección aleatoria al final de la cola en modo shuffle. |
+| `app/.../playback/PlayerViewModel.kt` | Agregado de `setShuffleEnabled(Boolean)` y desacople de lógica de selección aleatoria. |
+| `app/.../ui/screens/LibraryScreen.kt` | Activación de shuffle en botón "Aleatorio", selección múltiple por lote con barra de acciones inferior flotante y soporte de pulsación prolongada háptica. |
+| `app/.../ui/components/ZenBackground.kt` | Ciclos dinámicos Día/Noche en Froggy, nubes esponjosas, partículas contextuales, animaciones armónicas continuas sin costura y Cosmos HD con galaxia espiral. |
+| `app/.../domain/repository/DownloadRepository.kt` | Declaración de `suspend fun reconcileDownloads(): Int`. |
+| `app/.../data/repository/DownloadRepositoryImpl.kt` | Implementación de reconciliación automática de descargas en segundo plano al inicializarse escaneando almacenamiento físico. |
+| `app/.../ui/screens/viewmodel/LibraryViewModel.kt` | Estado y acciones de selección múltiple (descarga por lote, eliminación de favoritos por lote, borrado de descargas por lote). |
+| `app/src/test/.../*Test.kt` | Suites de pruebas unitarias para `PlayerControlsTest`, `AlbumDetailViewModelTest`, `LibraryViewModelTest` y `DownloadRepositoryTest`. |
+| `docs/specs/v042-consolidated-fixes-and-polish/*` | Especificaciones completas SDD (`spec.md`, `plan.md`, `tasks.md`, `weather_froggy_roadmap.md`). |
 
 ## 4. Pendientes explícitos para la próxima fase
 
-- [ ] Verificar y auditar en emulador o dispositivo físico cambios adicionales de interfaz antes de generar el tag o release final.
-- [ ] Evaluar posibles animaciones adicionales o transiciones en detalle de artista/búsqueda.
-- [ ] Ejecutar despliegue coordinado de Cloudflare Worker (`npx wrangler deploy`) y fusión hacia `main` tras validación humana final.
+- [ ] Implementar la Fase Rive (`.riv`) + Clima en tiempo real (Open-Meteo API) siguiendo `weather_froggy_roadmap.md`.
+- [ ] Agregar dependencia `app.rive:rive-android:11.2.1` en `app/build.gradle.kts`.
+- [ ] Descargar e integrar los assets vectoriales `.riv` de Froggy desde `https://github.com/R0rt1z2/Froggy.git` en `app/src/main/res/raw/`.
+- [ ] Implementar `WeatherRepository` con llamadas a `https://api.open-meteo.com/v1/forecast` y caché local Room/DataStore de 2-3 horas para optimizar consumo de red y batería.
+- [ ] Mapear códigos meteorológicos WMO a las animaciones de Froggy / Zen según corresponda (soleado, lluvia, nieve, tormenta, nublado).
 
 ## 5. Riesgos / deuda técnica conocida
 
-- **Riesgo:** Dispositivos antiguos sin sensor de proximidad en `LockScreenActivity`.
-  **Impacto:** El estado `isCoveredInPocket` permanecerá en `false`, sin afectar el funcionamiento normal de la pantalla de bloqueo.
-  **Mitigación sugerida:** El sensor se obtiene como nullable (`Sensor?`) y ya cuenta con verificación segura `?.let`.
+- **Riesgo:** Peso de la app al agregar el runtime de Rive (`app.rive:rive-android`).
+  **Impacto:** El APK podría aumentar entre 1.5 y 2.5 MB debido a las librerías nativas C++ de renderizado vectorial de Rive.
+  **Mitigación sugerida:** Utilizar ABI splits o App Bundles (`.aab`) en producción para empaquetar únicamente las arquitecturas necesarias (`arm64-v8a`, `armeabi-v7a`).
+- **Riesgo:** Permisos de ubicación para el clima en tiempo real.
+  **Impacto:** Solicitar permisos de ubicación fina (`ACCESS_FINE_LOCATION`) puede generar rechazo de usuarios preocupados por la privacidad.
+  **Mitigación sugerida:** Usar solo ubicación aproximada (`ACCESS_COARSE_LOCATION`) con fallback manual o selector de ciudad sin requerir GPS mandatorio.
 
 ## 6. Cómo verificar que este handoff sigue vigente
 
 ```bash
-# 1. Verificar Backend Cloudflare (desde e:\PG\vcp-s\Monkify\cloudflare-backend)
-npm test
+# En el cliente Android:
+./gradlew.bat testDebugUnitTest
+./gradlew.bat assembleRelease
 
-# 2. Verificar Android Unit Tests y Release Packaging (desde e:\PG\vcp-s\Monkify-Android-Refine)
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleRelease
+# En el backend de Cloudflare:
+cd "../Monkify/cloudflare-backend" && npm test
 ```
 
 ---

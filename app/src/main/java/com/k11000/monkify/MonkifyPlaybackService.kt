@@ -100,6 +100,28 @@ class MonkifyPlaybackService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
                 AppLogger.i("PlaybackService", "Transición de pista: id=${mediaItem?.mediaId}, uri=${mediaItem?.localConfiguration?.uri}")
             }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && player.shuffleModeEnabled && player.repeatMode == Player.REPEAT_MODE_OFF) {
+                    val timeline = player.currentTimeline
+                    if (!timeline.isEmpty && player.mediaItemCount > 0) {
+                        val count = player.mediaItemCount
+                        val currentIndex = player.currentMediaItemIndex
+                        val firstIndex = timeline.getFirstWindowIndex(true).takeIf { it != androidx.media3.common.C.INDEX_UNSET }
+                        val targetIndex = if (firstIndex != null && firstIndex != currentIndex) {
+                            firstIndex
+                        } else if (count > 1) {
+                            val candidates = (0 until count).filter { it != currentIndex }
+                            candidates.random()
+                        } else {
+                            0
+                        }
+                        AppLogger.i("PlaybackService", "Ciclo Shuffle completado en STATE_ENDED, reiniciando secuencia en índice $targetIndex")
+                        player.seekTo(targetIndex, 0L)
+                        player.prepare()
+                        player.play()
+                    }
+                }
+            }
         })
 
         val sessionActivity = PendingIntent.getActivity(

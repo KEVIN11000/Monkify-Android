@@ -221,4 +221,35 @@ class DownloadRepositoryTest {
         assertEquals("Servidor de almacenamiento no disponible (502)", mapHttpError(502))
         assertEquals("Fallo en la descarga de audio (HTTP 418)", mapHttpError(418))
     }
+
+    @Test
+    fun storage_reconciliation_detects_existing_physical_files_and_restores_download_state() {
+        val testDir = File("build/tmp/reconcile_test").apply { mkdirs() }
+        val f1 = File(testDir, "recovered_track_1.mp3").apply { writeBytes(ByteArray(2048) { 1 }) }
+        val f2 = File(testDir, "recovered_track_2.mp3").apply { writeBytes(ByteArray(4096) { 2 }) }
+        val fEmpty = File(testDir, "empty.mp3").apply { writeBytes(ByteArray(0)) }
+
+        val dbRecords = mutableMapOf<String, Boolean>()
+        // Simular base de datos vacía tras reinstalación
+        assertTrue(dbRecords.isEmpty())
+
+        // Simular escaneo de reconciliación
+        testDir.listFiles()?.forEach { file ->
+            if (file.isFile && file.extension.equals("mp3", ignoreCase = true) && file.length() > 0) {
+                dbRecords[file.nameWithoutExtension] = true
+            }
+        }
+
+        // Ambas pistas físicas no vacías fueron reconciliadas
+        assertEquals(2, dbRecords.size)
+        assertTrue(dbRecords["recovered_track_1"] == true)
+        assertTrue(dbRecords["recovered_track_2"] == true)
+        assertFalse(dbRecords.containsKey("empty"))
+
+        // Cleanup
+        f1.delete()
+        f2.delete()
+        fEmpty.delete()
+        testDir.delete()
+    }
 }

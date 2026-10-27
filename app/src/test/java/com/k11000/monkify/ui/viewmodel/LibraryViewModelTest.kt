@@ -426,4 +426,152 @@ class LibraryViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("Apple", "Banana", "Zebra"), viewModel.displayedTracks.value.map { it.title })
     }
+
+    @Test
+    fun `toggleTrackSelection conmuta seleccion y activa o desactiva isSelectionMode`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+
+        // Seleccionar primer track
+        viewModel.toggleTrackSelection("t1")
+        assertTrue(viewModel.isSelectionMode.value)
+        assertEquals(setOf("t1"), viewModel.selectedTrackIds.value)
+        assertTrue(viewModel.isTrackSelected("t1"))
+
+        // Seleccionar segundo track
+        viewModel.toggleTrackSelection("t2")
+        assertTrue(viewModel.isSelectionMode.value)
+        assertEquals(setOf("t1", "t2"), viewModel.selectedTrackIds.value)
+
+        // Deseleccionar t1
+        viewModel.toggleTrackSelection("t1")
+        assertTrue(viewModel.isSelectionMode.value)
+        assertEquals(setOf("t2"), viewModel.selectedTrackIds.value)
+
+        // Deseleccionar t2 (vuelve a vacio y desactiva modo seleccion)
+        viewModel.toggleTrackSelection("t2")
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+    }
+
+    @Test
+    fun `selectAll y clearSelection manejan adecuadamente la seleccion masiva`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+
+        val trackIds = listOf("t1", "t2", "t3", "t4")
+        viewModel.selectAll(trackIds)
+
+        assertTrue(viewModel.isSelectionMode.value)
+        assertEquals(4, viewModel.selectedTrackIds.value.size)
+        assertTrue(viewModel.isTrackSelected("t3"))
+
+        viewModel.clearSelection()
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+    }
+
+    @Test
+    fun `batchRemoveFavorites elimina tracks seleccionados de favoritos y limpia seleccion`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+
+        val t1 = Track("t1", "Song 1", "Artist", "Album", 100000, null, "https://stream/1")
+        val t2 = Track("t2", "Song 2", "Artist", "Album", 120000, null, "https://stream/2")
+        val t3 = Track("t3", "Song 3", "Artist", "Album", 140000, null, "https://stream/3")
+
+        localRepo.saveTrack(t1, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(t2, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(t3, isFavorite = true, isDownloaded = false)
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+        assertEquals(3, viewModel.favoriteTracks.value.size)
+
+        // Seleccionar t1 y t3 para quitar de favoritos
+        viewModel.toggleTrackSelection("t1")
+        viewModel.toggleTrackSelection("t3")
+
+        var removedCount = 0
+        viewModel.batchRemoveFavorites { count -> removedCount = count }
+        advanceUntilIdle()
+
+        assertEquals(2, removedCount)
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+
+        assertEquals(1, viewModel.favoriteTracks.value.size)
+        assertEquals("t2", viewModel.favoriteTracks.value.first().id)
+    }
+
+    @Test
+    fun `batchDeleteDownloads elimina tracks seleccionados de descargas y limpia seleccion`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+
+        val t1 = Track("t1", "Song 1", "Artist", "Album", 100000, null, "https://stream/1")
+        val t2 = Track("t2", "Song 2", "Artist", "Album", 120000, null, "https://stream/2")
+
+        localRepo.markAsDownloaded(t1, "/storage/t1.mp3")
+        localRepo.markAsDownloaded(t2, "/storage/t2.mp3")
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+        assertEquals(2, viewModel.downloadedTracks.value.size)
+
+        // Seleccionar t1 para borrar descarga
+        viewModel.toggleTrackSelection("t1")
+
+        var deletedCount = 0
+        viewModel.batchDeleteDownloads { count -> deletedCount = count }
+        advanceUntilIdle()
+
+        assertEquals(1, deletedCount)
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+
+        assertEquals(1, viewModel.downloadedTracks.value.size)
+        assertEquals("t2", viewModel.downloadedTracks.value.first().id)
+    }
+
+    @Test
+    fun `batchDownloadSelected descarga tracks seleccionados y limpia seleccion`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+
+        val t1 = Track("t1", "Song 1", "Artist", "Album", 100000, null, "https://stream/1")
+        val t2 = Track("t2", "Song 2", "Artist", "Album", 120000, null, "https://stream/2")
+
+        localRepo.saveTrack(t1, isFavorite = true, isDownloaded = false)
+        localRepo.saveTrack(t2, isFavorite = true, isDownloaded = false)
+        advanceUntilIdle()
+
+        val viewModel = LibraryViewModel(localRepo)
+        advanceUntilIdle()
+        assertEquals(0, viewModel.downloadedTracks.value.size)
+
+        // Seleccionar t1 y t2
+        viewModel.selectAll(listOf("t1", "t2"))
+
+        var completedCount = 0
+        viewModel.batchDownloadSelected(listOf(t1, t2)) { completed, _ ->
+            completedCount = completed
+        }
+        advanceUntilIdle()
+
+        assertEquals(2, completedCount)
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+
+        assertEquals(2, viewModel.downloadedTracks.value.size)
+    }
 }

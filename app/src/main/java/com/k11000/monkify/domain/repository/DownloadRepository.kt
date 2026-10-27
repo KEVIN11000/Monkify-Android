@@ -31,4 +31,7 @@ interface DownloadRepository {
     // Métodos de compatibilidad y conveniencia
     suspend fun isDownloaded(trackId: String): Boolean = isTrackDownloaded(trackId)
     suspend fun removeDownload(trackId: String): Result<Unit> = deleteDownloadedTrack(trackId)
+
+    // Reconciliación de descargas huérfanas o ante reinstalación de app
+    suspend fun reconcileDownloads(): Int = 0
 }

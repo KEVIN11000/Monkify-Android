@@ -698,6 +698,28 @@ class PlayerViewModel @Inject constructor(
                 mediaController?.let {
                     _duration.value = it.duration.coerceAtLeast(0)
                 }
+            } else if (playbackState == Player.STATE_ENDED) {
+                mediaController?.let { controller ->
+                    if (controller.repeatMode == Player.REPEAT_MODE_OFF && controller.shuffleModeEnabled) {
+                        val timeline = controller.currentTimeline
+                        val count = controller.mediaItemCount
+                        if (!timeline.isEmpty && count > 0) {
+                            val currentIndex = controller.currentMediaItemIndex
+                            val firstIndex = timeline.getFirstWindowIndex(true).takeIf { it != androidx.media3.common.C.INDEX_UNSET }
+                            val targetIndex = if (firstIndex != null && firstIndex != currentIndex) {
+                                firstIndex
+                            } else if (count > 1) {
+                                val candidates = (0 until count).filter { it != currentIndex }
+                                candidates.random()
+                            } else {
+                                0
+                            }
+                            controller.seekTo(targetIndex, 0L)
+                            controller.prepare()
+                            controller.play()
+                        }
+                    }
+                }
             }
         }
 
@@ -928,6 +950,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun setShuffleEnabled(enabled: Boolean) {
+        mediaController?.let {
+            it.shuffleModeEnabled = enabled
+            _isShuffleEnabled.value = enabled
+        } ?: run {
+            _isShuffleEnabled.value = enabled
+        }
+    }
+
     fun toggleRepeatMode() {
         mediaController?.let {
             val nextMode = when (it.repeatMode) {
@@ -941,11 +972,28 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun skipToNext() {
-        mediaController?.let {
-            if (it.hasNextMediaItem()) {
-                it.seekToNextMediaItem()
+        mediaController?.let { controller ->
+            if (controller.hasNextMediaItem()) {
+                controller.seekToNextMediaItem()
             } else {
-                it.seekTo(0)
+                val targetIndex = if (controller.shuffleModeEnabled && controller.mediaItemCount > 1) {
+                    val timeline = controller.currentTimeline
+                    val currentIndex = controller.currentMediaItemIndex
+                    val firstIndex = if (!timeline.isEmpty) {
+                        timeline.getFirstWindowIndex(true).takeIf { it != androidx.media3.common.C.INDEX_UNSET }
+                    } else null
+                    if (firstIndex != null && firstIndex != currentIndex) {
+                        firstIndex
+                    } else {
+                        val candidates = (0 until controller.mediaItemCount).filter { it != currentIndex }
+                        if (candidates.isNotEmpty()) candidates.random() else 0
+                    }
+                } else {
+                    0
+                }
+                controller.seekTo(targetIndex, 0L)
+                controller.prepare()
+                controller.play()
             }
         }
     }

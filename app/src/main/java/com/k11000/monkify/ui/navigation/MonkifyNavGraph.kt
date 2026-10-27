@@ -71,7 +71,8 @@ fun MonkifyNavGraph(
             )
         ) { backStackEntry ->
             val playlistId = backStackEntry.arguments?.getString("playlistId") ?: ""
-            val name = backStackEntry.arguments?.getString("name") ?: ""
+            val rawName = backStackEntry.arguments?.getString("name") ?: ""
+            val name = runCatching { java.net.URLDecoder.decode(rawName, "UTF-8") }.getOrDefault(rawName)
             PlaylistDetailScreen(
                 playlistId = playlistId,
                 initialName = name,
@@ -87,9 +88,14 @@ fun MonkifyNavGraph(
                 navArgument("coverUrl") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStackEntry ->
-            val album = backStackEntry.arguments?.getString("album") ?: ""
-            val artist = backStackEntry.arguments?.getString("artist") ?: ""
-            val coverUrl = backStackEntry.arguments?.getString("coverUrl") ?: ""
+            val rawAlbum = backStackEntry.arguments?.getString("album") ?: ""
+            val rawArtist = backStackEntry.arguments?.getString("artist") ?: ""
+            val rawCoverUrl = backStackEntry.arguments?.getString("coverUrl") ?: ""
+
+            val album = runCatching { java.net.URLDecoder.decode(rawAlbum, "UTF-8") }.getOrDefault(rawAlbum)
+            val artist = runCatching { java.net.URLDecoder.decode(rawArtist, "UTF-8") }.getOrDefault(rawArtist)
+            val coverUrl = runCatching { java.net.URLDecoder.decode(rawCoverUrl, "UTF-8") }.getOrDefault(rawCoverUrl)
+
             AlbumDetailScreen(
                 albumName = album,
                 initialArtist = artist,

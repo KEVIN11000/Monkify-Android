@@ -28,6 +28,10 @@ class LocalTrackRepository @Inject constructor(
 
     fun isFavorite(trackId: String): Flow<Boolean> = trackDao.isFavorite(trackId)
 
+    suspend fun getTrackById(trackId: String): Track? {
+        return trackDao.getTrackById(trackId)?.toDomain()
+    }
+
     suspend fun toggleFavorite(track: Track) {
         val existing = trackDao.getTrackById(track.id)
         if (existing == null) {
@@ -40,6 +44,16 @@ class LocalTrackRepository @Inject constructor(
             } else {
                 trackDao.updateFavoriteStatus(track.id, newFav)
             }
+        }
+    }
+
+    suspend fun removeFavorite(trackId: String) {
+        val existing = trackDao.getTrackById(trackId) ?: return
+        val hasHistory = existing.playCount > 0 || existing.lastPlayedAt > 0L
+        if (!existing.isDownloaded && !hasHistory) {
+            trackDao.deleteTrackById(trackId)
+        } else {
+            trackDao.updateFavoriteStatus(trackId, false)
         }
     }
 
@@ -112,8 +126,12 @@ class LocalTrackRepository @Inject constructor(
     suspend fun getTracksByAlbum(albumName: String): List<Track> {
         val target = albumName.trim()
         if (target.isEmpty()) return emptyList()
+        val normalizedTarget = target.replace('+', ' ').trim()
         return trackDao.getAllTracksSnapshot()
-            .filter { it.album.trim().equals(target, ignoreCase = true) }
+            .filter {
+                val a = it.album.trim()
+                a.equals(target, ignoreCase = true) || a.equals(normalizedTarget, ignoreCase = true)
+            }
             .map { it.toDomain() }
     }
 

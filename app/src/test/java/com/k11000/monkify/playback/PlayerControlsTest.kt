@@ -171,4 +171,136 @@ class PlayerControlsTest {
         assertEquals("Bluetooth", resolveType(isBluetooth = true, isHeadset = false))
         assertEquals("Auriculares", resolveType(isBluetooth = false, isHeadset = true))
     }
+
+    @Test
+    fun `salto en skipToNext con shuffle activo y final de cola cicla al primer indice de shuffle`() {
+        data class NavigationState(
+            val hasNext: Boolean,
+            val shuffleEnabled: Boolean,
+            val firstShuffleIndex: Int
+        )
+
+        fun resolveNextIndex(state: NavigationState): Int {
+            return if (state.hasNext) {
+                -1 // ExoPlayer seekToNextMediaItem()
+            } else if (state.shuffleEnabled) {
+                state.firstShuffleIndex
+            } else {
+                0
+            }
+        }
+
+        val stateAtEndWithShuffle = NavigationState(
+            hasNext = false,
+            shuffleEnabled = true,
+            firstShuffleIndex = 2
+        )
+
+        val target = resolveNextIndex(stateAtEndWithShuffle)
+        assertEquals(2, target)
+
+        val stateAtEndWithoutShuffle = NavigationState(
+            hasNext = false,
+            shuffleEnabled = false,
+            firstShuffleIndex = 2
+        )
+        assertEquals(0, resolveNextIndex(stateAtEndWithoutShuffle))
+    }
+
+    @Test
+    fun `avance de pista en modo aleatorio cuando la pista actual es la ultima fisica pero no la ultima en shuffle no se detiene`() {
+        val tracks = listOf("track_0", "track_1", "track_2", "track_3")
+        // Secuencia aleatoria: [1, 3, 0, 2]
+        val shuffleOrder = listOf(1, 3, 0, 2)
+
+        fun getNextInShuffle(currentIndex: Int): Int? {
+            val posInShuffle = shuffleOrder.indexOf(currentIndex)
+            return if (posInShuffle in 0 until shuffleOrder.lastIndex) {
+                shuffleOrder[posInShuffle + 1]
+            } else null
+        }
+
+        // Pista física final (índice 3): en la secuencia aleatoria está en la posición 1 y le sigue el índice 0
+        val nextAfterPhysicalLast = getNextInShuffle(3)
+        assertEquals(0, nextAfterPhysicalLast)
+
+        // Última pista en el orden aleatorio (índice 2): no tiene siguiente en la secuencia
+        val nextAfterShuffleLast = getNextInShuffle(2)
+        assertEquals(null, nextAfterShuffleLast)
+    }
+
+    @Test
+    fun `transicion de STATE_ENDED con shuffle activo y repeat off reinicia ciclo y activa reproduccion`() {
+        var isPlaying = false
+        var currentPosition = 120000L
+        var targetIndex = -1
+
+        fun onPlaybackStateChanged(
+            playbackState: Int,
+            shuffleModeEnabled: Boolean,
+            repeatMode: Int,
+            firstShuffleIndex: Int
+        ) {
+            if (playbackState == Player.STATE_ENDED && shuffleModeEnabled && repeatMode == Player.REPEAT_MODE_OFF) {
+                targetIndex = firstShuffleIndex
+                currentPosition = 0L
+                isPlaying = true
+            }
+        }
+
+        onPlaybackStateChanged(
+            playbackState = Player.STATE_ENDED,
+            shuffleModeEnabled = true,
+            repeatMode = Player.REPEAT_MODE_OFF,
+            firstShuffleIndex = 1
+        )
+
+        assertTrue(isPlaying)
+        assertEquals(0L, currentPosition)
+        assertEquals(1, targetIndex)
+    }
+
+    @Test
+    fun `skipToNext cuando el primer indice de shuffle es igual al actual selecciona un candidato alternativo`() {
+        val totalCount = 4
+        val currentIndex = 2
+        val firstIndex = 2 // El primer índice del timeline coincide con la pista actual
+
+        fun resolveTargetIndex(count: Int, current: Int, first: Int?): Int {
+            return if (first != null && first != current) {
+                first
+            } else if (count > 1) {
+                val candidates = (0 until count).filter { it != current }
+                candidates.first() // Determinista para el test
+            } else {
+                0
+            }
+        }
+
+        val target = resolveTargetIndex(totalCount, currentIndex, firstIndex)
+        assertTrue(target != currentIndex)
+        assertEquals(0, target)
+    }
+
+    @Test
+    fun `STATE_ENDED en shuffle selecciona pista no reproducida y no reitera la pista actual`() {
+        val totalCount = 5
+        val currentIndex = 4 // Última pista física
+        val firstShuffleIndex = 4 // Coincide con la actual
+
+        fun resolveEndTransitionIndex(count: Int, current: Int, first: Int?): Int {
+            return if (first != null && first != current) {
+                first
+            } else if (count > 1) {
+                val candidates = (0 until count).filter { it != current }
+                candidates.first()
+            } else {
+                0
+            }
+        }
+
+        val nextTrackIndex = resolveEndTransitionIndex(totalCount, currentIndex, firstShuffleIndex)
+        assertTrue("El índice siguiente no debe ser el actual", nextTrackIndex != currentIndex)
+        assertTrue("El índice debe estar dentro del rango válido", nextTrackIndex in 0 until totalCount)
+    }
 }

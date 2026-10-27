@@ -248,4 +248,55 @@ class AlbumDetailViewModelTest {
         assertEquals(1, viewModel.filteredAndSortedTracks.value.size)
         assertEquals("Berry Song", viewModel.filteredAndSortedTracks.value.first().title)
     }
+
+    @Test
+    fun `loadAlbum decodifica nombres con signos plus o url encoding y carga pistas correctamente`() = runTest(testDispatcher) {
+        val dtos = listOf(
+            BackendTrackDto("t1", "Bohemian Rhapsody", "Queen", "A Night at the Opera", 354000L, null, "/stream/1", false)
+        )
+        var receivedAlbumArg = ""
+        val fakeApi = FakeMonkifyApi(albumTracksHandler = { album ->
+            receivedAlbumArg = album
+            dtos
+        })
+        val viewModel = AlbumDetailViewModel(fakeApi)
+
+        // Se envía codificado con "+" como sucede en application/x-www-form-urlencoded
+        viewModel.loadAlbum("A+Night+at+the+Opera")
+        advanceUntilIdle()
+
+        assertEquals("A Night at the Opera", viewModel.albumName.value)
+        assertEquals("A Night at the Opera", receivedAlbumArg)
+        assertEquals(1, viewModel.tracks.value.size)
+        assertEquals("Bohemian Rhapsody", viewModel.tracks.value.first().title)
+    }
+
+    @Test
+    fun `loadAlbum con fallback local resuelve nombres con signos plus hacia el album guardado en Room`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        fakeDao.insertTrack(
+            TrackEntity(
+                id = "loc1",
+                title = "Starman",
+                artist = "David Bowie",
+                album = "The Rise and Fall of Ziggy Stardust",
+                durationMs = 250000L,
+                coverUrl = null,
+                streamUrl = "/stream/loc1",
+                isFavorite = false,
+                isDownloaded = false
+            )
+        )
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakeApi = FakeMonkifyApi(albumTracksHandler = { emptyList() })
+        val viewModel = AlbumDetailViewModel(fakeApi, localRepo)
+
+        // Enviar con "+" o percent encoding
+        viewModel.loadAlbum("The+Rise+and+Fall+of+Ziggy+Stardust")
+        advanceUntilIdle()
+
+        assertEquals("The Rise and Fall of Ziggy Stardust", viewModel.albumName.value)
+        assertEquals(1, viewModel.tracks.value.size)
+        assertEquals("Starman", viewModel.tracks.value.first().title)
+    }
 }

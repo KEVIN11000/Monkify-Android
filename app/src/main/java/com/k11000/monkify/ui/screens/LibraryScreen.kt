@@ -39,10 +39,14 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -136,8 +140,11 @@ fun LibraryScreen(
     val sortOption by viewModel.sortOption.collectAsState()
     val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val selectedTrackIds by viewModel.selectedTrackIds.collectAsState()
     val downloadedIds = remember(downloadedTracks) { downloadedTracks.map { it.id }.toSet() }
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var isSearchVisible by remember { mutableStateOf(false) }
     var trackToDeleteDownload by remember { mutableStateOf<Track?>(null) }
@@ -150,59 +157,101 @@ fun LibraryScreen(
         }
     }
 
-
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MonkifyBackground)
-            .padding(top = statusBarPadding + 16.dp, bottom = 16.dp)
     ) {
-        // Header
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(top = statusBarPadding + 16.dp, bottom = 16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFF59E0B)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "K", color = Color.Black, fontWeight = FontWeight.Bold)
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Text(
-                text = "Tu biblioteca",
-                color = MonkifyOnBackground,
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.weight(1f)
-            )
-
-            IconButton(onClick = {
-                isSearchVisible = !isSearchVisible
-                if (!isSearchVisible) {
-                    viewModel.onSearchQueryChange("")
+            // Header
+            if (isSelectionMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { viewModel.clearSelection() }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancelar selección",
+                            tint = MonkifyOnBackground
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${selectedTrackIds.size} seleccionada${if (selectedTrackIds.size == 1) "" else "s"}",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.weight(1f)
+                    )
+                    val allSelected = selectedTrackIds.size == displayedTracks.size && displayedTracks.isNotEmpty()
+                    TextButton(onClick = {
+                        try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                        if (allSelected) {
+                            viewModel.clearSelection()
+                        } else {
+                            viewModel.selectAll(displayedTracks.map { it.id })
+                        }
+                    }) {
+                        Text(
+                            text = if (allSelected) "Deseleccionar" else "Seleccionar todo",
+                            color = MonkifyPrimary,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
                 }
-            }) {
-                Icon(
-                    imageVector = if (isSearchVisible) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (isSearchVisible) "Cerrar búsqueda" else "Buscar en biblioteca",
-                    tint = if (isSearchVisible) MonkifyPrimary else MonkifyOnBackground
-                )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF59E0B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "K", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = "Tu biblioteca",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IconButton(onClick = {
+                        isSearchVisible = !isSearchVisible
+                        if (!isSearchVisible) {
+                            viewModel.onSearchQueryChange("")
+                        }
+                    }) {
+                        Icon(
+                            imageVector = if (isSearchVisible) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = if (isSearchVisible) "Cerrar búsqueda" else "Buscar en biblioteca",
+                            tint = if (isSearchVisible) MonkifyPrimary else MonkifyOnBackground
+                        )
+                    }
+                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Crear Playlist",
+                            tint = MonkifyOnBackground
+                        )
+                    }
+                }
             }
-            IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Crear Playlist",
-                    tint = MonkifyOnBackground
-                )
-            }
-        }
 
         AnimatedVisibility(
             visible = isSearchVisible,
@@ -515,6 +564,7 @@ fun LibraryScreen(
                         ) {
                             Button(
                                 onClick = {
+                                    playerViewModel.setShuffleEnabled(true)
                                     val shuffled = displayedTracks.shuffled()
                                     playerViewModel.playQueue(shuffled, 0)
                                 },
@@ -563,14 +613,26 @@ fun LibraryScreen(
                 }
                 itemsIndexed(displayedTracks, key = { _, track -> track.id }) { index, track ->
                     val isTrackDownloaded = track.id in downloadedIds || track.streamUrl.startsWith("/")
+                    val isSelected = track.id in selectedTrackIds
                     LibraryTrackItem(
                         track = track,
                         isDownloaded = isTrackDownloaded,
                         isCurrentPlaying = (track.title == currentTitle && isPlaying),
+                        isSelectionMode = isSelectionMode,
+                        isSelected = isSelected,
                         onClick = {
-                            playerViewModel.playQueue(displayedTracks, index)
+                            if (isSelectionMode) {
+                                try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                viewModel.toggleTrackSelection(track.id)
+                            } else {
+                                playerViewModel.playQueue(displayedTracks, index)
+                            }
                         },
-                        onDeleteClick = if (isTrackDownloaded && selectedFilter == LibraryFilter.DOWNLOADS) {
+                        onLongClick = {
+                            try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                            viewModel.toggleTrackSelection(track.id)
+                        },
+                        onDeleteClick = if (isTrackDownloaded && selectedFilter == LibraryFilter.DOWNLOADS && !isSelectionMode) {
                             { trackToDeleteDownload = track }
                         } else null
                     )
@@ -637,6 +699,117 @@ fun LibraryScreen(
             )
         }
     }
+
+    // Barra Flotante de Acciones en Lote
+    AnimatedVisibility(
+        visible = isSelectionMode && selectedTrackIds.isNotEmpty(),
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
+                color = MonkifyDarkGray,
+                shape = RoundedCornerShape(20.dp),
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 72.dp, start = 16.dp, end = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Descargar en lote
+                    Button(
+                        onClick = {
+                            try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                            viewModel.batchDownloadSelected(displayedTracks) { comp, _ ->
+                                Toast.makeText(context, "$comp pistas descargadas", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Descargar",
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Descargar (${selectedTrackIds.size})",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Quitar de Favoritos
+                    if (selectedFilter == LibraryFilter.FAVORITES || selectedFilter == LibraryFilter.ALL) {
+                        Button(
+                            onClick = {
+                                try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                viewModel.batchRemoveFavorites { count ->
+                                    Toast.makeText(context, "$count pistas quitadas de favoritos", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Quitar favoritos",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Quitar",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Eliminar descarga si estamos en DOWNLOADS
+                    if (selectedFilter == LibraryFilter.DOWNLOADS) {
+                        Button(
+                            onClick = {
+                                try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                viewModel.batchDeleteDownloads { count ->
+                                    Toast.makeText(context, "$count descargas eliminadas", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Borrar descargas",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Borrar",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 }
 
 
@@ -715,12 +888,16 @@ fun AnimatedPlayButton(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun LibraryTrackItem(
     track: Track,
     isDownloaded: Boolean,
     isCurrentPlaying: Boolean = false,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -728,11 +905,39 @@ fun LibraryTrackItem(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(MonkifyDarkGray)
-            .clickable(onClick = onClick)
+            .background(if (isSelected) MonkifyPrimary.copy(alpha = 0.16f) else MonkifyDarkGray)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (isSelectionMode) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) MonkifyPrimary else Color.Transparent)
+                    .border(
+                        width = 2.dp,
+                        color = if (isSelected) MonkifyPrimary else MonkifyGray.copy(alpha = 0.5f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Seleccionado",
+                        tint = Color.Black,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+        }
+
         TrackArtwork(
             coverUrl = track.coverUrl,
             contentDescription = track.title,
@@ -775,7 +980,7 @@ fun LibraryTrackItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        if (onDeleteClick != null) {
+        if (onDeleteClick != null && !isSelectionMode) {
             IconButton(
                 onClick = onDeleteClick,
                 modifier = Modifier.size(36.dp)
@@ -790,13 +995,15 @@ fun LibraryTrackItem(
             Spacer(modifier = Modifier.width(4.dp))
         }
 
-        AnimatedPlayButton(
-            isPlaying = isCurrentPlaying,
-            contentDescription = "Reproducir ${track.title}",
-            onClick = onClick,
-            size = 38.dp,
-            iconSize = 20.dp
-        )
+        if (!isSelectionMode) {
+            AnimatedPlayButton(
+                isPlaying = isCurrentPlaying,
+                contentDescription = "Reproducir ${track.title}",
+                onClick = onClick,
+                size = 38.dp,
+                iconSize = 20.dp
+            )
+        }
     }
 }
 

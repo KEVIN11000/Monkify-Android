@@ -97,7 +97,8 @@ class AlbumDetailViewModel @Inject constructor(
         initialArtist: String = "",
         initialCoverUrl: String? = null
     ) {
-        val cleanAlbum = album.trim()
+        val decoded = runCatching { java.net.URLDecoder.decode(album, "UTF-8") }.getOrDefault(album)
+        val cleanAlbum = decoded.replace('+', ' ').trim()
         _albumName.value = cleanAlbum
         if (initialArtist.isNotBlank()) {
             _artistName.value = initialArtist
@@ -126,7 +127,10 @@ class AlbumDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val dtos = api.getAlbumTracks(cleanAlbum)
+                var dtos = api.getAlbumTracks(cleanAlbum)
+                if (dtos.isEmpty() && cleanAlbum != album.trim()) {
+                    dtos = api.getAlbumTracks(album.trim())
+                }
                 val mapped = dtos.map { it.toDomain(BuildConfig.BASE_URL) }
                 if (mapped.isNotEmpty()) {
                     _tracks.value = mapped
@@ -137,7 +141,9 @@ class AlbumDetailViewModel @Inject constructor(
                         _coverUrl.value = mapped.firstNotNullOfOrNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }
                     }
                 } else {
-                    val localFallback = localTrackRepository?.getTracksByAlbum(cleanAlbum) ?: emptyList()
+                    val localFallback = localTrackRepository?.getTracksByAlbum(cleanAlbum)
+                        ?.ifEmpty { localTrackRepository.getTracksByAlbum(album.trim()) }
+                        ?: emptyList()
                     _tracks.value = localFallback
                     if (_artistName.value.isBlank()) {
                         _artistName.value = localFallback.firstOrNull()?.artist ?: ""
@@ -147,7 +153,9 @@ class AlbumDetailViewModel @Inject constructor(
                     }
                 }
             } catch (_: Exception) {
-                val localFallback = localTrackRepository?.getTracksByAlbum(cleanAlbum) ?: emptyList()
+                val localFallback = localTrackRepository?.getTracksByAlbum(cleanAlbum)
+                    ?.ifEmpty { localTrackRepository.getTracksByAlbum(album.trim()) }
+                    ?: emptyList()
                 _tracks.value = localFallback
                 if (_artistName.value.isBlank()) {
                     _artistName.value = localFallback.firstOrNull()?.artist ?: ""

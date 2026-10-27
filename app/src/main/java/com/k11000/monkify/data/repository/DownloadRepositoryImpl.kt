@@ -46,6 +46,12 @@ class DownloadRepositoryImpl @Inject constructor(
     private val playlistProgressMap = ConcurrentHashMap<String, MutableStateFlow<Pair<Int, Int>>>()
     private val playlistDownloadingMap = ConcurrentHashMap<String, MutableStateFlow<Boolean>>()
 
+    init {
+        repoScope.launch {
+            reconcileDownloads()
+        }
+    }
+
     override fun isPlaylistDownloading(playlistId: String): StateFlow<Boolean> {
         return playlistDownloadingMap.computeIfAbsent(playlistId) { MutableStateFlow(false) }.asStateFlow()
     }
@@ -164,6 +170,59 @@ class DownloadRepositoryImpl @Inject constructor(
             }
         }
         return total
+    }
+
+    /**
+     * Reconciliación de descargas huérfanas o supervivientes a reinstalación.
+     * Escanea los directorios de almacenamiento físico y sincroniza el estado con Room DB.
+     */
+    override suspend fun reconcileDownloads(): Int = withContext(Dispatchers.IO) {
+        var count = 0
+        val scannedDirs = listOfNotNull(
+            musicDir,
+            File(context.filesDir, "music"),
+            File(context.filesDir, "downloads")
+        ).distinctBy { it.absolutePath }
+
+        scannedDirs.forEach { dir ->
+            if (dir.exists()) {
+                dir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.extension.equals("mp3", ignoreCase = true) && file.length() > 0) {
+                        val trackId = file.nameWithoutExtension
+                        val existing = localTrackRepository.getTrackById(trackId)
+                        if (existing != null) {
+                            if (existing.streamUrl != file.absolutePath) {
+                                localTrackRepository.markAsDownloaded(existing, file.absolutePath)
+                                count++
+                            }
+                        } else {
+                            val recoveredTrack = Track(
+                                id = trackId,
+                                title = trackId,
+                                artist = "Desconocido",
+                                album = "Descargas",
+                                durationMs = 0L,
+                                coverUrl = null,
+                                streamUrl = file.absolutePath
+                            )
+                            localTrackRepository.saveTrack(
+                                track = recoveredTrack,
+                                isFavorite = false,
+                                isDownloaded = true,
+                                localPath = file.absolutePath
+                            )
+                            count++
+                        }
+                        val stateFlow = downloadStates[trackId]
+                        stateFlow?.value = DownloadState.Downloaded(file.absolutePath)
+                    }
+                }
+            }
+        }
+        if (count > 0) {
+            AppLogger.i("DownloadRepo", "Reconciliación de almacenamiento completada: $count pistas recuperadas")
+        }
+        count
     }
 
     private fun resolveStreamUrl(streamUrl: String, trackId: String): String {

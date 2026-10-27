@@ -56,6 +56,120 @@ class LibraryViewModel @Inject constructor(
     private val _selectedFilter = MutableStateFlow(LibraryFilter.ALL)
     val selectedFilter: StateFlow<LibraryFilter> = _selectedFilter.asStateFlow()
 
+    // --- Modo de Selección Múltiple y Acciones por Lote ---
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode: StateFlow<Boolean> = _isSelectionMode.asStateFlow()
+
+    private val _selectedTrackIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedTrackIds: StateFlow<Set<String>> = _selectedTrackIds.asStateFlow()
+
+    fun setSelectionMode(enabled: Boolean) {
+        _isSelectionMode.value = enabled
+        if (!enabled) {
+            _selectedTrackIds.value = emptySet()
+        }
+    }
+
+    fun toggleTrackSelection(trackId: String) {
+        val current = _selectedTrackIds.value
+        if (trackId in current) {
+            val updated = current - trackId
+            _selectedTrackIds.value = updated
+            if (updated.isEmpty()) {
+                _isSelectionMode.value = false
+            }
+        } else {
+            _isSelectionMode.value = true
+            _selectedTrackIds.value = current + trackId
+        }
+    }
+
+    fun selectAll(trackIds: Collection<String>) {
+        if (trackIds.isEmpty()) return
+        _isSelectionMode.value = true
+        _selectedTrackIds.value = trackIds.toSet()
+    }
+
+    fun clearSelection() {
+        _selectedTrackIds.value = emptySet()
+        _isSelectionMode.value = false
+    }
+
+    fun isTrackSelected(trackId: String): Boolean = trackId in _selectedTrackIds.value
+
+    fun batchDownloadSelected(
+        tracks: List<Track>,
+        onComplete: (completed: Int, failed: Int) -> Unit = { _, _ -> }
+    ) {
+        val selectedIds = _selectedTrackIds.value
+        if (selectedIds.isEmpty()) {
+            onComplete(0, 0)
+            return
+        }
+        val targetTracks = tracks.filter { it.id in selectedIds }
+        viewModelScope.launch {
+            var completed = 0
+            var failed = 0
+            val repo = downloadRepository
+            if (repo != null) {
+                for (track in targetTracks) {
+                    val res = repo.downloadTrack(track)
+                    if (res.isSuccess) completed++ else failed++
+                }
+            } else {
+                for (track in targetTracks) {
+                    localTrackRepository.markAsDownloaded(track, track.streamUrl)
+                    completed++
+                }
+            }
+            clearSelection()
+            onComplete(completed, failed)
+        }
+    }
+
+    fun batchRemoveFavorites(
+        onComplete: (count: Int) -> Unit = {}
+    ) {
+        val selectedIds = _selectedTrackIds.value
+        if (selectedIds.isEmpty()) {
+            onComplete(0)
+            return
+        }
+        viewModelScope.launch {
+            var count = 0
+            for (id in selectedIds) {
+                localTrackRepository.removeFavorite(id)
+                count++
+            }
+            clearSelection()
+            onComplete(count)
+        }
+    }
+
+    fun batchDeleteDownloads(
+        onComplete: (count: Int) -> Unit = {}
+    ) {
+        val selectedIds = _selectedTrackIds.value
+        if (selectedIds.isEmpty()) {
+            onComplete(0)
+            return
+        }
+        viewModelScope.launch {
+            var count = 0
+            val repo = downloadRepository
+            for (id in selectedIds) {
+                if (repo != null) {
+                    repo.deleteDownloadedTrack(id)
+                } else {
+                    localTrackRepository.removeDownload(id)
+                }
+                count++
+            }
+            clearSelection()
+            onComplete(count)
+        }
+    }
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -320,6 +434,7 @@ class LibraryViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun setFilter(filter: LibraryFilter) {
+        clearSelection()
         _selectedFilter.value = filter
         if (filter == LibraryFilter.ALBUMS && _albums.value.isEmpty()) {
             loadAlbums()
