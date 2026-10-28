@@ -204,6 +204,7 @@ fun HomeScreen(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
+                            viewModel.cycleNextPhrase()
                             if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
                         }
                 ) {

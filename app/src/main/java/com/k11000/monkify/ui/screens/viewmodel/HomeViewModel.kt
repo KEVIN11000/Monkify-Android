@@ -4,16 +4,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
+import com.k11000.monkify.domain.model.CurrentWeather
 import com.k11000.monkify.domain.model.SyncStatus
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.model.WeatherCondition
+import com.k11000.monkify.domain.model.ZenDayPart
+import com.k11000.monkify.domain.model.ZenPhraseCatalog
 import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.SyncScheduler
 import com.k11000.monkify.domain.repository.TrackRepository
+import com.k11000.monkify.domain.repository.WeatherRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -36,7 +42,8 @@ class HomeViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val downloadRepository: DownloadRepository? = null,
     private val syncScheduler: SyncScheduler? = null,
-    private val monkifyApi: MonkifyApi? = null
+    private val monkifyApi: MonkifyApi? = null,
+    private val weatherRepository: WeatherRepository? = null
 ) : ViewModel() {
 
     private val _selectedFilter = MutableStateFlow(HomeFilter.ALL)
@@ -71,6 +78,39 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    val currentWeather: StateFlow<CurrentWeather?> = weatherRepository?.getCurrentWeatherFlow()
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        ?: MutableStateFlow(null)
+
+    private val _phraseIndexOffset = MutableStateFlow(0)
+
+    val greeting: StateFlow<GreetingInfo> = combine(
+        currentWeather,
+        _phraseIndexOffset
+    ) { weather, offset ->
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val condition = weather?.condition ?: WeatherCondition.SUNNY
+        val dayPart = weather?.resolveDayPart() ?: ZenDayPart.fromHour(hour)
+        val title = ZenPhraseCatalog.resolveTitle(dayPart)
+        val phrase = ZenPhraseCatalog.resolvePhrase(condition, dayPart, offset)
+        GreetingInfo(title = title, phrase = phrase)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = run {
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val dayPart = ZenDayPart.fromHour(hour)
+            GreetingInfo(
+                title = ZenPhraseCatalog.resolveTitle(dayPart),
+                phrase = ZenPhraseCatalog.resolvePhrase(WeatherCondition.SUNNY, dayPart, 0)
+            )
+        }
+    )
+
+    fun cycleNextPhrase() {
+        _phraseIndexOffset.value += 1
+    }
+
     fun getDynamicGreeting(hour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)): GreetingInfo {
         return when (hour) {
             in 0..4 -> GreetingInfo(title = "Buenas noches", phrase = "La noche es joven y la música no duerme")
@@ -84,11 +124,8 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private val _greeting = MutableStateFlow(getDynamicGreeting())
-    val greeting: StateFlow<GreetingInfo> = _greeting.asStateFlow()
-
     fun updateGreeting(hour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        _greeting.value = getDynamicGreeting(hour)
+        cycleNextPhrase()
     }
 
     private val _latestUploadedTracks = MutableStateFlow<List<Track>>(emptyList())
@@ -121,13 +158,19 @@ class HomeViewModel @Inject constructor(
     init {
         observeRecentAndMadeForYou()
         loadData()
+        viewModelScope.launch {
+            weatherRepository?.refreshWeatherIfNeeded(force = false)
+        }
     }
 
     fun refresh() {
         _hasMore.value = true
-        _greeting.value = getDynamicGreeting()
+        _phraseIndexOffset.value += 1
         loadData()
         syncScheduler?.scheduleImmediateSync()
+        viewModelScope.launch {
+            weatherRepository?.refreshWeatherIfNeeded(force = true)
+        }
     }
 
     private fun observeRecentAndMadeForYou() {

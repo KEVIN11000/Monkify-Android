@@ -58,6 +58,15 @@ enum class ZenDayPart {
             SUNSET -> "sunset"
             NIGHT -> "night"
         }
+
+    companion object {
+        fun fromHour(hour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)): ZenDayPart = when (hour) {
+            in 6..8 -> DAWN
+            in 9..17 -> DAY
+            in 18..20 -> SUNSET
+            else -> NIGHT
+        }
+    }
 }
 
 /**
