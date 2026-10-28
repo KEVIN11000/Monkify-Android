@@ -137,4 +137,24 @@ class SettingsViewModelTest {
         assertTrue(callbackSuccess == true)
         assertFalse(viewModel.uiState.value.isSubmittingReport)
     }
+
+    @Test
+    fun set_server_access_token_updates_state_and_shows_message() = runTest(testDispatcher) {
+        val fakeRepo = FakeUpdateRepository { Result.failure(IOException()) }
+        val viewModel = SettingsViewModel(settingsRepository = null, updateRepository = fakeRepo)
+
+        viewModel.setServerAccessToken("  my_secret_token_123  ")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("my_secret_token_123", state.serverAccessToken)
+        assertTrue(state.message?.contains("guardada") == true)
+
+        viewModel.setServerAccessToken("")
+        advanceUntilIdle()
+
+        val clearedState = viewModel.uiState.value
+        assertEquals("", clearedState.serverAccessToken)
+        assertTrue(clearedState.message?.contains("eliminada") == true)
+    }
 }

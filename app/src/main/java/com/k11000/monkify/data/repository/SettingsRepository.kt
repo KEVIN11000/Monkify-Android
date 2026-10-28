@@ -51,6 +51,10 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_LAST_SYNC_TIMESTAMP] ?: DEFAULT_LAST_SYNC_TIMESTAMP
     }
 
+    val serverAccessToken: Flow<String> = dataStore.data.map { preferences ->
+        preferences[KEY_SERVER_ACCESS_TOKEN] ?: ""
+    }
+
     suspend fun setCacheLimitMb(mb: Long) {
         dataStore.edit { preferences ->
             preferences[KEY_CACHE_LIMIT_MB] = mb
@@ -93,6 +97,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setServerAccessToken(token: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_SERVER_ACCESS_TOKEN] = token.trim()
+        }
+    }
+
     suspend fun getCacheUsedBytes(): Long = withContext(Dispatchers.IO) {
         val cacheDir = File(context.cacheDir, PlaybackCache.DIRECTORY_NAME)
         if (!cacheDir.exists()) return@withContext 0L
@@ -124,6 +134,7 @@ class SettingsRepository @Inject constructor(
         val KEY_COVER_STYLE = stringPreferencesKey("cover_style")
         val KEY_LOCK_SCREEN_ENABLED = booleanPreferencesKey("lock_screen_enabled")
         val KEY_LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
+        val KEY_SERVER_ACCESS_TOKEN = stringPreferencesKey("server_access_token")
 
         const val DEFAULT_CACHE_LIMIT_MB: Long = 1024L // 1 GB
         const val DEFAULT_ZEN_ENGINE = "AURORA"

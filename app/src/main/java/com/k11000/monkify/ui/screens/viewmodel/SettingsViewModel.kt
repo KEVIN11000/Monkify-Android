@@ -26,7 +26,8 @@ data class SettingsUiState(
     val lockScreenEnabled: Boolean = false,
     val isCheckingUpdate: Boolean = false,
     val availableUpdate: AppUpdate? = null,
-    val isSubmittingReport: Boolean = false
+    val isSubmittingReport: Boolean = false,
+    val serverAccessToken: String = ""
 )
 
 @HiltViewModel
@@ -66,6 +67,11 @@ class SettingsViewModel @Inject constructor(
             viewModelScope.launch {
                 repo.lockScreenEnabled.collect { lockEnabled ->
                     _uiState.update { it.copy(lockScreenEnabled = lockEnabled) }
+                }
+            }
+            viewModelScope.launch {
+                repo.serverAccessToken.collect { token ->
+                    _uiState.update { it.copy(serverAccessToken = token) }
                 }
             }
             refreshCacheUsage()
@@ -126,6 +132,19 @@ class SettingsViewModel @Inject constructor(
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    fun setServerAccessToken(token: String) {
+        viewModelScope.launch {
+            val trimmed = token.trim()
+            settingsRepository?.setServerAccessToken(trimmed)
+            _uiState.update {
+                it.copy(
+                    serverAccessToken = trimmed,
+                    message = if (trimmed.isNotBlank()) "Clave de acceso al servidor guardada" else "Clave de servidor eliminada"
+                )
+            }
+        }
     }
 
     fun checkForUpdates(manual: Boolean = true) {

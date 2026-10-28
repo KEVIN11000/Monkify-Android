@@ -33,6 +33,11 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -451,7 +456,103 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Sección 4: Información
+            // Sección 4: Seguridad y Servidor Privado
+            SettingsSectionHeader(title = "SEGURIDAD Y SERVIDOR", icon = Icons.Default.VpnKey)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                colors = CardDefaults.cardColors(containerColor = MonkifySurface),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Clave de Acceso al Servidor",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MonkifyOnBackground
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Si tu servidor Cloudflare Worker tiene un token de acceso configurado, ingrésalo aquí para autorizar llamadas y streaming de audio.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MonkifyGray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var tokenInput by remember(uiState.serverAccessToken) { mutableStateOf(uiState.serverAccessToken) }
+                    var isTokenVisible by remember { mutableStateOf(false) }
+
+                    OutlinedTextField(
+                        value = tokenInput,
+                        onValueChange = { tokenInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Server Access Token") },
+                        placeholder = { Text("Ej: monkify_secret_...") },
+                        singleLine = true,
+                        visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isTokenVisible = !isTokenVisible }) {
+                                Icon(
+                                    imageVector = if (isTokenVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isTokenVisible) "Ocultar clave" else "Mostrar clave",
+                                    tint = MonkifyGray
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MonkifyPrimary,
+                            unfocusedBorderColor = MonkifyDarkGray,
+                            focusedTextColor = MonkifyOnBackground,
+                            unfocusedTextColor = MonkifyOnBackground,
+                            focusedLabelColor = MonkifyPrimary,
+                            unfocusedLabelColor = MonkifyGray
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.setServerAccessToken(tokenInput) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Guardar Clave", color = Color.White)
+                        }
+
+                        if (uiState.serverAccessToken.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = {
+                                    tokenInput = ""
+                                    viewModel.setServerAccessToken("")
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Limpiar")
+                            }
+                        }
+                    }
+
+                    if (uiState.serverAccessToken.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "✓ Servidor configurado con acceso autenticado",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MonkifyPrimary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Sección 5: Información
             SettingsSectionHeader(title = "INFORMACIÓN DEL SISTEMA", icon = Icons.Default.Info)
             Card(
                 modifier = Modifier
