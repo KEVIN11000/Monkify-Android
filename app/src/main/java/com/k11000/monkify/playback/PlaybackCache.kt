@@ -1,9 +1,12 @@
 package com.k11000.monkify.playback
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.CacheEvictor
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 
 /** Política de la caché de audio en disco (Tarea 9): LRU con tope de tamaño. */
+@OptIn(UnstableApi::class)
 object PlaybackCache {
 
     /** Directorio (dentro de `cacheDir`) de la caché automática de pistas escuchadas. */

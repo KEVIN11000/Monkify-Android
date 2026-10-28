@@ -62,6 +62,12 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = false
+        disable += setOf("PropertyEscape", "GradleDependency", "AndroidGradlePluginVersion")
+    }
 }
 
 kotlin {

@@ -7,6 +7,8 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -622,6 +624,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    @OptIn(UnstableApi::class)
     private fun initializeController() {
         val sessionToken = SessionToken(context, ComponentName(context, MonkifyPlaybackService::class.java))
         val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
