@@ -20,10 +20,10 @@
   - **Acción:** Crear middleware de protección en `/api/v1/*` que valide `SERVER_ACCESS_TOKEN` vía headers (`X-Monkify-Token`, `Authorization: Bearer`) o query parameter (`?token=`).
   - **Criterio de Aceptación:** Pruebas locales de endpoints validando respuesta 401 sin token y 200 con token. (Superado: 55/55 unit tests en Vitest aprobados al 100%).
 
-- [ ] **Tarea 5: Limpieza de Manifiesto y Reglas de Respaldo**
+- [x] **Tarea 5: Limpieza de Manifiesto y Reglas de Respaldo**
   - **Archivos:** `app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/backup_rules.xml`, `app/src/main/res/xml/data_extraction_rules.xml`
   - **Acción:** Remover `REQUEST_INSTALL_PACKAGES` y excluir base de datos Room y credenciales de `adb backup`.
-  - **Criterio de Aceptación:** Manifiesto limpio y reglas de extracción seguras.
+  - **Criterio de Aceptación:** Manifiesto limpio y reglas de extracción seguras. (Superado: Verificación exitosa vía `processDebugManifest`).
 
 - [ ] **Tarea 6: ProGuard / R8 y Compilación de Release Verificada**
   - **Archivos:** `app/proguard-rules.pro`, `app/build.gradle.kts`
