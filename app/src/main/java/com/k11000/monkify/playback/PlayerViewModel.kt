@@ -41,6 +41,8 @@ import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.data.repository.LocalTrackRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
+import com.k11000.monkify.domain.model.CurrentWeather
+import com.k11000.monkify.domain.repository.WeatherRepository
 import com.k11000.monkify.playback.lyrics.LyricLine
 import com.k11000.monkify.playback.lyrics.LrcParser
 
@@ -79,6 +81,7 @@ class PlayerViewModel @Inject constructor(
     private val monkifyApi: MonkifyApi,
     private val playlistRepository: PlaylistRepository? = null,
     private val settingsRepository: SettingsRepository? = null,
+    private val weatherRepository: WeatherRepository? = null,
     private val stateHolder: PlaybackSessionStateHolder? = null
 ) : ViewModel() {
 
@@ -93,6 +96,10 @@ class PlayerViewModel @Inject constructor(
     val coverStyle: StateFlow<String> = settingsRepository?.coverStyle
         ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_COVER_STYLE)
         ?: MutableStateFlow(SettingsRepository.DEFAULT_COVER_STYLE)
+
+    val currentWeather: StateFlow<CurrentWeather?> = weatherRepository?.getCurrentWeatherFlow()
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        ?: MutableStateFlow(null)
 
     fun toggleCoverStyle() {
         val nextStyle = if (coverStyle.value == SettingsRepository.COVER_STYLE_VINYL) {
@@ -541,6 +548,9 @@ class PlayerViewModel @Inject constructor(
                 _lyrics.value = holder.lyrics.value
             }
             _playbackSource.value = holder.playbackSource.value
+        }
+        viewModelScope.launch {
+            weatherRepository?.refreshWeatherIfNeeded(force = false)
         }
         initializeController()
         refreshAudioDevices()

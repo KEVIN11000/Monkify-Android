@@ -1,78 +1,88 @@
 # HANDOFF — Monkify
 
-**Fase cerrada:** Fase v0.4.2 — Release Consolidado de Correcciones y Mejoras UX
+**Fase cerrada:** Fase v0.4.3 — Integración de Clima en Tiempo Real (Open-Meteo) y Motor Rive con Google Weather Froggy HD
 **Fecha de cierre:** 2026-10-27
-**Estado del build/tests:** ✅ pasando — 47/47 tests en Vitest en `cloudflare-backend` (`npm test`) y suite unitaria + build de Release de Android pasando al 100% en `e:\PG\vcp-s\Monkify-Android-Refine` (`.\gradlew.bat testDebugUnitTest assembleRelease` -> `BUILD SUCCESSFUL`, APK generado: `app/build/outputs/apk/release/app-release.apk` de 17.7 MB).
+**Estado del build/tests:** ✅ pasando — Suite de pruebas unitarias de Android pasando al 100% y build de Release de Android pasando al 100% en `e:\PG\vcp-s\Monkify-Android-Refine` (`.\gradlew.bat testDebugUnitTest assembleRelease` -> `BUILD SUCCESSFUL`, APK generado: `app/build/outputs/apk/release/app-release.apk` de 47.4 MB con catálogo completo de 60 WebPs y runtime de Rive).
 
 ---
 
 ## 1. Estado actual
 
-- **Carga y decodificación de canciones por álbum corregida:** URLs con caracteres especiales (`%20`, `+`) decodificadas con `URLDecoder.decode(..., "UTF-8")` en `MonkifyNavGraph.kt`, sanitización de nombres en `AlbumDetailViewModel.kt`, y tolerancia en `LocalTrackRepository.kt` y backend Cloudflare `src/routes/albums.ts`. Cubierto por tests unitarios en `AlbumDetailViewModelTest.kt` y `test/index.spec.ts`.
-- **Transición y finalización de cola en modo aleatorio (Shuffle) corregida:** `MonkifyPlaybackService.kt` y `PlayerViewModel.kt` resuelven la selección circular cuando `firstIndex == currentIndex`. Cubierto por tests unitarios en `PlayerControlsTest.kt`.
-- **Botón "Aleatorio" en Biblioteca activa explícitamente shuffle:** `playerViewModel.setShuffleEnabled(true)` activado al pulsar "Aleatorio" en `LibraryScreen.kt`.
-- **Ciclos dinámicos Día/Noche en Zen Froggy y Cosmos HD:** `ZenBackground.kt` con gradientes de cielo, sol/luna procedural con pulso suave, nubes esponjosas estilo Google Weather, iluminación de colinas y estanque, nenúfares, Froggy con mejillas sonrojadas y destellos en los ojos, y partículas contextuales (rocío al amanecer, semillas de diente de león de día, ascuas al atardecer, luciérnagas de noche).
-- **Animaciones zen infinitas y continuas:** Reemplazo de operaciones módulo `%` por armónicos sinusoidales puros (\(\sin\), \(\cos\)) para eliminar cualquier costura o salto perceptible en el reinicio del ciclo. Velocidades reducidas a 30-50s y pulso respiratorio de 6.5-12s. Verificado con `@Preview` en Compose y simulación interactiva en `zen_visualizer_preview.html`.
-- **Cosmos HD optimizado:** Galaxia espiral inclinada a -26°, 4 capas de nebulosas, 72 estrellas con picos de difracción de 4 puntas y meteoros sinusoidales suaves sin saltos perceptibles.
-- **Selección múltiple por lote en Biblioteca:** Modo de selección con encabezado contextual, indicador circular por fila, pulsación prolongada con respuesta háptica (`combinedClickable`), y barra de acciones inferior flotante para descarga masiva, eliminación de favoritos masiva y borrado de descargas masivo en `LibraryScreen.kt` y `LibraryViewModel.kt`. Cubierto por 5 tests unitarios en `LibraryViewModelTest.kt`.
-- **Reconciliación automática y resiliente de descargas:** `DownloadRepositoryImpl.kt` escanea el almacenamiento físico (`musicDir`, almacenamiento interno y carpetas heredadas) en segundo plano al inicializarse, reconciliando pistas existentes con la base de datos Room si fue purgada tras reinstalación. Cubierto por test unitario en `DownloadRepositoryTest.kt`.
-- **Build de producción Release generado:** `app/build/outputs/apk/release/app-release.apk` (17.7 MB, 17,766,562 bytes) compilado exitosamente.
+- **Integración de Clima en Tiempo Real con Open-Meteo:**
+  - Implementado `OpenMeteoRemoteDataSource` invocando `https://api.open-meteo.com/v1/forecast` de forma gratuita y sin API key.
+  - Mapeo completo de códigos de la OMM (WMO) a 5 categorías principales: `SUNNY`, `CLOUDY`, `HAZY`, `RAINY`, `SNOWY` en `WeatherCondition.kt`.
+  - Cálculo solar astronómico preciso: resolución dinámica de franjas horarias (`DAWN`, `DAY`, `SUNSET`, `NIGHT`) mediante `sunriseEpochMs` y `sunsetEpochMs` con fallback al reloj del sistema si no hay datos satelitales. Cubierto por tests unitarios en `WeatherConditionTest.kt` y `OpenMeteoDtoTest.kt`.
+- **Caché Local de Clima Resiliente y Bajo Consumo (TTL 2 Horas):**
+  - Implementado `LocalWeatherStore` sobre DataStore Preferences. Almacena temperaturas, condición, horario solar y timestamp.
+  - Si la caché tiene menos de 2 horas de antigüedad, no se realizan llamadas HTTP, protegiendo batería y datos móviles.
+  - En caso de desconexión o fallo de red, se mantiene el último pronóstico guardado o se genera un clima sintético seguro sin interrumpir la reproducción. Cubierto por tests en `WeatherRepositoryTest.kt`.
+- **Ubicación Aproximada con Fallback Seguro:**
+  - `CoarseLocationDataSource` consulta la última ubicación conocida mediante Google Play Services (`ACCESS_COARSE_LOCATION`).
+  - Si el usuario rechaza permisos de ubicación, la app utiliza las coordenadas predeterminadas de respaldo sin insistir ni bloquear la interfaz.
+- **Catálogo Escénico Oficial de Google Weather Froggy (60 Ilustraciones WebP):**
+  - 60 ilustraciones oficiales en alta resolución extraídas de Google Weather (`R0rt1z2/Froggy.git`) e integradas como recursos en `app/src/main/res/drawable/`.
+  - Mapeador estático de alta velocidad `FroggyAssetCatalog.kt` que resuelve la combinación exacta según Escenario (`FIELDS`, `HILL`, `MUSHROOM`), Franja Horaria (`DAWN`, `DAY`, `SUNSET`, `NIGHT`) y Condición Climática (`SUNNY`, `CLOUDY`, `HAZY`, `RAINY`, `SNOWY`).
+  - Transición fluida con `Crossfade` entre fondos y validación del 100% de combinaciones en `FroggyAssetCatalogTest.kt`.
+- **Contenedor Rive (`.riv`) y Partículas Atmosféricas Vivas:**
+  - Runtime de Rive Android (`app.rive:rive-android:11.2.1`) configurado y compatible en `ZenBackground.kt` mediante `AndroidView(RiveAnimationView)`.
+  - Efectos atmosféricos reactivos en Compose Canvas superpuestos al fondo escénico:
+    - **Lluvia:** 42 gotas en ángulo con ondas de agua expandiéndose en la zona del estanque.
+    - **Nieve:** 36 copos oscilantes con deriva sinusoidal armónica (\(\sin\)).
+    - **Niebla:** Velo translúcido con gradiente alfa flotando en el horizonte medio.
+    - **Soleado:** Rayos de sol tenues pulsando al ritmo del audio.
+    - **Noche:** 14 luciérnagas titilando y derivando suavemente en la pradera.
+- **Simulador Interactivo Visual (Generative UI):**
+  - Artefacto `froggy_weather_visualizer.html` actualizado para cargar los 60 fondos WebP reales y simular en vivo todas las transiciones y estados climáticos.
 
 ## 2. Decisiones tomadas en esta fase
 
-- **Decisión:** Agrupar todos los tickets de soporte del servidor y mejoras en un Release Consolidado (*Release Train* v0.4.2) en lugar de múltiples versiones menores incrementales.
-  **Por qué:** Evitar fatiga de actualizaciones en los usuarios y entregar un salto de calidad integral en una sola versión estable.
-- **Decisión:** Desacoplar y archivar la especificación borrador de Monkify Connect en la rama `backup/monkify-connect-draft`.
-  **Por qué:** El usuario especificó no avanzar en Monkify Connect hasta nuevo aviso para concentrar el esfuerzo en pulir la app principal y atender reportes de usuarios reales.
-- **Decisión:** Modularizar la integración de Rive (`.riv`) y clima en tiempo real para la siguiente fase inmediata, creando la hoja de ruta en `docs/specs/v042-consolidated-fixes-and-polish/weather_froggy_roadmap.md`.
-  **Por qué:** El usuario solicitó terminar primero todos los pendientes del release v0.4.2 y luego abordar Rive + Weather con la biblioteca Open-Meteo y los assets del repositorio `https://github.com/R0rt1z2/Froggy.git`.
-- **Decisión:** Usar funciones armónicas trigonométricas continuas (\(\sin\), \(\cos\)) para las animaciones cíclicas de Canvas en `ZenBackground.kt` en vez de interpolación basada en tiempo y módulo `%`.
-  **Por qué:** El operador de módulo introduce un salto discontinuo perceptible en el reinicio del ciclo; las funciones periódicas puras garantizan derivadas continuas y un bucle infinito imperceptible.
+- **Decisión:** Integrar los 60 fondos escénicos WebP directamente como recursos de Android (`app/src/main/res/drawable/`) en vez de cargarlos dinámicamente por red o assets.
+  **Por qué:** Garantiza carga instantánea sin latencia, caché gestionada por el SO, compatibilidad directa con Compose `@Preview` y cero consumo de datos móviles al cambiar de escena.
+- **Decisión:** Utilizar `ACCESS_COARSE_LOCATION` en lugar de `ACCESS_FINE_LOCATION`.
+  **Por qué:** El clima no requiere precisión GPS a nivel de metros; la ubicación por celda o ciudad es suficiente y respeta la privacidad del usuario sin agotar la batería.
+- **Decisión:** Mantener el runtime nativo de Rive (`app.rive:rive-android:11.2.1`) junto con un motor de efectos atmosféricos Canvas nativos en Compose.
+  **Por qué:** Permite cargar archivos vectoriales `.riv` interactivos si se proveen en el futuro, manteniendo al mismo tiempo una experiencia visual viva y reactiva sin depender exclusivamente de assets binarios externos.
 
 ## 3. Archivos y módulos clave tocados
 
 | Archivo | Cambio |
 |---|---|
-| `app/.../MonkifyNavGraph.kt` | Decodificación UTF-8 de parámetros de álbum/playlist en navegación para resolver el ticket de álbumes vacíos con espacios o signos más. |
-| `app/.../viewmodel/AlbumDetailViewModel.kt` | Sanitización de nombres de álbum (`cleanAlbum`) y fallback query para evitar listas vacías. |
-| `app/.../data/repository/LocalTrackRepository.kt` | Comparación tolerante de álbumes ignorando espacios/signos más y nuevo método `removeFavorite` preservando descargas e historial. |
-| `cloudflare-backend/src/routes/albums.ts` | Normalización de `+` a espacios con `COLLATE NOCASE` en la base D1. |
-| `app/.../MonkifyPlaybackService.kt` | Solución al bloqueo circular de selección aleatoria al final de la cola en modo shuffle. |
-| `app/.../playback/PlayerViewModel.kt` | Agregado de `setShuffleEnabled(Boolean)` y desacople de lógica de selección aleatoria. |
-| `app/.../ui/screens/LibraryScreen.kt` | Activación de shuffle en botón "Aleatorio", selección múltiple por lote con barra de acciones inferior flotante y soporte de pulsación prolongada háptica. |
-| `app/.../ui/components/ZenBackground.kt` | Ciclos dinámicos Día/Noche en Froggy, nubes esponjosas, partículas contextuales, animaciones armónicas continuas sin costura y Cosmos HD con galaxia espiral. |
-| `app/.../domain/repository/DownloadRepository.kt` | Declaración de `suspend fun reconcileDownloads(): Int`. |
-| `app/.../data/repository/DownloadRepositoryImpl.kt` | Implementación de reconciliación automática de descargas en segundo plano al inicializarse escaneando almacenamiento físico. |
-| `app/.../ui/screens/viewmodel/LibraryViewModel.kt` | Estado y acciones de selección múltiple (descarga por lote, eliminación de favoritos por lote, borrado de descargas por lote). |
-| `app/src/test/.../*Test.kt` | Suites de pruebas unitarias para `PlayerControlsTest`, `AlbumDetailViewModelTest`, `LibraryViewModelTest` y `DownloadRepositoryTest`. |
-| `docs/specs/v042-consolidated-fixes-and-polish/*` | Especificaciones completas SDD (`spec.md`, `plan.md`, `tasks.md`, `weather_froggy_roadmap.md`). |
+| `gradle/libs.versions.toml` | Incorporación de dependencias `rive = 11.2.1` y `playServicesLocation = 21.3.0`. |
+| `app/build.gradle.kts` | Implementación de `libs.rive.android` y `libs.play.services.location`. |
+| `app/src/main/AndroidManifest.xml` | Configuración del permiso `ACCESS_COARSE_LOCATION`. |
+| `app/.../domain/model/WeatherCondition.kt` | Entidades `WeatherCondition`, `ZenDayPart`, `FroggyScenery`, `CurrentWeather` y funciones astronómicas de cálculo solar. |
+| `app/.../domain/repository/WeatherRepository.kt` | Contrato de interfaz reactiva para el repositorio meteorológico. |
+| `app/.../data/remote/dto/OpenMeteoDto.kt` | DTOs de respuesta JSON para Open-Meteo y mappers a modelos de dominio. |
+| `app/.../data/remote/api/OpenMeteoRemoteDataSource.kt` | Fuente remota que consulta la API de Open-Meteo de forma tolerante. |
+| `app/.../data/local/LocalWeatherStore.kt` | Persistencia y caché local en DataStore Preferences con validación de TTL de 2 horas. |
+| `app/.../data/location/CoarseLocationDataSource.kt` | Detección de coordenadas por Google Play Services con fallback a valores por defecto. |
+| `app/.../data/repository/WeatherRepositoryImpl.kt` | Implementación completa del repositorio con manejo de red, caché y degradación offline. |
+| `app/.../di/NetworkModule.kt` & `RepositoryModule.kt` | Inyección de dependencias para Gson, WeatherRepository y LocationDataSource. |
+| `app/.../ui/components/FroggyAssetCatalog.kt` | Catálogo tipado para resolución de los 60 fondos WebP. |
+| `app/.../ui/components/ZenBackground.kt` | Capas de fondo escénico, efectos atmosféricos (lluvia, nieve, niebla, rayos solares, luciérnagas) y contenedor Rive. |
+| `app/.../playback/PlayerViewModel.kt` | Inyección de `WeatherRepository`, exposición de `currentWeather: StateFlow` y refresco automático. |
+| `app/.../ui/screens/HomeScreen.kt` & `FullScreenPlayer.kt` | Vinculación del fondo Zen con la condición climática y franja solar en tiempo real. |
+| `app/src/main/res/drawable-nodpi/*_bg.webp` | 60 fondos escénicos oficiales de Google Weather importados y optimizados sin sobreescalado de memoria (1:1 pixel ratio). |
+| `app/src/test/.../*Test.kt` | Suites de pruebas unitarias para `WeatherConditionTest`, `OpenMeteoDtoTest`, `WeatherRepositoryTest` y `FroggyAssetCatalogTest`. |
 
 ## 4. Pendientes explícitos para la próxima fase
 
-- [ ] Implementar la Fase Rive (`.riv`) + Clima en tiempo real (Open-Meteo API) siguiendo `weather_froggy_roadmap.md`.
-- [ ] Agregar dependencia `app.rive:rive-android:11.2.1` en `app/build.gradle.kts`.
-- [ ] Descargar e integrar los assets vectoriales `.riv` de Froggy desde `https://github.com/R0rt1z2/Froggy.git` en `app/src/main/res/raw/`.
-- [ ] Implementar `WeatherRepository` con llamadas a `https://api.open-meteo.com/v1/forecast` y caché local Room/DataStore de 2-3 horas para optimizar consumo de red y batería.
-- [ ] Mapear códigos meteorológicos WMO a las animaciones de Froggy / Zen según corresponda (soleado, lluvia, nieve, tormenta, nublado).
+- [ ] Evaluar la creación o conversión de animaciones interactivas de Froggy a formato `.riv` nativo en el Rive Editor para incrustar la rana animada vectorial en `res/raw/`.
+- [ ] Incorporar selector de Escenario Zen (`Campos`, `Colina`, `Hongos`) en el menú de Ajustes de Monkify (`SettingsScreen.kt`).
+- [ ] Desarrollar widgets de pantalla de inicio o control ambiental si el usuario lo solicita.
 
 ## 5. Riesgos / deuda técnica conocida
 
-- **Riesgo:** Peso de la app al agregar el runtime de Rive (`app.rive:rive-android`).
-  **Impacto:** El APK podría aumentar entre 1.5 y 2.5 MB debido a las librerías nativas C++ de renderizado vectorial de Rive.
-  **Mitigación sugerida:** Utilizar ABI splits o App Bundles (`.aab`) en producción para empaquetar únicamente las arquitecturas necesarias (`arm64-v8a`, `armeabi-v7a`).
-- **Riesgo:** Permisos de ubicación para el clima en tiempo real.
-  **Impacto:** Solicitar permisos de ubicación fina (`ACCESS_FINE_LOCATION`) puede generar rechazo de usuarios preocupados por la privacidad.
-  **Mitigación sugerida:** Usar solo ubicación aproximada (`ACCESS_COARSE_LOCATION`) con fallback manual o selector de ciudad sin requerir GPS mandatorio.
+- **Riesgo:** Tamaño del APK aumentado a 47.4 MB debido a los 60 fondos WebP y las librerías nativas C++ de Rive (`librive-android.so`).
+  **Impacto:** Mayor tiempo de descarga para usuarios con redes lentas.
+  **Mitigación sugerida:** Generar Android App Bundles (`.aab`) para producción en Google Play o aplicar ABI splits por arquitectura de CPU (`arm64-v8a`).
 
 ## 6. Cómo verificar que este handoff sigue vigente
 
-```bash
+```powershell
 # En el cliente Android:
-./gradlew.bat testDebugUnitTest
-./gradlew.bat assembleRelease
-
-# En el backend de Cloudflare:
-cd "../Monkify/cloudflare-backend" && npm test
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleRelease
 ```
 
 ---

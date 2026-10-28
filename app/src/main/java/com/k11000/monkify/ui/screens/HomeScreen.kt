@@ -86,6 +86,9 @@ import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.playback.PlayerViewModel
 import com.k11000.monkify.ui.components.TrackArtwork
 import com.k11000.monkify.ui.components.ZenBackground
+import com.k11000.monkify.ui.components.resolveCurrentZenTimeOfDay
+import com.k11000.monkify.ui.components.toZenTimeOfDay
+import com.k11000.monkify.domain.model.WeatherCondition
 import com.k11000.monkify.ui.screens.viewmodel.HomeViewModel
 import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
@@ -125,6 +128,7 @@ fun HomeScreen(
     val settingsState by settingsViewModel.uiState.collectAsState()
     val isZenCleared by playerViewModel.isZenCleared.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val currentWeather by playerViewModel.currentWeather.collectAsState()
 
     // Manejo de desplazamiento al tope y restauración de pantalla despejada al pulsar Inicio
     LaunchedEffect(scrollToTopTrigger) {
@@ -151,10 +155,15 @@ fun HomeScreen(
             .fillMaxSize()
             .background(MonkifyBackground)
     ) {
-        // Capa 1: Fondo Zen animado (Aurora o Visualizador reactivo)
+        // Capa 1: Fondo Zen animado reactivo al clima y ciclo diurno/nocturno
+        val zenWeatherCondition = currentWeather?.condition ?: WeatherCondition.SUNNY
+        val zenTimeOfDay = currentWeather?.resolveDayPart()?.toZenTimeOfDay() ?: resolveCurrentZenTimeOfDay()
+
         ZenBackground(
             isPlaying = isPlaying,
             engine = settingsState.zenEngine,
+            timeOfDay = zenTimeOfDay,
+            weatherCondition = zenWeatherCondition,
             modifier = Modifier.fillMaxSize()
         )
 

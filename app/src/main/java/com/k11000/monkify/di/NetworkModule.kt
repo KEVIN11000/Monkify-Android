@@ -1,5 +1,6 @@
 package com.k11000.monkify.di
 
+import com.google.gson.Gson
 import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.data.remote.api.AuthInterceptor
 import com.k11000.monkify.data.remote.api.GitHubReleaseApi
@@ -17,6 +18,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson {
+        return Gson()
+    }
 
     @Provides
     @Singleton
@@ -43,11 +50,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideRetrofit(okHttpClient: OkHttpClient, gson: Gson): Retrofit {
         return Retrofit.Builder()
             .baseUrl(BuildConfig.BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
 
@@ -59,11 +66,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): GitHubReleaseApi {
+    fun provideGitHubReleaseApi(okHttpClient: OkHttpClient, gson: Gson): GitHubReleaseApi {
         return Retrofit.Builder()
             .baseUrl("https://api.github.com/")
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(GitHubReleaseApi::class.java)
     }

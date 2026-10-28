@@ -102,6 +102,9 @@ import com.k11000.monkify.ui.components.QueueBottomSheet
 import com.k11000.monkify.ui.components.TrackArtwork
 import com.k11000.monkify.ui.components.VinylTurntable
 import com.k11000.monkify.ui.components.ZenBackground
+import com.k11000.monkify.ui.components.resolveCurrentZenTimeOfDay
+import com.k11000.monkify.ui.components.toZenTimeOfDay
+import com.k11000.monkify.domain.model.WeatherCondition
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
@@ -134,6 +137,7 @@ fun FullScreenPlayer(
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
     val zenModeEnabled by viewModel.zenModeEnabled.collectAsState()
     val zenEngine by viewModel.zenEngine.collectAsState()
+    val currentWeather by viewModel.currentWeather.collectAsState()
     val coverStyle by viewModel.coverStyle.collectAsState()
     val playbackSource by viewModel.playbackSource.collectAsState()
     val queue by viewModel.queue.collectAsState()
@@ -189,9 +193,14 @@ fun FullScreenPlayer(
             )
     ) {
         if (zenModeEnabled) {
+            val fullWeatherCondition = currentWeather?.condition ?: WeatherCondition.SUNNY
+            val fullTimeOfDay = currentWeather?.resolveDayPart()?.toZenTimeOfDay() ?: resolveCurrentZenTimeOfDay()
+
             ZenBackground(
                 isPlaying = isPlaying,
                 engine = zenEngine,
+                timeOfDay = fullTimeOfDay,
+                weatherCondition = fullWeatherCondition,
                 modifier = Modifier.fillMaxSize()
             )
             // Viñeta ambiental superior e inferior para óptimo contraste de tipografías y controles

@@ -1,5 +1,6 @@
 package com.k11000.monkify.ui.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -8,11 +9,15 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -22,7 +27,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import app.rive.runtime.kotlin.RiveAnimationView
+import com.k11000.monkify.domain.model.FroggyScenery
+import com.k11000.monkify.domain.model.WeatherCondition
+import com.k11000.monkify.domain.model.ZenDayPart
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 import java.util.Calendar
@@ -37,7 +50,21 @@ enum class ZenTimeOfDay {
     DAWN,    // 06:00 - 08:59 (Rosa dorado, ámbar suave, neblina fresca)
     DAY,     // 09:00 - 17:59 (Cielo azul vibrante, sol radiante, nubes suaves)
     SUNSET,  // 18:00 - 20:59 (Carmesí crepuscular, violeta, ascuas doradas)
-    NIGHT    // 21:00 - 05:59 (Azul profundo, luna brillante, luciérnagas titilantes)
+    NIGHT;   // 21:00 - 05:59 (Azul profundo, luna brillante, luciérnagas titilantes)
+
+    fun toZenDayPart(): ZenDayPart = when (this) {
+        DAWN -> ZenDayPart.DAWN
+        DAY -> ZenDayPart.DAY
+        SUNSET -> ZenDayPart.SUNSET
+        NIGHT -> ZenDayPart.NIGHT
+    }
+}
+
+fun ZenDayPart.toZenTimeOfDay(): ZenTimeOfDay = when (this) {
+    ZenDayPart.DAWN -> ZenTimeOfDay.DAWN
+    ZenDayPart.DAY -> ZenTimeOfDay.DAY
+    ZenDayPart.SUNSET -> ZenTimeOfDay.SUNSET
+    ZenDayPart.NIGHT -> ZenTimeOfDay.NIGHT
 }
 
 /**
@@ -59,6 +86,10 @@ fun ZenBackground(
     isPlaying: Boolean,
     engine: String = "AURORA",
     timeOfDay: ZenTimeOfDay = resolveCurrentZenTimeOfDay(),
+    weatherCondition: WeatherCondition = WeatherCondition.SUNNY,
+    scenery: FroggyScenery = FroggyScenery.FIELDS,
+    useOfficialFroggyAssets: Boolean = true,
+    riveAnimationRes: Int? = null,
     modifier: Modifier = Modifier
 ) {
     if (engine == "NONE") {
@@ -100,6 +131,28 @@ fun ZenBackground(
             .fillMaxSize()
             .background(MonkifyBackground)
     ) {
+        // Capa 0: Fondo escénico de Google Weather en WebP de alta definición
+        if (engine == "FROGGY" && useOfficialFroggyAssets) {
+            val bgRes = FroggyAssetCatalog.getBackgroundRes(
+                scenery = scenery,
+                dayPart = timeOfDay.toZenDayPart(),
+                condition = weatherCondition
+            )
+            Crossfade(
+                targetState = bgRes,
+                animationSpec = tween(durationMillis = 800),
+                label = "FroggyBgCrossfade"
+            ) { resId ->
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        // Capa 1: Efectos atmosféricos reactivos y personajes vectoriales (Canvas)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
@@ -107,10 +160,269 @@ fun ZenBackground(
             when (engine) {
                 "VISUALIZER" -> drawVisualizerBackground(width, height, phase, pulse, isPlaying)
                 "COSMOS" -> drawCosmosBackground(width, height, phase, pulse, isPlaying)
-                "FROGGY" -> drawFroggyBackground(width, height, phase, pulse, isPlaying, timeOfDay)
+                "FROGGY" -> {
+                    if (useOfficialFroggyAssets) {
+                        drawFroggyAtmosphericOverlay(
+                            width = width,
+                            height = height,
+                            phase = phase,
+                            pulse = pulse,
+                            isPlaying = isPlaying,
+                            timeOfDay = timeOfDay,
+                            condition = weatherCondition
+                        )
+                    } else {
+                        drawFroggyBackground(width, height, phase, pulse, isPlaying, timeOfDay)
+                    }
+                }
                 else -> drawAuroraBackground(width, height, phase, pulse, isPlaying)
             }
         }
+
+        // Capa 2: Contenedor Rive Animation (si se provee recurso binario .riv)
+        if (engine == "FROGGY" && riveAnimationRes != null) {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .align(Alignment.BottomCenter),
+                factory = { ctx ->
+                    RiveAnimationView(ctx).apply {
+                        setRiveResource(riveAnimationRes)
+                    }
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Superpone partículas atmosféricas reactivas al clima sobre los fondos oficiales de Froggy.
+ */
+private fun DrawScope.drawFroggyAtmosphericOverlay(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float,
+    isPlaying: Boolean,
+    timeOfDay: ZenTimeOfDay,
+    condition: WeatherCondition
+) {
+    when (condition) {
+        WeatherCondition.RAINY -> drawAtmosphericRain(width, height, phase, pulse, isPlaying)
+        WeatherCondition.SNOWY -> drawAtmosphericSnow(width, height, phase, pulse, isPlaying)
+        WeatherCondition.HAZY -> drawAtmosphericHaze(width, height, phase, pulse)
+        WeatherCondition.SUNNY -> drawAtmosphericSunrays(width, height, phase, pulse, timeOfDay)
+        WeatherCondition.CLOUDY -> drawAtmosphericClouds(width, height, phase, pulse)
+    }
+
+    // Luciérnagas y estrellas nocturnas en franja nocturna
+    if (timeOfDay == ZenTimeOfDay.NIGHT) {
+        drawNightFireflies(width, height, phase, pulse)
+    }
+}
+
+private fun DrawScope.drawAtmosphericRain(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float,
+    isPlaying: Boolean
+) {
+    val dropCount = 42
+    val rainColor = Color(0x99B3E5FC)
+
+    for (i in 0 until dropCount) {
+        val seed = i * 137.5f
+        val xProgress = ((seed % width) / width)
+        val speed = 1.0f + (i % 5) * 0.25f
+
+        // Movimiento continuo diagonal en cascada sin saltos
+        val rawY = (phase * speed * 220f + seed * 3.7f) % (height * 1.2f)
+        val x = (width * xProgress) - (rawY * 0.15f) // Inclinación suave por viento
+        val y = rawY - (height * 0.1f)
+
+        if (y in 0f..height && x in 0f..width) {
+            drawLine(
+                color = rainColor,
+                start = Offset(x, y),
+                end = Offset(x - 6f, y + 26f),
+                strokeWidth = 2.2f
+            )
+
+            // Ondas de agua en la parte inferior (estanque/piso)
+            if (y > height * 0.78f && i % 3 == 0) {
+                val ripplePhase = (rawY / height) * 6.2831f
+                val rippleRadius = 8f + 14f * abs(sin(ripplePhase))
+                val rippleAlpha = (0.35f * (1f - (rippleRadius / 22f))).coerceIn(0f, 0.4f)
+
+                drawCircle(
+                    color = Color.White.copy(alpha = rippleAlpha),
+                    center = Offset(x, y + 26f),
+                    radius = rippleRadius
+                )
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawAtmosphericSnow(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float,
+    isPlaying: Boolean
+) {
+    val flakeCount = 38
+    val snowColor = Color(0xDDF0F4F8)
+
+    for (i in 0 until flakeCount) {
+        val seed = i * 97.3f
+        val speed = 0.5f + (i % 4) * 0.2f
+        val rawY = (phase * speed * 90f + seed * 5.1f) % (height * 1.1f)
+        val sway = 16f * sin(phase * 2f + seed)
+        val x = ((seed % width) + sway).coerceIn(0f, width)
+        val y = rawY
+
+        val size = 2.5f + (i % 3) * 1.5f
+        val alpha = 0.5f + 0.4f * abs(cos(phase + seed))
+
+        drawCircle(
+            color = snowColor.copy(alpha = alpha),
+            center = Offset(x, y),
+            radius = size * pulse
+        )
+    }
+}
+
+private fun DrawScope.drawAtmosphericHaze(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float
+) {
+    // Velo de neblina flotante en horizonte medio
+    val hazeY1 = height * (0.45f + 0.04f * sin(phase * 0.8f))
+    val hazeY2 = height * (0.62f - 0.03f * cos(phase * 0.6f))
+
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Transparent,
+                Color(0x33E0E0E0),
+                Color(0x4DFAFAFA),
+                Color.Transparent
+            ),
+            startY = hazeY1 - 80f,
+            endY = hazeY1 + 100f
+        ),
+        topLeft = Offset(0f, hazeY1 - 80f),
+        size = Size(width, 180f)
+    )
+
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color.Transparent,
+                Color(0x28ECEFF1),
+                Color.Transparent
+            ),
+            startY = hazeY2 - 60f,
+            endY = hazeY2 + 80f
+        ),
+        topLeft = Offset(0f, hazeY2 - 60f),
+        size = Size(width, 140f)
+    )
+}
+
+private fun DrawScope.drawAtmosphericSunrays(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float,
+    timeOfDay: ZenTimeOfDay
+) {
+    if (timeOfDay == ZenTimeOfDay.NIGHT) return
+
+    val rayColor = if (timeOfDay == ZenTimeOfDay.SUNSET) {
+        Color(0x2BFF7043)
+    } else {
+        Color(0x28FFF59D)
+    }
+
+    val sunCenterX = width * 0.78f
+    val sunCenterY = height * 0.18f
+    val rayRadius = width * 0.95f * pulse
+
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                rayColor,
+                rayColor.copy(alpha = 0.10f),
+                Color.Transparent
+            ),
+            center = Offset(sunCenterX, sunCenterY),
+            radius = rayRadius
+        ),
+        center = Offset(sunCenterX, sunCenterY),
+        radius = rayRadius
+    )
+}
+
+private fun DrawScope.drawAtmosphericClouds(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float
+) {
+    // Nubes sutiles adicionales que derivan en capas
+    val cloudX = width * (0.50f + 0.12f * cos(phase * 0.7f))
+    val cloudY = height * 0.22f
+
+    drawCircle(
+        color = Color.White.copy(alpha = 0.12f),
+        center = Offset(cloudX, cloudY),
+        radius = 70f * pulse
+    )
+    drawCircle(
+        color = Color.White.copy(alpha = 0.15f),
+        center = Offset(cloudX + 45f, cloudY - 10f),
+        radius = 90f * pulse
+    )
+    drawCircle(
+        color = Color.White.copy(alpha = 0.10f),
+        center = Offset(cloudX + 90f, cloudY + 5f),
+        radius = 65f * pulse
+    )
+}
+
+private fun DrawScope.drawNightFireflies(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float
+) {
+    val fireflyCount = 14
+    for (i in 0 until fireflyCount) {
+        val seed = i * 113.1f
+        val fx = width * (0.15f + 0.70f * abs(sin(phase * 0.6f + seed)))
+        val fy = height * (0.55f + 0.35f * abs(cos(phase * 0.8f + seed * 1.5f)))
+        val fGlow = 4.5f + 2.5f * sin(phase * 3f + seed)
+        val fAlpha = (0.4f + 0.5f * abs(sin(phase * 2.5f + seed))).coerceIn(0f, 0.95f)
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFE2F97D).copy(alpha = fAlpha),
+                    Color(0xFF76FF03).copy(alpha = fAlpha * 0.3f),
+                    Color.Transparent
+                ),
+                center = Offset(fx, fy),
+                radius = fGlow * 3f
+            ),
+            center = Offset(fx, fy),
+            radius = fGlow * 3f
+        )
     }
 }
 
@@ -161,11 +473,11 @@ private fun DrawScope.drawAuroraBackground(
         center = Offset(blob2X, blob2Y)
     )
 
-    // Blob 3: Violeta Espacial (#7C4DFF)
+    // Blob 3: Violeta Místico (#7C4DFF)
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.30f else 0.14f),
+                Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.22f else 0.10f),
                 Color.Transparent
             ),
             center = Offset(blob3X, blob3Y),
@@ -183,52 +495,37 @@ private fun DrawScope.drawVisualizerBackground(
     pulse: Float,
     isPlaying: Boolean
 ) {
-    val barCount = 32
-    val barWidth = width / (barCount * 1.55f)
-    val centerY = height * 0.48f
-    val maxAmplitude = if (isPlaying) height * 0.20f else height * 0.05f
+    val barCount = 28
+    val barWidth = (width / barCount) * 0.65f
+    val spacing = (width / barCount) * 0.35f
+    val maxBarHeight = height * 0.32f
+
+    val brush = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF00E5FF),
+            MonkifyPrimary,
+            MonkifyPrimary.copy(alpha = 0.2f)
+        )
+    )
 
     for (i in 0 until barCount) {
-        val normalizedIndex = i.toFloat() / barCount
-        val wave1 = sin(phase * 2f + normalizedIndex * 6.283f)
-        val wave2 = cos(phase * 2f - normalizedIndex * 6.283f)
-        val combined = (wave1 + wave2) / 2f
-        val barHeight = (abs(combined) * maxAmplitude * pulse).coerceAtLeast(8f)
+        val harmonicPhase = phase + (i.toFloat() / barCount) * 6.2831853f
+        val wave1 = sin(harmonicPhase)
+        val wave2 = cos(harmonicPhase * 2f)
+        val combinedWave = ((wave1 + wave2 * 0.5f) / 1.5f).coerceIn(-1f, 1f)
+        val normalizedHeight = (abs(combinedWave) * 0.85f + 0.15f) * (if (isPlaying) pulse else 0.6f)
+        val currentBarHeight = maxBarHeight * normalizedHeight
 
-        val x = (i * (barWidth * 1.55f)) + (barWidth * 0.25f)
-        val top = centerY - barHeight / 2f
-
-        val barBrush = Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF00E5FF).copy(alpha = if (isPlaying) 0.85f else 0.35f),
-                MonkifyPrimary.copy(alpha = if (isPlaying) 0.95f else 0.45f),
-                Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.70f else 0.25f)
-            ),
-            startY = top,
-            endY = top + barHeight
-        )
+        val x = i * (barWidth + spacing) + spacing / 2
+        val y = height * 0.65f - (currentBarHeight / 2)
 
         drawRoundRect(
-            brush = barBrush,
-            topLeft = Offset(x, top),
-            size = Size(barWidth, barHeight),
-            cornerRadius = CornerRadius(barWidth / 2f)
+            brush = brush,
+            topLeft = Offset(x, y),
+            size = Size(barWidth, currentBarHeight),
+            cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
         )
     }
-
-    // Resplandor difuso ambiental centrado
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                MonkifyPrimary.copy(alpha = if (isPlaying) 0.22f else 0.09f),
-                Color.Transparent
-            ),
-            center = Offset(width * 0.5f, centerY),
-            radius = width * 0.7f
-        ),
-        radius = width * 0.7f,
-        center = Offset(width * 0.5f, centerY)
-    )
 }
 
 private fun DrawScope.drawCosmosBackground(
@@ -238,192 +535,122 @@ private fun DrawScope.drawCosmosBackground(
     pulse: Float,
     isPlaying: Boolean
 ) {
-    // 1. Espacio profundo obsidiana
-    drawRect(Color(0xFF03050C))
-
-    // 2. Galaxia Espiral Lejana (HD Cosmic Core)
-    val galX = width * 0.72f
-    val galY = height * 0.26f
-    rotate(degrees = -26f, pivot = Offset(galX, galY)) {
-        // Disco de gas exterior con respiración zen suave
-        drawOval(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFF7C3AED).copy(alpha = if (isPlaying) 0.35f else 0.18f),
-                    Color(0xFF4338CA).copy(alpha = if (isPlaying) 0.20f else 0.08f),
-                    Color.Transparent
-                ),
-                center = Offset(galX, galY),
-                radius = width * 0.30f * pulse
-            ),
-            topLeft = Offset(galX - width * 0.30f, galY - width * 0.10f),
-            size = Size(width * 0.60f, width * 0.20f)
+    // 1. Fondo estelar base
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF04060C),
+                Color(0xFF090D1A),
+                Color(0xFF070B16),
+                Color(0xFF020408)
+            )
         )
-        // Núcleo galáctico denso y brillante
-        drawOval(
+    )
+
+    // 2. Galaxia Espiral Inclinada (-26°) con brillo central
+    val galaxyX = width * (0.52f + 0.05f * sin(phase * 0.7f))
+    val galaxyY = height * (0.36f + 0.03f * cos(phase * 0.5f))
+    val coreRadius = width * 0.55f * pulse
+
+    rotate(degrees = -26f, pivot = Offset(galaxyX, galaxyY)) {
+        drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFFFFBEB).copy(alpha = if (isPlaying) 0.95f else 0.75f),
-                    Color(0xFFFDE047).copy(alpha = if (isPlaying) 0.60f else 0.35f),
-                    Color(0xFFEC4899).copy(alpha = if (isPlaying) 0.35f else 0.15f),
+                    Color(0xFF80D8FF).copy(alpha = if (isPlaying) 0.40f else 0.22f),
+                    Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.28f else 0.14f),
+                    Color(0xFF536DFE).copy(alpha = if (isPlaying) 0.15f else 0.08f),
                     Color.Transparent
                 ),
-                center = Offset(galX, galY),
-                radius = width * 0.12f
+                center = Offset(galaxyX, galaxyY),
+                radius = coreRadius
             ),
-            topLeft = Offset(galX - width * 0.12f, galY - width * 0.045f),
-            size = Size(width * 0.24f, width * 0.09f)
+            radius = coreRadius,
+            center = Offset(galaxyX, galaxyY)
+        )
+
+        val arm1Radius = width * 0.75f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFFF4081).copy(alpha = if (isPlaying) 0.18f else 0.08f),
+                    Color(0xFF7C4DFF).copy(alpha = 0.08f),
+                    Color.Transparent
+                ),
+                center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f),
+                radius = arm1Radius
+            ),
+            radius = arm1Radius,
+            center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f)
         )
     }
 
-    // 3. Nebulosa Cósmica 1: Púrpura Profundo (desplazamiento armónico sin saltos)
-    val neb1X = width * (0.30f + 0.06f * sin(phase))
-    val neb1Y = height * (0.35f + 0.05f * cos(phase))
-    val neb1Radius = width * 0.95f * pulse
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0xFF5A189A).copy(alpha = if (isPlaying) 0.35f else 0.16f),
-                Color(0xFF240046).copy(alpha = if (isPlaying) 0.20f else 0.08f),
-                Color.Transparent
-            ),
-            center = Offset(neb1X, neb1Y),
-            radius = neb1Radius
-        ),
-        radius = neb1Radius,
-        center = Offset(neb1X, neb1Y)
-    )
-
-    // 4. Nebulosa Cósmica 2: Magenta y Violeta Eléctrico
-    val neb2X = width * (0.68f - 0.07f * cos(phase))
-    val neb2Y = height * (0.62f + 0.05f * sin(phase))
-    val neb2Radius = width * 0.85f * pulse
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0xFF9D4EDD).copy(alpha = if (isPlaying) 0.30f else 0.14f),
-                Color(0xFF3C096C).copy(alpha = if (isPlaying) 0.18f else 0.07f),
-                Color.Transparent
-            ),
-            center = Offset(neb2X, neb2Y),
-            radius = neb2Radius
-        ),
-        radius = neb2Radius,
-        center = Offset(neb2X, neb2Y)
-    )
-
-    // 5. Nebulosa Cósmica 3: Azul Cósmico / Cyan Estelar
-    val neb3X = width * (0.50f + 0.07f * sin(phase))
-    val neb3Y = height * (0.18f + 0.04f * cos(phase))
-    val neb3Radius = width * 0.75f
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0xFF0077B6).copy(alpha = if (isPlaying) 0.25f else 0.12f),
-                Color.Transparent
-            ),
-            center = Offset(neb3X, neb3Y),
-            radius = neb3Radius
-        ),
-        radius = neb3Radius,
-        center = Offset(neb3X, neb3Y)
-    )
-
-    // 6. Nebulosa Cósmica 4: Vivero Estelar Rosa
-    val neb4X = width * (0.22f - 0.05f * cos(phase))
-    val neb4Y = height * (0.75f - 0.04f * sin(phase))
-    val neb4Radius = width * 0.65f
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                Color(0xFF9F1239).copy(alpha = if (isPlaying) 0.18f else 0.07f),
-                Color.Transparent
-            ),
-            center = Offset(neb4X, neb4Y),
-            radius = neb4Radius
-        ),
-        radius = neb4Radius,
-        center = Offset(neb4X, neb4Y)
-    )
-
-    // 7. Campo Estelar HD (72 estrellas periódicamente continuas)
+    // 3. 72 estrellas con picos de difracción
     val starCount = 72
     for (i in 0 until starCount) {
         val seed = i * 137.5f
-        val starX = (abs(sin(seed)) * width)
-        val starY = (abs(sin(seed * 2.3f)) * height)
-        val freq = 1 + (i % 3)
-        val twinkle = (sin(phase * freq + i.toFloat()) + 1f) / 2f
-        val alpha = (0.25f + 0.75f * twinkle) * (if (isPlaying) 1.0f else 0.6f)
-        val starRadius = (1.1f + (i % 3) * 0.7f) * (if (i % 7 == 0) pulse else 1f)
+        val starX = (seed * 11.3f) % width
+        val starY = (seed * 7.1f) % height
+        val isSpikeStar = i % 9 == 0
 
-        val starColor = when (i % 5) {
-            0 -> Color.White
-            1 -> Color(0xFFBAE6FD) // Cyan pálido
-            2 -> Color(0xFFFEF08A) // Oro pálido
-            3 -> Color(0xFFE9D5FF) // Lavanda suave
-            else -> Color(0xFFF1F5F9)
-        }.copy(alpha = alpha.coerceIn(0f, 1f))
+        val starPhase = phase * (1.2f + (i % 5) * 0.4f) + (i.toFloat())
+        val twinkle = (0.25f + 0.75f * abs(sin(starPhase))).coerceIn(0.1f, 1.0f)
+
+        val starColor = when (i % 4) {
+            0 -> Color(0xFFE0F7FA)
+            1 -> Color(0xFFFFF9C4)
+            2 -> Color(0xFFF8BBD0)
+            else -> Color.White
+        }
+
+        val baseRadius = if (isSpikeStar) 2.2f else (1.0f + (i % 3) * 0.4f)
+        val finalRadius = baseRadius * twinkle
 
         drawCircle(
-            color = starColor,
-            radius = starRadius,
-            center = Offset(starX, starY)
+            color = starColor.copy(alpha = twinkle * 0.9f),
+            center = Offset(starX, starY),
+            radius = finalRadius
         )
 
-        // Picos de difracción en cruz de 4 puntas en estrellas prominentes
-        if (i % 8 == 0) {
-            val spikeLen = (7f + (i % 3) * 4f) * pulse
-            val spikeAlpha = (alpha * 0.60f).coerceIn(0f, 1f)
-            val spikeColor = starColor.copy(alpha = spikeAlpha)
-
+        if (isSpikeStar && twinkle > 0.45f) {
+            val spikeLen = 8.5f * twinkle
+            val spikeColor = starColor.copy(alpha = twinkle * 0.40f)
             drawLine(
                 color = spikeColor,
                 start = Offset(starX - spikeLen, starY),
                 end = Offset(starX + spikeLen, starY),
-                strokeWidth = 1.1f
+                strokeWidth = 1.0f
             )
             drawLine(
                 color = spikeColor,
                 start = Offset(starX, starY - spikeLen),
                 end = Offset(starX, starY + spikeLen),
-                strokeWidth = 1.1f
+                strokeWidth = 1.0f
             )
         }
     }
 
-    // 8. Estrella Fugaz periódica y continua (sin saltos bruscos: aparece y desvanece suavemente con seno)
-    val meteorWave = sin(phase * 2f)
-    if (meteorWave > 0.88f) {
-        val progress = (meteorWave - 0.88f) / 0.12f // 0f a 1f
-        val headX = width * 0.20f + progress * width * 0.45f
-        val headY = height * 0.08f + progress * height * 0.18f
-        val tailLen = 50f * sin(progress * 3.14159f)
-        val tailX = headX - tailLen
-        val tailY = headY - tailLen * 0.45f
-        val meteorAlpha = (sin(progress * 3.14159f) * 0.90f).coerceIn(0f, 1f)
+    // 4. Meteoro continuo suave
+    val meteorProgress = abs(sin(phase * 1.5f))
+    if (meteorProgress in 0.05f..0.65f) {
+        val normalized = (meteorProgress - 0.05f) / 0.60f
+        val startX = width * (0.85f - normalized * 0.65f)
+        val startY = height * (0.12f + normalized * 0.35f)
+        val length = 65f * (1f - normalized * 0.3f)
 
-        if (tailLen > 2f) {
-            drawLine(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFFBAE6FD).copy(alpha = meteorAlpha * 0.5f),
-                        Color.White.copy(alpha = meteorAlpha)
-                    ),
-                    start = Offset(tailX, tailY),
-                    end = Offset(headX, headY)
+        drawLine(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.85f * (1f - normalized)),
+                    Color(0xFF80D8FF).copy(alpha = 0.45f * (1f - normalized)),
+                    Color.Transparent
                 ),
-                start = Offset(tailX, tailY),
-                end = Offset(headX, headY),
-                strokeWidth = 2.0f
-            )
-            drawCircle(
-                color = Color.White.copy(alpha = meteorAlpha),
-                radius = 2.0f,
-                center = Offset(headX, headY)
-            )
-        }
+                start = Offset(startX, startY),
+                end = Offset(startX + length * 0.8f, startY - length * 0.5f)
+            ),
+            start = Offset(startX, startY),
+            end = Offset(startX + length * 0.8f, startY - length * 0.5f),
+            strokeWidth = 1.8f
+        )
     }
 }
 
@@ -435,522 +662,216 @@ private fun DrawScope.drawFroggyBackground(
     isPlaying: Boolean,
     timeOfDay: ZenTimeOfDay
 ) {
-    // 1. Cielo con paleta según franja horaria
+    // Gradiente de cielo según Day/Night cycle
     val skyColors = when (timeOfDay) {
         ZenTimeOfDay.DAWN -> listOf(
-            Color(0xFF2E1C4E), // Púrpura matinal en cúspide
-            Color(0xFF8C4F6E), // Rosa cálido
-            Color(0xFFF39C6B)  // Ámbar suave en horizonte
+            Color(0xFFF8BBD0), // Rosa suave del amanecer
+            Color(0xFFFFE0B2), // Ámbar dorado matutino
+            Color(0xFFE0F7FA)  // Cyan fresco en el horizonte
         )
         ZenTimeOfDay.DAY -> listOf(
-            Color(0xFF1E88E5), // Azul cerúleo cielo
-            Color(0xFF42A5F5), // Azul brillante medio
-            Color(0xFF90CAF9)  // Azul brisa luminoso horizonte
+            Color(0xFF4FC3F7), // Azul cielo vibrante
+            Color(0xFF81D4FA), // Celeste luminoso
+            Color(0xFFE1F5FE)  // Blanco suave en el horizonte
         )
         ZenTimeOfDay.SUNSET -> listOf(
-            Color(0xFF1F1235), // Violeta profundo
-            Color(0xFF831843), // Carmesí / púrpura crepúsculo
-            Color(0xFFD97706), // Naranja cálido
-            Color(0xFFF59E0B)  // Resplandor dorado horizonte
+            Color(0xFF311B92), // Violeta crepuscular superior
+            Color(0xFFE65100), // Carmesí anaranjado
+            Color(0xFFFFB74D)  // Dorado cálido en el horizonte
         )
         ZenTimeOfDay.NIGHT -> listOf(
-            Color(0xFF0F2027),
-            Color(0xFF203A43),
-            Color(0xFF2C5364)
+            Color(0xFF0A1128), // Azul noche profundo
+            Color(0xFF101F42), // Azul zafiro nocturno
+            Color(0xFF1C2D5A)  // Horizonte oscuro suave
         )
     }
 
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = skyColors,
-            startY = 0f,
-            endY = height * 0.70f
-        )
-    )
+    drawRect(brush = Brush.verticalGradient(colors = skyColors))
 
-    // 2. Elementos celestes según franja (Sol / Luna / Nubes continuas)
-    when (timeOfDay) {
-        ZenTimeOfDay.NIGHT -> {
-            // Luna suave con recorte
-            val moonX = width * 0.82f
-            val moonY = height * 0.12f
-            val moonGlowRadius = width * 0.28f * pulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFFFF9C4).copy(alpha = if (isPlaying) 0.35f else 0.18f),
-                        Color.Transparent
-                    ),
-                    center = Offset(moonX, moonY),
-                    radius = moonGlowRadius
-                ),
-                radius = moonGlowRadius,
-                center = Offset(moonX, moonY)
-            )
-            drawCircle(
-                color = Color(0xFFFFFDE7),
-                radius = 22f,
-                center = Offset(moonX, moonY)
-            )
-            drawCircle(
-                color = Color(0xFF1E3545),
-                radius = 18f,
-                center = Offset(moonX - 6f, moonY - 4f)
-            )
+    // Astro celestial (Sol / Luna) con pulso suave
+    val celestialY = height * when (timeOfDay) {
+        ZenTimeOfDay.DAWN -> 0.32f
+        ZenTimeOfDay.DAY -> 0.18f
+        ZenTimeOfDay.SUNSET -> 0.38f
+        ZenTimeOfDay.NIGHT -> 0.22f
+    }
+    val celestialX = width * when (timeOfDay) {
+        ZenTimeOfDay.DAWN -> 0.30f
+        ZenTimeOfDay.DAY -> 0.75f
+        ZenTimeOfDay.SUNSET -> 0.70f
+        ZenTimeOfDay.NIGHT -> 0.80f
+    }
+    val celestialRadius = width * 0.12f * pulse
 
-            // Estrellas nocturnas continuas
-            for (i in 0 until 24) {
-                val sX = (abs(sin(i * 91.3f)) * width)
-                val sY = (abs(sin(i * 47.7f)) * height * 0.55f)
-                val freq = 1 + (i % 3)
-                val starTwinkle = (sin(phase * freq + i.toFloat()) + 1f) / 2f
-                drawCircle(
-                    color = Color.White.copy(alpha = (0.3f + 0.7f * starTwinkle).coerceIn(0f, 1f)),
-                    radius = if (i % 4 == 0) 2.2f else 1.4f,
-                    center = Offset(sX, sY)
-                )
-            }
-        }
-        ZenTimeOfDay.DAWN -> {
-            // Estrellas matinales atenuándose
-            for (i in 0 until 8) {
-                val sX = (abs(sin(i * 57.3f)) * width)
-                val sY = (abs(sin(i * 31.1f)) * height * 0.28f)
-                val starTwinkle = (sin(phase + i.toFloat()) + 1f) / 2f
-                drawCircle(
-                    color = Color(0xFFFFF9C4).copy(alpha = (0.15f + 0.35f * starTwinkle)),
-                    radius = 1.3f,
-                    center = Offset(sX, sY)
-                )
-            }
-
-            // Sol naciente en el horizonte este
-            val sunX = width * 0.76f
-            val sunY = height * 0.44f
-            val sunGlow = width * 0.28f * pulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFFFE082).copy(alpha = if (isPlaying) 0.40f else 0.22f),
-                        Color.Transparent
-                    ),
-                    center = Offset(sunX, sunY),
-                    radius = sunGlow
-                ),
-                radius = sunGlow,
-                center = Offset(sunX, sunY)
-            )
-            drawCircle(
-                color = Color(0xFFFFF8E1),
-                radius = 24f,
-                center = Offset(sunX, sunY)
-            )
-
-            // Franja de neblina matinal dorada
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFFFFE0B2).copy(alpha = 0.16f),
-                        Color.Transparent
-                    ),
-                    startY = height * 0.56f,
-                    endY = height * 0.66f
-                ),
-                topLeft = Offset(0f, height * 0.56f),
-                size = Size(width, height * 0.10f)
-            )
-        }
-        ZenTimeOfDay.DAY -> {
-            // Sol diurno radiante
-            val sunX = width * 0.80f
-            val sunY = height * 0.15f
-            val sunGlow = width * 0.32f * pulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFFFF9C4).copy(alpha = if (isPlaying) 0.42f else 0.22f),
-                        Color.Transparent
-                    ),
-                    center = Offset(sunX, sunY),
-                    radius = sunGlow
-                ),
-                radius = sunGlow,
-                center = Offset(sunX, sunY)
-            )
-            drawCircle(
-                color = Color(0xFFFFF59D),
-                radius = 26f,
-                center = Offset(sunX, sunY)
-            )
-            drawCircle(
-                color = Color.White,
-                radius = 18f,
-                center = Offset(sunX, sunY)
-            )
-
-            // Nubes suaves estilo Google Weather con movimiento armónico continuo (sin saltos)
-            val c1X = width * 0.45f + sin(phase) * (width * 0.35f)
-            val c1Y = height * 0.18f + sin(phase * 0.5f) * 6f
-            drawCircle(Color.White.copy(alpha = 0.82f), radius = 24f, center = Offset(c1X, c1Y))
-            drawCircle(Color.White.copy(alpha = 0.82f), radius = 32f, center = Offset(c1X + 22f, c1Y - 6f))
-            drawCircle(Color.White.copy(alpha = 0.82f), radius = 26f, center = Offset(c1X + 48f, c1Y + 2f))
-            drawCircle(Color.White.copy(alpha = 0.82f), radius = 18f, center = Offset(c1X + 66f, c1Y + 6f))
-
-            val c2X = width * 0.50f - cos(phase) * (width * 0.38f)
-            val c2Y = height * 0.32f + cos(phase * 0.5f) * 6f
-            drawCircle(Color.White.copy(alpha = 0.68f), radius = 18f, center = Offset(c2X, c2Y))
-            drawCircle(Color.White.copy(alpha = 0.68f), radius = 26f, center = Offset(c2X + 20f, c2Y - 4f))
-            drawCircle(Color.White.copy(alpha = 0.68f), radius = 20f, center = Offset(c2X + 42f, c2Y + 2f))
-        }
-        ZenTimeOfDay.SUNSET -> {
-            // Estrellas vespertinas tempranas
-            for (i in 0 until 6) {
-                val sX = (abs(sin(i * 43.1f)) * width)
-                val sY = (abs(sin(i * 19.5f)) * height * 0.22f)
-                val starTwinkle = (sin(phase + i.toFloat()) + 1f) / 2f
-                drawCircle(
-                    color = Color(0xFFFEF08A).copy(alpha = (0.25f + 0.5f * starTwinkle)),
-                    radius = 1.4f,
-                    center = Offset(sX, sY)
-                )
-            }
-
-            // Sol grande del ocaso recortándose en el horizonte
-            val sunX = width * 0.62f
-            val sunY = height * 0.50f
-            val sunGlow = width * 0.35f * pulse
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFFB923C).copy(alpha = if (isPlaying) 0.50f else 0.30f),
-                        Color.Transparent
-                    ),
-                    center = Offset(sunX, sunY),
-                    radius = sunGlow
-                ),
-                radius = sunGlow,
-                center = Offset(sunX, sunY)
-            )
-            drawCircle(
-                color = Color(0xFFF97316),
-                radius = 32f,
-                center = Offset(sunX, sunY)
-            )
-            drawCircle(
-                color = Color(0xFFFBBF24),
-                radius = 22f,
-                center = Offset(sunX, sunY)
-            )
-
-            // Nubes vespertinas teñidas con oscilación armónica continua
-            val twCloudX = width * 0.30f + sin(phase) * (width * 0.18f)
-            val tcY = height * 0.38f + cos(phase) * 5f
-            drawCircle(Color(0xFF9D4EDD).copy(alpha = 0.35f), radius = 22f, center = Offset(twCloudX, tcY))
-            drawCircle(Color(0xFFF59E0B).copy(alpha = 0.30f), radius = 28f, center = Offset(twCloudX + 24f, tcY - 4f))
-            drawCircle(Color(0xFF9D4EDD).copy(alpha = 0.35f), radius = 20f, center = Offset(twCloudX + 50f, tcY + 2f))
-        }
+    val celestialColors = when (timeOfDay) {
+        ZenTimeOfDay.DAWN -> listOf(Color(0xFFFFCC80), Color(0xFFFFE082), Color.Transparent)
+        ZenTimeOfDay.DAY -> listOf(Color(0xFFFFF59D), Color(0xFFFFF176), Color.Transparent)
+        ZenTimeOfDay.SUNSET -> listOf(Color(0xFFFF7043), Color(0xFFFF8A65), Color.Transparent)
+        ZenTimeOfDay.NIGHT -> listOf(Color(0xFFE0F7FA), Color(0xFFB2EBF2), Color.Transparent)
     }
 
-    // 3. Colinas suaves en el horizonte con iluminación ambiental
-    val (hill1Color, hill2Color) = when (timeOfDay) {
-        ZenTimeOfDay.DAWN -> Color(0xFF3B2342) to Color(0xFF26132C)
-        ZenTimeOfDay.DAY -> Color(0xFF2E7D32) to Color(0xFF1B5E20)
-        ZenTimeOfDay.SUNSET -> Color(0xFF381B34) to Color(0xFF220C1F)
-        ZenTimeOfDay.NIGHT -> Color(0xFF13222A) to Color(0xFF0C191F)
-    }
-
-    val hill1Path = Path().apply {
-        moveTo(0f, height * 0.65f)
-        quadraticTo(width * 0.35f, height * 0.58f, width * 0.70f, height * 0.64f)
-        quadraticTo(width * 0.88f, height * 0.66f, width, height * 0.62f)
-        lineTo(width, height)
-        lineTo(0f, height)
-        close()
-    }
-    drawPath(hill1Path, color = hill1Color)
-
-    val hill2Path = Path().apply {
-        moveTo(0f, height * 0.69f)
-        quadraticTo(width * 0.45f, height * 0.63f, width, height * 0.71f)
-        lineTo(width, height)
-        lineTo(0f, height)
-        close()
-    }
-    drawPath(hill2Path, color = hill2Color)
-
-    // 4. Estanque de agua en la parte inferior
-    val pondTop = height * 0.74f
-    val (pondColor1, pondColor2) = when (timeOfDay) {
-        ZenTimeOfDay.DAWN -> Color(0xFF221526) to Color(0xFF130A17)
-        ZenTimeOfDay.DAY -> Color(0xFF0A3D62) to Color(0xFF062338)
-        ZenTimeOfDay.SUNSET -> Color(0xFF2D1224) to Color(0xFF180613)
-        ZenTimeOfDay.NIGHT -> Color(0xFF0B171C) to Color(0xFF060E12)
-    }
-
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(pondColor1, pondColor2),
-            startY = pondTop,
-            endY = height
-        ),
-        topLeft = Offset(0f, pondTop),
-        size = Size(width, height - pondTop)
-    )
-
-    // Reflejo ambiental en el agua según cuerpo celeste
-    val (reflectionX, reflectionColor) = when (timeOfDay) {
-        ZenTimeOfDay.DAWN -> (width * 0.76f) to Color(0xFFFFE082)
-        ZenTimeOfDay.DAY -> (width * 0.80f) to Color(0xFFFFF9C4)
-        ZenTimeOfDay.SUNSET -> (width * 0.62f) to Color(0xFFF97316)
-        ZenTimeOfDay.NIGHT -> (width * 0.82f) to Color(0xFFFFF9C4)
-    }
-
-    drawOval(
+    drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(
-                reflectionColor.copy(alpha = if (isPlaying) 0.26f * pulse else 0.14f),
-                Color.Transparent
-            ),
-            center = Offset(reflectionX, pondTop + 35f),
-            radius = width * 0.28f
+            colors = celestialColors,
+            center = Offset(celestialX, celestialY),
+            radius = celestialRadius * 1.5f
         ),
-        topLeft = Offset(reflectionX - width * 0.22f, pondTop + 15f),
-        size = Size(width * 0.44f, 42f)
+        radius = celestialRadius * 1.5f,
+        center = Offset(celestialX, celestialY)
     )
 
-    // 5. Nenúfares adaptados a la iluminación
-    val (outerPadColor, frogPadColor) = when (timeOfDay) {
-        ZenTimeOfDay.DAY -> Color(0xFF388E3C) to Color(0xFF4CAF50)
-        ZenTimeOfDay.DAWN -> Color(0xFF254B3E) to Color(0xFF387259)
-        ZenTimeOfDay.SUNSET -> Color(0xFF2E4839) to Color(0xFF3C6650)
-        ZenTimeOfDay.NIGHT -> Color(0xFF1B4332) to Color(0xFF2D6A4F)
+    // Colinas y estanque
+    val hillColor = when (timeOfDay) {
+        ZenTimeOfDay.DAWN -> Color(0xFF81C784)
+        ZenTimeOfDay.DAY -> Color(0xFF66BB6A)
+        ZenTimeOfDay.SUNSET -> Color(0xFF5D4037)
+        ZenTimeOfDay.NIGHT -> Color(0xFF1B3B2B)
+    }
+    val pondColor = when (timeOfDay) {
+        ZenTimeOfDay.DAWN -> Color(0xFF4DD0E1)
+        ZenTimeOfDay.DAY -> Color(0xFF29B6F6)
+        ZenTimeOfDay.SUNSET -> Color(0xFF7E57C2)
+        ZenTimeOfDay.NIGHT -> Color(0xFF0D253A)
     }
 
-    drawOval(
-        color = outerPadColor,
-        topLeft = Offset(width * 0.12f, pondTop + 45f),
-        size = Size(75f, 24f)
+    drawCircle(
+        color = hillColor,
+        radius = width * 0.85f,
+        center = Offset(width * 0.25f, height * 0.82f)
     )
-    drawOval(
-        color = outerPadColor,
-        topLeft = Offset(width * 0.75f, pondTop + 55f),
-        size = Size(85f, 26f)
-    )
-
-    // Nenúfar central donde reposa Froggy
-    val padCenterX = width * 0.48f
-    val padCenterY = pondTop + 38f
-    drawOval(
-        color = frogPadColor,
-        topLeft = Offset(padCenterX - 65f, padCenterY - 14f),
-        size = Size(130f, 32f)
+    drawCircle(
+        color = hillColor.copy(alpha = 0.9f),
+        radius = width * 0.95f,
+        center = Offset(width * 0.80f, height * 0.86f)
     )
 
-    // 6. Ranita Froggy contemplando el horizonte
-    val frogBobbing = (pulse - 1f) * 6f
-    val frogBaseX = padCenterX
-    val frogBaseY = padCenterY - 4f + frogBobbing
-
-    val (frogBodyColor, frogBellyColor, frogFootColor) = when (timeOfDay) {
-        ZenTimeOfDay.DAY -> Triple(Color(0xFF55B382), Color(0xFFA3E4C1), Color(0xFF388E3C))
-        ZenTimeOfDay.DAWN -> Triple(Color(0xFF4BA678), Color(0xFF8FD8B3), Color(0xFF2D6A4F))
-        ZenTimeOfDay.SUNSET -> Triple(Color(0xFF488C6C), Color(0xFF82C8A4), Color(0xFF2D6A4F))
-        ZenTimeOfDay.NIGHT -> Triple(Color(0xFF40916C), Color(0xFF74C69D), Color(0xFF2D6A4F))
-    }
-
-    // Cuerpo y vientre
+    // Estanque
     drawOval(
-        color = frogBodyColor,
-        topLeft = Offset(frogBaseX - 22f, frogBaseY - 32f),
-        size = Size(44f, 34f)
-    )
-    drawOval(
-        color = frogBellyColor,
-        topLeft = Offset(frogBaseX - 12f, frogBaseY - 26f),
-        size = Size(24f, 22f)
+        color = pondColor,
+        topLeft = Offset(width * 0.05f, height * 0.76f),
+        size = Size(width * 0.90f, height * 0.22f)
     )
 
-    // Mejillas tiernas (blush)
-    val cheekColor = Color(0xFFFF8DA1).copy(alpha = if (timeOfDay == ZenTimeOfDay.DAY) 0.55f else 0.35f)
-    drawCircle(color = cheekColor, radius = 3.5f, center = Offset(frogBaseX - 16f, frogBaseY - 21f))
-    drawCircle(color = cheekColor, radius = 3.5f, center = Offset(frogBaseX + 16f, frogBaseY - 21f))
+    // Nenúfar
+    val lilyPadX = width * 0.50f
+    val lilyPadY = height * 0.83f
+    drawOval(
+        color = Color(0xFF2E7D32),
+        topLeft = Offset(lilyPadX - 65f, lilyPadY - 22f),
+        size = Size(130f, 44f)
+    )
 
+    // Froggy Zen en el centro
+    val froggyX = lilyPadX
+    val froggyY = lilyPadY - 25f
+    val froggyBreath = (pulse - 1.0f) * 6f
+
+    // Cuerpo
+    drawCircle(
+        color = Color(0xFF4CAF50),
+        radius = 26f + froggyBreath,
+        center = Offset(froggyX, froggyY)
+    )
+    // Panza
+    drawCircle(
+        color = Color(0xFFC8E6C9),
+        radius = 16f + froggyBreath * 0.7f,
+        center = Offset(froggyX, froggyY + 4f)
+    )
     // Ojos
-    val eyeY = frogBaseY - 35f
-    val eyeSclera = if (timeOfDay == ZenTimeOfDay.DAY) Color.White else Color(0xFFFFFDE7)
-    val eyePupil = Color(0xFF1B4332)
-
-    // Ojo izquierdo
-    drawCircle(color = frogBodyColor, radius = 8f, center = Offset(frogBaseX - 11f, eyeY))
-    drawCircle(color = eyeSclera, radius = 5.5f, center = Offset(frogBaseX - 11f, eyeY))
-    drawCircle(color = eyePupil, radius = 3f, center = Offset(frogBaseX - 10f, eyeY - 1f))
-    if (timeOfDay == ZenTimeOfDay.DAY) {
-        drawCircle(color = Color.White, radius = 1.2f, center = Offset(frogBaseX - 11f, eyeY - 2f))
-    }
-
-    // Ojo derecho
-    drawCircle(color = frogBodyColor, radius = 8f, center = Offset(frogBaseX + 11f, eyeY))
-    drawCircle(color = eyeSclera, radius = 5.5f, center = Offset(frogBaseX + 11f, eyeY))
-    drawCircle(color = eyePupil, radius = 3f, center = Offset(frogBaseX + 10f, eyeY - 1f))
-    if (timeOfDay == ZenTimeOfDay.DAY) {
-        drawCircle(color = Color.White, radius = 1.2f, center = Offset(frogBaseX + 9f, eyeY - 2f))
-    }
-
-    // Patitas sentadas
-    drawOval(
-        color = frogFootColor,
-        topLeft = Offset(frogBaseX - 26f, frogBaseY - 12f),
-        size = Size(16f, 12f)
+    drawCircle(
+        color = Color(0xFF4CAF50),
+        radius = 11f,
+        center = Offset(froggyX - 16f, froggyY - 20f)
     )
-    drawOval(
-        color = frogFootColor,
-        topLeft = Offset(frogBaseX + 10f, frogBaseY - 12f),
-        size = Size(16f, 12f)
+    drawCircle(
+        color = Color(0xFF4CAF50),
+        radius = 11f,
+        center = Offset(froggyX + 16f, froggyY - 20f)
     )
-
-    // 7. Partículas continuas periódicas según franja (cero saltos al reiniciar ciclo)
-    when (timeOfDay) {
-        ZenTimeOfDay.NIGHT -> {
-            // Luciérnagas doradas en oscilación armónica continua
-            val fireflyCount = 12
-            for (i in 0 until fireflyCount) {
-                val fSeed = i * 83.1f
-                val fx = (width * (0.15f + 0.70f * abs(sin(fSeed)))) + sin(phase + i * 1.4f) * 25f
-                val fy = (height * (0.60f + 0.30f * abs(sin(fSeed * 1.7f)))) + cos(phase + i * 2.1f) * 16f
-                val fPulse = (sin(phase * 2f + i * 1.8f) + 1f) / 2f
-                val fAlpha = (0.25f + 0.75f * fPulse) * (if (isPlaying) 1.0f else 0.5f)
-
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFFFFD54F).copy(alpha = fAlpha * 0.65f),
-                            Color.Transparent
-                        ),
-                        center = Offset(fx, fy),
-                        radius = 18f
-                    ),
-                    radius = 18f,
-                    center = Offset(fx, fy)
-                )
-                drawCircle(
-                    color = Color(0xFFFFF9C4).copy(alpha = fAlpha.coerceIn(0f, 1f)),
-                    radius = 2.8f,
-                    center = Offset(fx, fy)
-                )
-            }
-        }
-        ZenTimeOfDay.DAY -> {
-            // Semillas de diente de león y motas de polen solar flotando suavemente en la brisa
-            val seedCount = 14
-            for (i in 0 until seedCount) {
-                val pSeed = i * 71.3f
-                val px = (width * (0.10f + 0.80f * abs(sin(pSeed)))) + sin(phase + i * 0.9f) * 30f
-                val py = (height * 0.65f) + cos(phase + i * 1.2f) * (height * 0.16f)
-                val pAlpha = (0.35f + 0.65f * sin(phase * 2f + i)).coerceIn(0.2f, 0.9f)
-
-                drawCircle(
-                    color = Color.White.copy(alpha = pAlpha * (if (isPlaying) 0.85f else 0.50f)),
-                    radius = 2.2f,
-                    center = Offset(px, py)
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = pAlpha * 0.40f),
-                    start = Offset(px, py),
-                    end = Offset(px - 3f, py + 5f),
-                    strokeWidth = 1f
-                )
-            }
-        }
-        ZenTimeOfDay.DAWN -> {
-            // Rocío matutino fresco destellando armónicamente
-            val dewCount = 12
-            for (i in 0 until dewCount) {
-                val dSeed = i * 61.7f
-                val dx = (width * (0.15f + 0.70f * abs(sin(dSeed)))) + sin(phase + i) * 12f
-                val dy = height * (0.68f + 0.22f * abs(sin(dSeed * 2.1f))) + cos(phase + i) * 6f
-                val dPulse = (sin(phase * 2f + i * 1.5f) + 1f) / 2f
-                val dAlpha = (0.3f + 0.7f * dPulse) * (if (isPlaying) 0.8f else 0.4f)
-
-                drawCircle(
-                    color = Color(0xFFE0F7FA).copy(alpha = dAlpha),
-                    radius = 2.5f,
-                    center = Offset(dx, dy)
-                )
-            }
-        }
-        ZenTimeOfDay.SUNSET -> {
-            // Ascuas doradas cálidas flotando suavemente
-            val emberCount = 14
-            for (i in 0 until emberCount) {
-                val eSeed = i * 79.9f
-                val ex = (width * (0.15f + 0.70f * abs(sin(eSeed)))) + sin(phase + i * 1.1f) * 20f
-                val ey = (height * 0.68f) + cos(phase + i * 1.3f) * (height * 0.14f)
-                val eAlpha = (0.35f + 0.65f * sin(phase * 2f + i)).coerceIn(0.1f, 0.95f)
-
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFFFF9800).copy(alpha = eAlpha * 0.70f),
-                            Color.Transparent
-                        ),
-                        center = Offset(ex, ey),
-                        radius = 12f
-                    ),
-                    radius = 12f,
-                    center = Offset(ex, ey)
-                )
-                drawCircle(
-                    color = Color(0xFFFFE082).copy(alpha = eAlpha),
-                    radius = 2.2f,
-                    center = Offset(ex, ey)
-                )
-            }
-        }
-    }
+    drawCircle(
+        color = Color.Black,
+        radius = 5.5f,
+        center = Offset(froggyX - 16f, froggyY - 20f)
+    )
+    drawCircle(
+        color = Color.Black,
+        radius = 5.5f,
+        center = Offset(froggyX + 16f, froggyY - 20f)
+    )
+    // Destello en ojos
+    drawCircle(
+        color = Color.White,
+        radius = 2.0f,
+        center = Offset(froggyX - 18f, froggyY - 22f)
+    )
+    drawCircle(
+        color = Color.White,
+        radius = 2.0f,
+        center = Offset(froggyX + 14f, froggyY - 22f)
+    )
+    // Mejillas sonrojadas
+    drawCircle(
+        color = Color(0xFFFF8A80).copy(alpha = 0.65f),
+        radius = 5f,
+        center = Offset(froggyX - 18f, froggyY - 5f)
+    )
+    drawCircle(
+        color = Color(0xFFFF8A80).copy(alpha = 0.65f),
+        radius = 5f,
+        center = Offset(froggyX + 18f, froggyY - 5f)
+    )
 }
 
 // ==========================================
 // PREVIEWS COMPOSE PARA VALIDACIÓN VISUAL
 // ==========================================
 
-@Preview(name = "Zen Froggy Day", showBackground = true, widthDp = 360, heightDp = 640)
+@Preview(name = "Froggy Weather - Sunny", showBackground = true, widthDp = 360, heightDp = 640)
 @Composable
-private fun ZenFroggyDayPreview() {
+private fun ZenFroggySunnyPreview() {
     ZenBackground(
         isPlaying = true,
         engine = "FROGGY",
-        timeOfDay = ZenTimeOfDay.DAY
+        timeOfDay = ZenTimeOfDay.DAY,
+        weatherCondition = WeatherCondition.SUNNY,
+        scenery = FroggyScenery.FIELDS
     )
 }
 
-@Preview(name = "Zen Froggy Sunset", showBackground = true, widthDp = 360, heightDp = 640)
+@Preview(name = "Froggy Weather - Rainy", showBackground = true, widthDp = 360, heightDp = 640)
 @Composable
-private fun ZenFroggySunsetPreview() {
+private fun ZenFroggyRainyPreview() {
     ZenBackground(
         isPlaying = true,
         engine = "FROGGY",
-        timeOfDay = ZenTimeOfDay.SUNSET
+        timeOfDay = ZenTimeOfDay.DAY,
+        weatherCondition = WeatherCondition.RAINY,
+        scenery = FroggyScenery.FIELDS
     )
 }
 
-@Preview(name = "Zen Froggy Night", showBackground = true, widthDp = 360, heightDp = 640)
+@Preview(name = "Froggy Weather - Snowy Night", showBackground = true, widthDp = 360, heightDp = 640)
 @Composable
-private fun ZenFroggyNightPreview() {
+private fun ZenFroggySnowyNightPreview() {
     ZenBackground(
         isPlaying = true,
         engine = "FROGGY",
-        timeOfDay = ZenTimeOfDay.NIGHT
+        timeOfDay = ZenTimeOfDay.NIGHT,
+        weatherCondition = WeatherCondition.SNOWY,
+        scenery = FroggyScenery.HILL
     )
 }
 
-@Preview(name = "Zen Froggy Dawn", showBackground = true, widthDp = 360, heightDp = 640)
+@Preview(name = "Froggy Weather - Hazy Sunset", showBackground = true, widthDp = 360, heightDp = 640)
 @Composable
-private fun ZenFroggyDawnPreview() {
+private fun ZenFroggyHazySunsetPreview() {
     ZenBackground(
         isPlaying = true,
         engine = "FROGGY",
-        timeOfDay = ZenTimeOfDay.DAWN
+        timeOfDay = ZenTimeOfDay.SUNSET,
+        weatherCondition = WeatherCondition.HAZY,
+        scenery = FroggyScenery.MUSHROOM
     )
 }
 

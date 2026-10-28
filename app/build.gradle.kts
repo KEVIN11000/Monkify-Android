@@ -112,6 +112,12 @@ dependencies {
     
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
+
+    // Rive Animation Runtime
+    implementation(libs.rive.android)
+
+    // Location (Coarse Location for Weather)
+    implementation(libs.play.services.location)
     
     testImplementation(libs.junit)
 

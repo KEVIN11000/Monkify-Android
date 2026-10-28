@@ -31,3 +31,7 @@ monkify_*.md
 .env.*
 google-services.json
 keystore.properties
+
+# Spec Kit & Local Agent Scaffolding
+.agents/
+.specify/
