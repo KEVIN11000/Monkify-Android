@@ -10,10 +10,10 @@
   - **Acción:** Inyectar automáticamente el token en hosts de Monkify y bloquearlo en APIs públicas (Open-Meteo, GitHub). Crear suite de pruebas unitarias.
   - **Criterio de Aceptación:** `.\gradlew.bat testDebugUnitTest --tests "com.k11000.monkify.data.remote.api.AuthInterceptorTest"` pasa al 100%. (Superado: 6/6 tests aprobados).
 
-- [ ] **Tarea 3: Propagación de Token a ExoPlayer en Reproducción de Audio**
-  - **Archivos:** `app/src/main/java/com/k11000/monkify/ui/viewmodel/PlayerViewModel.kt` o `PlaybackCache.kt`
-  - **Acción:** Adjuntar `?token=<token>` al URI de streaming si existe un token configurado en las preferencias del usuario.
-  - **Criterio de Aceptación:** Los streams generados incorporan el token para autorización en el Worker.
+- [x] **Tarea 3: Propagación de Token a ExoPlayer en Reproducción de Audio**
+  - **Archivos:** `app/src/main/java/com/k11000/monkify/playback/PlayerViewModel.kt`
+  - **Acción:** Adjuntar `?token=<token>` al URI de streaming si existe un token configurado en las preferencias del usuario y el destino es un host seguro de Monkify.
+  - **Criterio de Aceptación:** Los streams generados incorporan el token para autorización en el Worker. (Superado: Suite de compilación y unit tests verificados).
 
 - [ ] **Tarea 4: Middleware de Autenticación en Cloudflare Worker**
   - **Archivos:** `cloudflare-backend/src/index.ts`, `cloudflare-backend/src/types.ts`

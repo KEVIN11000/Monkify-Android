@@ -533,8 +533,16 @@ class PlayerViewModel @Inject constructor(
     }
 
     private var pendingPlayRequest: (() -> Unit)? = null
+    private var currentServerToken: String = ""
 
     init {
+        settingsRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.serverAccessToken.collect { token ->
+                    currentServerToken = token
+                }
+            }
+        }
         stateHolder?.let { holder ->
             holder.currentTrack.value?.let { track ->
                 currentTrack = track
@@ -893,7 +901,18 @@ class PlayerViewModel @Inject constructor(
                 if (track.streamUrl.startsWith("/")) {
                     Uri.fromFile(java.io.File(track.streamUrl))
                 } else {
-                    Uri.parse(track.streamUrl)
+                    val rawUri = Uri.parse(track.streamUrl)
+                    val host = rawUri.host?.lowercase() ?: ""
+                    val isMonkify = host.endsWith(".workers.dev") ||
+                                    host.endsWith("monkify.tudominio.com") ||
+                                    host == "10.0.2.2" ||
+                                    host == "localhost" ||
+                                    host == "127.0.0.1"
+                    if (isMonkify && currentServerToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
+                        rawUri.buildUpon().appendQueryParameter("token", currentServerToken).build()
+                    } else {
+                        rawUri
+                    }
                 }
             } else {
                 Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
