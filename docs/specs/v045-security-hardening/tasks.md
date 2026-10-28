@@ -15,10 +15,10 @@
   - **Acción:** Adjuntar `?token=<token>` al URI de streaming si existe un token configurado en las preferencias del usuario y el destino es un host seguro de Monkify.
   - **Criterio de Aceptación:** Los streams generados incorporan el token para autorización en el Worker. (Superado: Suite de compilación y unit tests verificados).
 
-- [ ] **Tarea 4: Middleware de Autenticación en Cloudflare Worker**
-  - **Archivos:** `cloudflare-backend/src/index.ts`, `cloudflare-backend/src/types.ts`
-  - **Acción:** Crear middleware de protección en `/api/v1/*` que valide `SERVER_ACCESS_TOKEN` vía headers o query parameter.
-  - **Criterio de Aceptación:** Pruebas locales de endpoints validando respuesta 401 sin token y 200 con token.
+- [x] **Tarea 4: Middleware de Autenticación en Cloudflare Worker**
+  - **Archivos:** `cloudflare-backend/src/index.ts`, `cloudflare-backend/src/types.ts`, `cloudflare-backend/test/index.spec.ts`
+  - **Acción:** Crear middleware de protección en `/api/v1/*` que valide `SERVER_ACCESS_TOKEN` vía headers (`X-Monkify-Token`, `Authorization: Bearer`) o query parameter (`?token=`).
+  - **Criterio de Aceptación:** Pruebas locales de endpoints validando respuesta 401 sin token y 200 con token. (Superado: 55/55 unit tests en Vitest aprobados al 100%).
 
 - [ ] **Tarea 5: Limpieza de Manifiesto y Reglas de Respaldo**
   - **Archivos:** `app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/backup_rules.xml`, `app/src/main/res/xml/data_extraction_rules.xml`
