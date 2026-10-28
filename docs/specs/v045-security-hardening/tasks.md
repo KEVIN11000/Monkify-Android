@@ -25,7 +25,7 @@
   - **Acción:** Remover `REQUEST_INSTALL_PACKAGES` y excluir base de datos Room y credenciales de `adb backup`.
   - **Criterio de Aceptación:** Manifiesto limpio y reglas de extracción seguras. (Superado: Verificación exitosa vía `processDebugManifest`).
 
-- [ ] **Tarea 6: ProGuard / R8 y Compilación de Release Verificada**
+- [x] **Tarea 6: ProGuard / R8 y Compilación de Release Verificada**
   - **Archivos:** `app/proguard-rules.pro`, `app/build.gradle.kts`
   - **Acción:** Crear reglas de preservación completas y activar `isMinifyEnabled = true` e `isShrinkResources = true`.
-  - **Criterio de Aceptación:** `.\gradlew.bat assembleRelease` compila exitosamente con R8 sin errores de ofuscación.
+  - **Criterio de Aceptación:** `.\gradlew.bat assembleRelease` compila exitosamente con R8 sin errores de ofuscación. (Superado: APK de release compilado con éxito en 32 MB).
