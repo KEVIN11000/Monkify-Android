@@ -5,10 +5,10 @@
   - **Acción:** Agregar soporte para `serverAccessToken` en DataStore, exponerlo en `SettingsViewModel` e implementar la sección "SEGURIDAD Y CONEXIÓN DE SERVIDOR" en `SettingsScreen`.
   - **Criterio de Aceptación:** El usuario puede configurar, ver/ocultar y persistir su token de servidor desde Ajustes. (Superado: 5/5 unit tests en `SettingsViewModelTest` aprobados).
 
-- [ ] **Tarea 2: Blindaje de Red en `AuthInterceptor` y Tests Unitarios**
+- [x] **Tarea 2: Blindaje de Red en `AuthInterceptor` y Tests Unitarios**
   - **Archivos:** `app/src/main/java/com/k11000/monkify/data/remote/api/AuthInterceptor.kt`, `app/src/test/java/com/k11000/monkify/data/remote/api/AuthInterceptorTest.kt`
   - **Acción:** Inyectar automáticamente el token en hosts de Monkify y bloquearlo en APIs públicas (Open-Meteo, GitHub). Crear suite de pruebas unitarias.
-  - **Criterio de Aceptación:** `.\gradlew.bat testDebugUnitTest --tests "com.k11000.monkify.data.remote.api.AuthInterceptorTest"` pasa al 100%.
+  - **Criterio de Aceptación:** `.\gradlew.bat testDebugUnitTest --tests "com.k11000.monkify.data.remote.api.AuthInterceptorTest"` pasa al 100%. (Superado: 6/6 tests aprobados).
 
 - [ ] **Tarea 3: Propagación de Token a ExoPlayer en Reproducción de Audio**
   - **Archivos:** `app/src/main/java/com/k11000/monkify/ui/viewmodel/PlayerViewModel.kt` o `PlaybackCache.kt`

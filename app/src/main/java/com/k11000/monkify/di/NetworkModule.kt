@@ -5,14 +5,19 @@ import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.data.remote.api.AuthInterceptor
 import com.k11000.monkify.data.remote.api.GitHubReleaseApi
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.repository.SettingsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Singleton
 
 @Module
@@ -27,8 +32,14 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideAuthInterceptor(): AuthInterceptor {
-        return AuthInterceptor()
+    fun provideAuthInterceptor(settingsRepository: SettingsRepository): AuthInterceptor {
+        val tokenRef = AtomicReference<String>("")
+        CoroutineScope(Dispatchers.IO).launch {
+            settingsRepository.serverAccessToken.collect { token ->
+                tokenRef.set(token)
+            }
+        }
+        return AuthInterceptor(tokenProvider = { tokenRef.get() })
     }
 
     @Provides
