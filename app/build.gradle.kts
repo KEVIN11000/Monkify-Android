@@ -15,20 +15,27 @@ android {
         applicationId = "com.k11000.monkify"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.4.5"
+        versionCode = 7
+        versionName = "0.4.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE")
-            if (keystoreFile != null && file(keystoreFile).exists()) {
-                storeFile = file(keystoreFile)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+            val customKeystore = System.getenv("KEYSTORE_FILE")?.let { file(it) }
+            val repoKeystore = file("keystore/monkify-release.jks")
+            val targetKeystore = when {
+                customKeystore != null && customKeystore.exists() -> customKeystore
+                repoKeystore.exists() -> repoKeystore
+                else -> null
+            }
+
+            if (targetKeystore != null) {
+                storeFile = targetKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "monkify_release_2026"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "monkify"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "monkify_release_2026"
             } else {
                 initWith(getByName("debug"))
             }

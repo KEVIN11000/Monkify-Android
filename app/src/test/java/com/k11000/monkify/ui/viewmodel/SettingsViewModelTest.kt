@@ -2,6 +2,7 @@ package com.k11000.monkify.ui.viewmodel
 
 import com.k11000.monkify.domain.model.AppUpdate
 import com.k11000.monkify.domain.repository.UpdateRepository
+import com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState
 import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -103,15 +104,18 @@ class SettingsViewModelTest {
     }
 
     private class FakeMonkifyApi(
-        private val reportHandler: (com.k11000.monkify.data.remote.dto.SupportReportRequestDto) -> com.k11000.monkify.data.remote.dto.SupportReportResponseDto
+        private val tracksHandler: () -> List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = { emptyList() },
+        private val reportHandler: (com.k11000.monkify.data.remote.dto.SupportReportRequestDto) -> com.k11000.monkify.data.remote.dto.SupportReportResponseDto = {
+            com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true, reportId = "rep_default")
+        }
     ) : com.k11000.monkify.data.remote.api.MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = tracksHandler()
         override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = reportHandler(request)
         override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
         override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
         override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
         override suspend fun getPlaylists(limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> = emptyList()
-        override suspend fun getPlaylistTracks(playlistId: String): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
+        override suspend fun getPlaylistTracks(id: String): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
         override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto = error("unused")
         override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
         override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
@@ -121,11 +125,11 @@ class SettingsViewModelTest {
     @Test
     fun submit_one_click_report_notifies_success_when_api_returns_ok() = runTest(testDispatcher) {
         val fakeRepo = FakeUpdateRepository { Result.failure(IOException()) }
-        val fakeApi = FakeMonkifyApi { req ->
+        val fakeApi = FakeMonkifyApi(reportHandler = { req ->
             assertEquals("Problema con audio", req.message)
             assertTrue(req.diagnostics.contains("BUG"))
             com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true, reportId = "rep_123")
-        }
+        })
         val viewModel = SettingsViewModel(settingsRepository = null, updateRepository = fakeRepo, monkifyApi = fakeApi)
 
         var callbackSuccess: Boolean? = null
@@ -139,22 +143,37 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun set_server_access_token_updates_state_and_shows_message() = runTest(testDispatcher) {
+    fun set_server_access_token_updates_state_and_verifies_connection_when_api_present() = runTest(testDispatcher) {
         val fakeRepo = FakeUpdateRepository { Result.failure(IOException()) }
-        val viewModel = SettingsViewModel(settingsRepository = null, updateRepository = fakeRepo)
+        val fakeApi = FakeMonkifyApi(tracksHandler = {
+            listOf(
+                com.k11000.monkify.data.remote.dto.BackendTrackDto(
+                    id = "1",
+                    title = "Test",
+                    artist = "Artist",
+                    album = "Album",
+                    durationMs = 1000L,
+                    coverUrl = null,
+                    streamUrl = null,
+                    isDownloaded = false
+                )
+            )
+        })
+        val viewModel = SettingsViewModel(settingsRepository = null, updateRepository = fakeRepo, monkifyApi = fakeApi)
 
         viewModel.setServerAccessToken("  my_secret_token_123  ")
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals("my_secret_token_123", state.serverAccessToken)
-        assertTrue(state.message?.contains("guardada") == true)
+        assertTrue(state.connectionTestState is ServerConnectionTestState.Success)
 
         viewModel.setServerAccessToken("")
         advanceUntilIdle()
 
         val clearedState = viewModel.uiState.value
         assertEquals("", clearedState.serverAccessToken)
+        assertEquals(ServerConnectionTestState.Idle, clearedState.connectionTestState)
         assertTrue(clearedState.message?.contains("eliminada") == true)
     }
 }

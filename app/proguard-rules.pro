@@ -10,7 +10,8 @@
     @com.google.gson.annotations.SerializedName <fields>;
     @com.google.gson.annotations.Expose <fields>;
 }
--keep class com.k11000.monkify.data.remote.model.** { *; }
+-keep class com.k11000.monkify.data.remote.dto.** { *; }
+-keep class com.k11000.monkify.domain.model.** { *; }
 -keep class com.k11000.monkify.data.local.model.** { *; }
 -keep class com.k11000.monkify.data.local.entity.** { *; }
 

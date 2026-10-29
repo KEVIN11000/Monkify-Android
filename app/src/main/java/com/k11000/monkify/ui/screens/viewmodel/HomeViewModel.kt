@@ -3,7 +3,9 @@ package com.k11000.monkify.ui.screens.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.api.ServerStatusMonitor
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
+import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.domain.model.CurrentWeather
 import com.k11000.monkify.domain.model.SyncStatus
 import com.k11000.monkify.domain.model.Track
@@ -14,12 +16,15 @@ import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.SyncScheduler
 import com.k11000.monkify.domain.repository.TrackRepository
 import com.k11000.monkify.domain.repository.WeatherRepository
+import com.k11000.monkify.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -43,7 +48,8 @@ class HomeViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository? = null,
     private val syncScheduler: SyncScheduler? = null,
     private val monkifyApi: MonkifyApi? = null,
-    private val weatherRepository: WeatherRepository? = null
+    private val weatherRepository: WeatherRepository? = null,
+    private val settingsRepository: SettingsRepository? = null
 ) : ViewModel() {
 
     private val _selectedFilter = MutableStateFlow(HomeFilter.ALL)
@@ -157,9 +163,26 @@ class HomeViewModel @Inject constructor(
 
     init {
         observeRecentAndMadeForYou()
+        observeTokenChanges()
         loadData()
         viewModelScope.launch {
             weatherRepository?.refreshWeatherIfNeeded(force = false)
+        }
+    }
+
+    private fun observeTokenChanges() {
+        settingsRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.serverAccessToken
+                    .drop(1)
+                    .distinctUntilChanged()
+                    .collect { newToken ->
+                        if (newToken.isNotBlank()) {
+                            AppLogger.i("HomeViewModel", "Token de servidor actualizado: recargando catálogo automáticamente")
+                            refresh()
+                        }
+                    }
+            }
         }
     }
 
@@ -200,7 +223,9 @@ class HomeViewModel @Inject constructor(
                     if (latest.isNotEmpty()) {
                         _latestUploadedTracks.value = latest
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    AppLogger.w("HomeViewModel", "Fallo al cargar novedades recientes: ${e.message}")
+                }
 
                 // 2. Cargar álbumes para el filtro Álbumes
                 loadAlbums()
@@ -218,7 +243,7 @@ class HomeViewModel @Inject constructor(
                     _hasMore.value = tracks.size >= PAGE_SIZE
                 }
             } catch (e: Exception) {
-                // Silencioso
+                AppLogger.e("HomeViewModel", "Error en loadData()", e)
             } finally {
                 _isLoading.value = false
             }
@@ -233,7 +258,9 @@ class HomeViewModel @Inject constructor(
                 if (remote.isNotEmpty()) {
                     _albums.value = remote
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                AppLogger.w("HomeViewModel", "Error al cargar álbumes: ${e.message}")
+                ServerStatusMonitor.shared.reportException("Carga de álbumes", e)
             } finally {
                 _isLoadingAlbums.value = false
             }
@@ -256,7 +283,7 @@ class HomeViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                // Silencioso o reintentable en el siguiente scroll
+                AppLogger.w("HomeViewModel", "Error en loadMore(): ${e.message}")
             } finally {
                 _isLoadingMore.value = false
             }

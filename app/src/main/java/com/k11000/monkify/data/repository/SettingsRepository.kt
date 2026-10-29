@@ -11,7 +11,9 @@ import com.k11000.monkify.playback.PlaybackCache
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -22,6 +24,9 @@ class SettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val dataStore: DataStore<Preferences>
 ) {
+
+    @Volatile
+    private var cachedServerToken: String? = null
 
     val cacheLimitMb: Flow<Long> = dataStore.data.map { preferences ->
         preferences[KEY_CACHE_LIMIT_MB] ?: DEFAULT_CACHE_LIMIT_MB
@@ -52,7 +57,26 @@ class SettingsRepository @Inject constructor(
     }
 
     val serverAccessToken: Flow<String> = dataStore.data.map { preferences ->
-        preferences[KEY_SERVER_ACCESS_TOKEN] ?: ""
+        (preferences[KEY_SERVER_ACCESS_TOKEN] ?: "").also { token ->
+            cachedServerToken = token
+        }
+    }
+
+    /**
+     * Obtiene el token de acceso de manera inmediata y libre de condiciones de carrera al arranque.
+     * Si el caché en memoria aún no fue inicializado, realiza una única lectura síncrona en IO.
+     */
+    fun getServerAccessTokenImmediate(): String {
+        cachedServerToken?.let { return it }
+        return try {
+            runBlocking(Dispatchers.IO) {
+                val token = dataStore.data.first()[KEY_SERVER_ACCESS_TOKEN]?.trim().orEmpty()
+                cachedServerToken = token
+                token
+            }
+        } catch (_: Exception) {
+            cachedServerToken.orEmpty()
+        }
     }
 
     suspend fun setCacheLimitMb(mb: Long) {
@@ -98,8 +122,10 @@ class SettingsRepository @Inject constructor(
     }
 
     suspend fun setServerAccessToken(token: String) {
+        val cleanToken = token.trim()
+        cachedServerToken = cleanToken
         dataStore.edit { preferences ->
-            preferences[KEY_SERVER_ACCESS_TOKEN] = token.trim()
+            preferences[KEY_SERVER_ACCESS_TOKEN] = cleanToken
         }
     }
 

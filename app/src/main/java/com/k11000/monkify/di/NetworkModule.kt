@@ -17,7 +17,6 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Singleton
 
 @Module
@@ -33,13 +32,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideAuthInterceptor(settingsRepository: SettingsRepository): AuthInterceptor {
-        val tokenRef = AtomicReference<String>("")
+        // Mantiene caliente el caché en memoria ante cambios reactivos en DataStore
         CoroutineScope(Dispatchers.IO).launch {
-            settingsRepository.serverAccessToken.collect { token ->
-                tokenRef.set(token)
-            }
+            settingsRepository.serverAccessToken.collect { /* actualiza cachedServerToken en SettingsRepository */ }
         }
-        return AuthInterceptor(tokenProvider = { tokenRef.get() })
+        return AuthInterceptor(tokenProvider = { settingsRepository.getServerAccessTokenImmediate() })
     }
 
     @Provides

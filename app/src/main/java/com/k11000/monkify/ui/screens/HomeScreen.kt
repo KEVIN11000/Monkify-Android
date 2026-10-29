@@ -393,8 +393,14 @@ fun HomeScreen(
                             }
                         }
                     }
+                } else if (isLoading) {
+                    HomeCatalogLoadingSection(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    )
                 } else {
-                    // Fallback de carga inicial con botón de prueba interactivo
+                    // Fallback cuando finalizó la carga sin catálogo disponible (permite reintentar o probar audio)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -402,11 +408,21 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         QuickGridFallbackItem(
+                            title = "Reintentar conexión",
+                            onClick = {
+                                com.k11000.monkify.data.remote.api.ServerStatusMonitor.shared.reportConnecting(
+                                    "Reintentando sincronización del catálogo...",
+                                    isExplicit = true
+                                )
+                                viewModel.refresh()
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        QuickGridFallbackItem(
                             title = "Play Test Track",
                             onClick = { playerViewModel.playTestTrack() },
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -1123,6 +1139,66 @@ private fun ZenGestureOverlay(
                 color = MonkifyGray.copy(alpha = 0.75f),
                 textAlign = TextAlign.Center
             )
+        }
+    }
+}
+
+@Composable
+fun HomeCatalogLoadingSection(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MonkifyDarkGray.copy(alpha = 0.85f))
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = MonkifyPrimary,
+                strokeWidth = 2.dp
+            )
+            Column {
+                Text(
+                    text = "Sincronizando biblioteca...",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MonkifyOnBackground
+                )
+                Text(
+                    text = "Conectando con el servidor para cargar tus canciones",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MonkifyGray
+                )
+            }
+        }
+        repeat(3) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                com.k11000.monkify.ui.components.SkeletonQuickPlayItem(modifier = Modifier.weight(1f))
+                com.k11000.monkify.ui.components.SkeletonQuickPlayItem(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, backgroundColor = 0xFF121212)
+@Composable
+fun HomeCatalogLoadingSectionPreview() {
+    com.k11000.monkify.ui.theme.MyApplicationTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MonkifyBackground)
+                .padding(16.dp)
+        ) {
+            HomeCatalogLoadingSection(modifier = Modifier.fillMaxWidth())
         }
     }
 }

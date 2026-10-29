@@ -757,6 +757,12 @@ class PlayerViewModel @Inject constructor(
         val cause = error.cause
         val message = cause?.message ?: error.message ?: ""
         return when {
+            message.contains("401") || message.contains("403") || message.contains("Unauthorized", ignoreCase = true) -> {
+                com.k11000.monkify.data.remote.api.ServerStatusMonitor.shared.reportUnauthorized(
+                    "Acceso denegado al reproducir (HTTP 401): Verifica tu Clave de Servidor en Ajustes"
+                )
+                "Acceso denegado (HTTP 401): Verifica tu Clave de Servidor en Ajustes"
+            }
             message.contains("404") || error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
                 "Pista no disponible en el servidor (HTTP 404)"
             message.contains("Unable to connect") || message.contains("ConnectException") || error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
@@ -908,8 +914,11 @@ class PlayerViewModel @Inject constructor(
                                     host == "10.0.2.2" ||
                                     host == "localhost" ||
                                     host == "127.0.0.1"
-                    if (isMonkify && currentServerToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
-                        rawUri.buildUpon().appendQueryParameter("token", currentServerToken).build()
+                    val effectiveToken = currentServerToken.ifBlank {
+                        settingsRepository?.getServerAccessTokenImmediate().orEmpty()
+                    }
+                    if (isMonkify && effectiveToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
+                        rawUri.buildUpon().appendQueryParameter("token", effectiveToken).build()
                     } else {
                         rawUri
                     }

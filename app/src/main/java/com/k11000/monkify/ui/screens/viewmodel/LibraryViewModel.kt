@@ -3,12 +3,15 @@ package com.k11000.monkify.ui.screens.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.api.ServerStatusMonitor
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
 import com.k11000.monkify.data.repository.LocalTrackRepository
+import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
+import com.k11000.monkify.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +19,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -45,7 +50,8 @@ class LibraryViewModel @Inject constructor(
     private val monkifyApi: MonkifyApi? = null,
     private val playlistRepository: PlaylistRepository? = null,
     private val downloadRepository: DownloadRepository? = null,
-    private val trackRepository: com.k11000.monkify.domain.repository.TrackRepository? = null
+    private val trackRepository: com.k11000.monkify.domain.repository.TrackRepository? = null,
+    private val settingsRepository: SettingsRepository? = null
 ) : ViewModel() {
 
     val totalStorageBytes: StateFlow<Long> = (downloadRepository?.downloadedTrackIds
@@ -278,6 +284,25 @@ class LibraryViewModel @Inject constructor(
         loadPlaylists()
         loadAlbums()
         loadCatalog()
+        observeTokenChanges()
+    }
+
+    private fun observeTokenChanges() {
+        settingsRepository?.let { repo ->
+            viewModelScope.launch {
+                repo.serverAccessToken
+                    .drop(1)
+                    .distinctUntilChanged()
+                    .collect { newToken ->
+                        if (newToken.isNotBlank()) {
+                            AppLogger.i("LibraryViewModel", "Token de servidor actualizado: recargando Biblioteca")
+                            loadPlaylists()
+                            loadAlbums()
+                            loadCatalog()
+                        }
+                    }
+            }
+        }
     }
 
     fun loadCatalog() {
@@ -287,8 +312,8 @@ class LibraryViewModel @Inject constructor(
                 if (tracks.isNotEmpty()) {
                     _catalogTracks.value = tracks
                 }
-            } catch (_: Exception) {
-                // Silencioso o sin conexión
+            } catch (e: Exception) {
+                AppLogger.w("LibraryViewModel", "Error en loadCatalog(): ${e.message}")
             }
         }
     }
@@ -306,7 +331,9 @@ class LibraryViewModel @Inject constructor(
                         _albums.value = deriveLocalAlbums(localTracks)
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                AppLogger.w("LibraryViewModel", "Error en loadAlbums(): ${e.message}")
+                ServerStatusMonitor.shared.reportException("Carga de álbumes", e)
                 val localTracks = localTrackRepository.getAllLocalTracks()
                 if (localTracks.isNotEmpty()) {
                     _albums.value = deriveLocalAlbums(localTracks)
@@ -329,8 +356,9 @@ class LibraryViewModel @Inject constructor(
                 } else if (monkifyApi != null) {
                     _playlists.value = monkifyApi.getPlaylists()
                 }
-            } catch (_: Exception) {
-                // Silencioso o sin conexión
+            } catch (e: Exception) {
+                AppLogger.w("LibraryViewModel", "Error en loadPlaylists(): ${e.message}")
+                ServerStatusMonitor.shared.reportException("Carga de playlists", e)
             } finally {
                 _isLoadingPlaylists.value = false
             }
@@ -444,4 +472,3 @@ class LibraryViewModel @Inject constructor(
         }
     }
 }
-

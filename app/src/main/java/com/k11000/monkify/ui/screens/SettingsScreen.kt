@@ -516,21 +516,34 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val isTesting = uiState.connectionTestState is com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState.Testing
                         Button(
                             onClick = { viewModel.setServerAccessToken(tokenInput) },
+                            enabled = !isTesting,
                             colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Guardar Clave", color = Color.White)
+                            if (isTesting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Conectando...", color = Color.White)
+                            } else {
+                                Text("Guardar y Conectar", color = Color.White)
+                            }
                         }
 
-                        if (uiState.serverAccessToken.isNotBlank()) {
+                        if (uiState.serverAccessToken.isNotBlank() || tokenInput.isNotBlank()) {
                             OutlinedButton(
                                 onClick = {
                                     tokenInput = ""
                                     viewModel.setServerAccessToken("")
                                 },
+                                enabled = !isTesting,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6B6B)),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
@@ -539,13 +552,41 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (uiState.serverAccessToken.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "✓ Servidor configurado con acceso autenticado",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MonkifyPrimary
-                        )
+                    when (val testState = uiState.connectionTestState) {
+                        is com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState.Testing -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Verificando clave de acceso con Cloudflare Worker...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MonkifyGray
+                            )
+                        }
+                        is com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState.Success -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = testState.message,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MonkifyPrimary
+                            )
+                        }
+                        is com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState.Error -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = testState.message,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = Color(0xFFFF6B6B)
+                            )
+                        }
+                        com.k11000.monkify.ui.screens.viewmodel.ServerConnectionTestState.Idle -> {
+                            if (uiState.serverAccessToken.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "✓ Clave guardada en el dispositivo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MonkifyPrimary
+                                )
+                            }
+                        }
                     }
                 }
             }
