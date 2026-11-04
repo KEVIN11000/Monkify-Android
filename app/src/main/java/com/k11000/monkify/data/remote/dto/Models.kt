@@ -1,6 +1,7 @@
 package com.k11000.monkify.data.remote.dto
 
 import com.google.gson.annotations.SerializedName
+import com.k11000.monkify.BuildConfig
 
 data class TrackDto(
     @SerializedName("id") val id: String,
@@ -89,7 +90,7 @@ data class LyricsResponse(
 data class SupportReportRequestDto(
     @SerializedName("message") val message: String,
     @SerializedName("diagnostics") val diagnostics: String,
-    @SerializedName("app_version") val appVersion: String = "0.4.0",
+    @SerializedName("app_version") val appVersion: String = BuildConfig.VERSION_NAME,
     @SerializedName("device_model") val deviceModel: String = ""
 )
 

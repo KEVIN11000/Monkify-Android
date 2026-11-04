@@ -17,6 +17,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.MonkifyPlaybackService
 import com.k11000.monkify.domain.model.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -95,6 +96,16 @@ class PlayerViewModel @Inject constructor(
         ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_ZEN_ENGINE)
         ?: MutableStateFlow(SettingsRepository.DEFAULT_ZEN_ENGINE)
 
+    val froggyScenery: StateFlow<String> = settingsRepository?.froggyScenery
+        ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_FROGGY_SCENERY)
+        ?: MutableStateFlow(SettingsRepository.DEFAULT_FROGGY_SCENERY)
+
+    fun refreshWeather(force: Boolean = true) {
+        viewModelScope.launch {
+            weatherRepository?.refreshWeatherIfNeeded(force = force)
+        }
+    }
+
     val coverStyle: StateFlow<String> = settingsRepository?.coverStyle
         ?.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.DEFAULT_COVER_STYLE)
         ?: MutableStateFlow(SettingsRepository.DEFAULT_COVER_STYLE)
@@ -124,6 +135,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    private val _currentTrackId = MutableStateFlow<String?>(null)
+    val currentTrackId: StateFlow<String?> = _currentTrackId.asStateFlow()
 
     private val _currentTrackTitle = MutableStateFlow("Sin reproducir")
     val currentTrackTitle: StateFlow<String> = _currentTrackTitle.asStateFlow()
@@ -236,6 +250,7 @@ class PlayerViewModel @Inject constructor(
             streamUrl = item.localConfiguration?.uri?.toString() ?: ""
         )
         currentTrack = resolved
+        _currentTrackId.value = resolved.id
         return resolved
     }
 
@@ -530,6 +545,50 @@ class PlayerViewModel @Inject constructor(
             }
             device.copy(isSelected = selected)
         }
+        routeAudioToDevice(deviceId)
+    }
+
+    private fun routeAudioToDevice(deviceId: String) {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val targetNumericId = deviceId.removePrefix("dev_").toIntOrNull()
+                val outputDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                val targetDevice = outputDevices.firstOrNull { it.id == targetNumericId } ?: return
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (targetDevice.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                        audioManager.clearCommunicationDevice()
+                    } else {
+                        try {
+                            audioManager.setCommunicationDevice(targetDevice)
+                        } catch (_: IllegalArgumentException) {
+                            // Algunos dispositivos A2DP se gestionan por el enrutador de medios del sistema
+                        }
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    when (targetDevice.type) {
+                        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> {
+                            audioManager.stopBluetoothSco()
+                            audioManager.isBluetoothScoOn = false
+                            audioManager.isSpeakerphoneOn = true
+                        }
+                        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+                        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> {
+                            audioManager.isSpeakerphoneOn = false
+                            audioManager.startBluetoothSco()
+                            audioManager.isBluetoothScoOn = true
+                        }
+                        else -> {
+                            audioManager.isSpeakerphoneOn = false
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            com.k11000.monkify.util.AppLogger.w("PlayerViewModel", "No se pudo cambiar la ruta de audio a $deviceId: ${e.message}")
+        }
     }
 
     private var pendingPlayRequest: (() -> Unit)? = null
@@ -546,6 +605,7 @@ class PlayerViewModel @Inject constructor(
         stateHolder?.let { holder ->
             holder.currentTrack.value?.let { track ->
                 currentTrack = track
+                _currentTrackId.value = track.id
                 _currentTrackTitle.value = track.title
                 _currentTrackArtist.value = track.artist
                 _coverUrl.value = track.coverUrl
@@ -587,6 +647,7 @@ class PlayerViewModel @Inject constructor(
                 )
 
             currentTrack = track
+            _currentTrackId.value = track.id
             _currentTrackTitle.value = track.title
             _currentTrackArtist.value = track.artist
             _coverUrl.value = track.coverUrl
@@ -634,22 +695,26 @@ class PlayerViewModel @Inject constructor(
 
     @OptIn(UnstableApi::class)
     private fun initializeController() {
-        val sessionToken = SessionToken(context, ComponentName(context, MonkifyPlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
-        
-        controllerFuture.addListener({
-            mediaController = controllerFuture.get()
-            mediaController?.let { controller ->
-                controller.addListener(playerListener)
-                _isShuffleEnabled.value = controller.shuffleModeEnabled
-                _repeatMode.value = controller.repeatMode
-                _isPlaying.value = controller.isPlaying
-                syncFromController(controller)
+        try {
+            val sessionToken = SessionToken(context, ComponentName(context, MonkifyPlaybackService::class.java))
+            val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+            
+            controllerFuture.addListener({
+                mediaController = controllerFuture.get()
+                mediaController?.let { controller ->
+                    controller.addListener(playerListener)
+                    _isShuffleEnabled.value = controller.shuffleModeEnabled
+                    _repeatMode.value = controller.repeatMode
+                    _isPlaying.value = controller.isPlaying
+                    syncFromController(controller)
 
-                pendingPlayRequest?.invoke()
-                pendingPlayRequest = null
-            }
-        }, ContextCompat.getMainExecutor(context))
+                    pendingPlayRequest?.invoke()
+                    pendingPlayRequest = null
+                }
+            }, ContextCompat.getMainExecutor(context))
+        } catch (_: Throwable) {
+            // En entorno de pruebas unitarias JVM sin servicio Android activo
+        }
         
         // Polling loop for playback progress
         viewModelScope.launch {
@@ -700,6 +765,7 @@ class PlayerViewModel @Inject constructor(
                 streamUrl = mediaItem.localConfiguration?.uri?.toString() ?: ""
             )
             currentTrack = track
+            _currentTrackId.value = track.id
             _currentTrackTitle.value = track.title
             _currentTrackArtist.value = track.artist
             _coverUrl.value = track.coverUrl
@@ -719,29 +785,8 @@ class PlayerViewModel @Inject constructor(
                 mediaController?.let {
                     _duration.value = it.duration.coerceAtLeast(0)
                 }
-            } else if (playbackState == Player.STATE_ENDED) {
-                mediaController?.let { controller ->
-                    if (controller.repeatMode == Player.REPEAT_MODE_OFF && controller.shuffleModeEnabled) {
-                        val timeline = controller.currentTimeline
-                        val count = controller.mediaItemCount
-                        if (!timeline.isEmpty && count > 0) {
-                            val currentIndex = controller.currentMediaItemIndex
-                            val firstIndex = timeline.getFirstWindowIndex(true).takeIf { it != androidx.media3.common.C.INDEX_UNSET }
-                            val targetIndex = if (firstIndex != null && firstIndex != currentIndex) {
-                                firstIndex
-                            } else if (count > 1) {
-                                val candidates = (0 until count).filter { it != currentIndex }
-                                candidates.random()
-                            } else {
-                                0
-                            }
-                            controller.seekTo(targetIndex, 0L)
-                            controller.prepare()
-                            controller.play()
-                        }
-                    }
-                }
             }
+            // El reinicio del ciclo shuffle en STATE_ENDED vive únicamente en MonkifyPlaybackService.
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -833,7 +878,7 @@ class PlayerViewModel @Inject constructor(
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.connectTimeout = 3000
                 conn.readTimeout = 3000
-                conn.setRequestProperty("User-Agent", "Monkify-Android/0.4.0")
+                conn.setRequestProperty("User-Agent", "Monkify-Android/${BuildConfig.VERSION_NAME}")
                 if (conn.responseCode == 200) {
                     val json = conn.inputStream.bufferedReader().use { it.readText() }
                     val syncedMatch = Regex(""""syncedLyrics":\s*"([^"]+)"""").find(json)
@@ -868,6 +913,7 @@ class PlayerViewModel @Inject constructor(
         val validStartIndex = if (startIndex in tracks.indices) startIndex else 0
         val activeTrack = tracks[validStartIndex]
         currentTrack = activeTrack
+        _currentTrackId.value = activeTrack.id
 
         _currentTrackTitle.value = activeTrack.title
         _currentTrackArtist.value = activeTrack.artist
@@ -888,7 +934,8 @@ class PlayerViewModel @Inject constructor(
             return
         }
 
-        val mediaItems = tracks.map { track ->
+        viewModelScope.launch {
+        val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { tracks.mapNotNull { track ->
             val metadata = MediaMetadata.Builder()
                 .setTitle(track.title)
                 .setArtist(track.artist)
@@ -901,42 +948,49 @@ class PlayerViewModel @Inject constructor(
                 .build()
 
             val localPath = downloadRepository.getLocalAudioPath(track.id)
+            val candidateUrl = track.remoteStreamUrl.ifBlank { track.streamUrl }
             val streamUri = if (!localPath.isNullOrBlank() && java.io.File(localPath).exists()) {
                 Uri.fromFile(java.io.File(localPath))
-            } else if (track.streamUrl.isNotBlank()) {
-                if (track.streamUrl.startsWith("/")) {
-                    Uri.fromFile(java.io.File(track.streamUrl))
+            } else if (track.streamUrl.startsWith("/") && java.io.File(track.streamUrl).exists()) {
+                Uri.fromFile(java.io.File(track.streamUrl))
+            } else if (candidateUrl.isNotBlank() && !candidateUrl.startsWith("/")) {
+                val rawUri = Uri.parse(candidateUrl)
+                val host = rawUri.host?.lowercase() ?: ""
+                val isMonkify = com.k11000.monkify.data.remote.api.AuthInterceptor.isTrustedHost(host)
+                val effectiveToken = currentServerToken.ifBlank {
+                    settingsRepository?.getServerAccessTokenImmediate().orEmpty()
+                }
+                if (isMonkify && effectiveToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
+                    rawUri.buildUpon().appendQueryParameter("token", effectiveToken).build()
                 } else {
-                    val rawUri = Uri.parse(track.streamUrl)
-                    val host = rawUri.host?.lowercase() ?: ""
-                    val isMonkify = host.endsWith(".workers.dev") ||
-                                    host.endsWith("monkify.tudominio.com") ||
-                                    host == "10.0.2.2" ||
-                                    host == "localhost" ||
-                                    host == "127.0.0.1"
-                    val effectiveToken = currentServerToken.ifBlank {
-                        settingsRepository?.getServerAccessTokenImmediate().orEmpty()
-                    }
-                    if (isMonkify && effectiveToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
-                        rawUri.buildUpon().appendQueryParameter("token", effectiveToken).build()
-                    } else {
-                        rawUri
-                    }
+                    rawUri
                 }
             } else {
-                Uri.parse("https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3")
+                null
             }
 
-            MediaItem.Builder()
-                .setMediaId(track.id)
-                .setUri(streamUri)
-                .setMediaMetadata(metadata)
-                .build()
+            if (streamUri == null) {
+                null
+            } else {
+                MediaItem.Builder()
+                    .setMediaId(track.id)
+                    .setUri(streamUri)
+                    .setMediaMetadata(metadata)
+                    .build()
+            }
+        } }
+
+        if (mediaItems.isEmpty()) {
+            _isPlaying.value = false
+            _playbackError.tryEmit("La pista seleccionada no tiene una fuente de audio disponible")
+            return@launch
         }
 
-        controller.setMediaItems(mediaItems, validStartIndex, 0L)
+        val adjustedStartIndex = validStartIndex.coerceIn(0, mediaItems.lastIndex)
+        controller.setMediaItems(mediaItems, adjustedStartIndex, 0L)
         controller.prepare()
         controller.play()
+        }
     }
 
     fun playTrack(track: Track, source: PlaybackSource = PlaybackSource.adHoc()) {
@@ -983,11 +1037,15 @@ class PlayerViewModel @Inject constructor(
         mediaController?.seekTo(positionMs)
     }
 
+    internal fun setDurationForTest(durationMs: Long) {
+        _duration.value = durationMs
+    }
+
     fun toggleShuffle() {
+        val next = !_isShuffleEnabled.value
+        _isShuffleEnabled.value = next
         mediaController?.let {
-            val newShuffle = !it.shuffleModeEnabled
-            it.shuffleModeEnabled = newShuffle
-            _isShuffleEnabled.value = newShuffle
+            it.shuffleModeEnabled = next
         }
     }
 
@@ -1001,15 +1059,14 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun toggleRepeatMode() {
-        mediaController?.let {
-            val nextMode = when (it.repeatMode) {
-                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                else -> Player.REPEAT_MODE_OFF
-            }
-            it.repeatMode = nextMode
-            _repeatMode.value = nextMode
+        val current = mediaController?.repeatMode ?: _repeatMode.value
+        val nextMode = when (current) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
         }
+        _repeatMode.value = nextMode
+        mediaController?.repeatMode = nextMode
     }
 
     fun skipToNext() {

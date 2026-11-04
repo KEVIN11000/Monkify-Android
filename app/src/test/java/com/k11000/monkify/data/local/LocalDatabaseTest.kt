@@ -59,6 +59,7 @@ class LocalDatabaseTest {
 
         val domain = downloadedEntity.toDomain()
         assertEquals("/data/user/0/com.k11000.monkify/files/t2.mp3", domain.streamUrl)
+        assertEquals("https://example.com/stream/t2", domain.remoteStreamUrl)
     }
 
     @Test
@@ -133,5 +134,11 @@ class LocalDatabaseTest {
     fun `MIGRATION_1_2 migra version 1 a 2`() {
         assertEquals(1, MonkifyDatabase.MIGRATION_1_2.startVersion)
         assertEquals(2, MonkifyDatabase.MIGRATION_1_2.endVersion)
+    }
+
+    @Test
+    fun `MIGRATION_2_3 migra version 2 a 3 creando indices`() {
+        assertEquals(2, MonkifyDatabase.MIGRATION_2_3.startVersion)
+        assertEquals(3, MonkifyDatabase.MIGRATION_2_3.endVersion)
     }
 }

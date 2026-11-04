@@ -63,8 +63,8 @@ fun AddToPlaylistDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onCreateNewPlaylist)
                         .background(MonkifyDarkGray)
+                        .clickable(onClick = onCreateNewPlaylist)
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

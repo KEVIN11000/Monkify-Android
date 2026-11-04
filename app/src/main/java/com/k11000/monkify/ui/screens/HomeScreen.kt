@@ -132,6 +132,7 @@ fun HomeScreen(
 
     // Manejo de desplazamiento al tope y restauración de pantalla despejada al pulsar Inicio
     LaunchedEffect(scrollToTopTrigger) {
+        viewModel.refreshGreeting()
         if (scrollToTopTrigger > 0) {
             playerViewModel.setZenCleared(false)
             listState.animateScrollToItem(0)
@@ -164,6 +165,7 @@ fun HomeScreen(
             engine = settingsState.zenEngine,
             timeOfDay = zenTimeOfDay,
             weatherCondition = zenWeatherCondition,
+            scenery = com.k11000.monkify.ui.components.FroggyAssetCatalog.resolveScenery(settingsState.froggyScenery),
             modifier = Modifier.fillMaxSize()
         )
 
@@ -188,54 +190,75 @@ fun HomeScreen(
                 .padding(top = statusBarPadding + 16.dp),
             contentPadding = PaddingValues(bottom = 96.dp)
         ) {
-        // Cabecera Dinámica con Saludo y Frase Motivadora
+        // Cabecera Dinámica con Saludo y Frase Motivadora (Contenedor de alto contraste redondeado)
         item {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .padding(14.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            viewModel.cycleNextPhrase()
-                            if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = greeting.title,
-                        color = MonkifyOnBackground,
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = greeting.phrase,
-                        color = MonkifyGray,
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Row {
-                    IconButton(onClick = { showNovedadesModal = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Notifications",
-                            tint = MonkifyOnBackground
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                viewModel.cycleNextPhrase()
+                                if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                            }
+                    ) {
+                        Text(
+                            text = greeting.title,
+                            color = MonkifyOnBackground,
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = greeting.phrase,
+                            color = Color(0xFFE0E0E0),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (settingsState.zenEngine == "FROGGY") {
+                            currentWeather?.let { weather ->
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = weather.temperatureSummary,
+                                    color = MonkifyPrimary,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = MonkifyOnBackground
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { showNovedadesModal = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = MonkifyOnBackground
+                            )
+                        }
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = MonkifyOnBackground
+                            )
+                        }
                     }
                 }
             }
@@ -457,7 +480,7 @@ fun HomeScreen(
                                 coverUrl = track.coverUrl,
                                 isDownloaded = track.id in downloadedTrackIds,
                                 onClick = {
-                                    if (track.album.isNotBlank()) {
+                                    if (selectedFilter != HomeFilter.MUSIC && track.album.isNotBlank()) {
                                         onNavigateToAlbum(track.album, track.artist, track.coverUrl)
                                     } else {
                                         playerViewModel.playTrack(track)
@@ -496,6 +519,42 @@ fun HomeScreen(
                                 title = "Mix: ${track.artist}",
                                 subtitle = track.title,
                                 onClick = { playerViewModel.playTrack(track) }
+                            )
+                        }
+                    }
+                    ZenSpacer(32.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                }
+            }
+
+            // Sección exclusiva cuando se filtra por Música
+            if (selectedFilter == HomeFilter.MUSIC && latestUploadedTracks.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Todas las canciones",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (settingsState.zenModeEnabled) playerViewModel.setZenCleared(true)
+                            }
+                    )
+                    ZenSpacer(16.dp, settingsState.zenModeEnabled) { playerViewModel.setZenCleared(true) }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        latestUploadedTracks.forEach { track ->
+                            QuickGridItem(
+                                track = track,
+                                isDownloaded = track.id in downloadedTrackIds,
+                                onClick = { playerViewModel.playTrack(track) },
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
@@ -581,7 +640,7 @@ fun NovedadesBottomSheet(
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "Versión activa v0.4.0 • Release",
+                        text = "Versión activa v${com.k11000.monkify.BuildConfig.VERSION_NAME} • Release",
                         color = MonkifyGray,
                         style = MaterialTheme.typography.bodySmall
                     )

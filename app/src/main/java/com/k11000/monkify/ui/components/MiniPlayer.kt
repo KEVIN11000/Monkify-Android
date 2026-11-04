@@ -39,7 +39,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.k11000.monkify.playback.PlayerViewModel
-import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import com.k11000.monkify.ui.theme.MonkifyDarkGray
 import com.k11000.monkify.ui.theme.MonkifyGray
 import com.k11000.monkify.ui.theme.MonkifyOnBackground
@@ -49,7 +48,7 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 fun MiniPlayer(
     modifier: Modifier = Modifier,
     viewModel: PlayerViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel(),
+
     isZenPeek: Boolean = false,
     onRestoreZen: () -> Unit = {},
     onExpand: () -> Unit = {}
@@ -71,32 +70,40 @@ fun MiniPlayer(
         label = "MiniPlayerZenPeek"
     ) { peekMode ->
         if (peekMode) {
-            // Modo Peek en Modo Zen: lengüeta sutil asomando desde abajo (18-20dp)
+            // Modo Peek en Modo Zen: lengüeta sutil asomando con área táctil accesible (>= 48dp)
             Box(
                 modifier = modifier
                     .fillMaxWidth()
-                    .height(20.dp)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .background(Color.Black.copy(alpha = 0.65f))
+                    .height(48.dp)
                     .clickable(onClick = onRestoreZen),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.BottomCenter
             ) {
-                // Tirador central
                 Box(
                     modifier = Modifier
-                        .width(36.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp))
-                        .background(MonkifyGray.copy(alpha = 0.7f))
-                )
-                // Línea inferior de progreso discreta
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth(fraction = progress.coerceIn(0f, 1f))
-                        .height(2.dp)
-                        .background(MonkifyPrimary)
-                )
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        .background(Color.Black.copy(alpha = 0.65f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Tirador central
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .width(36.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                            .background(MonkifyGray.copy(alpha = 0.7f))
+                    )
+                    // Línea inferior de progreso discreta
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth(fraction = progress.coerceIn(0f, 1f))
+                            .height(2.dp)
+                            .background(MonkifyPrimary)
+                    )
+                }
             }
         } else {
             // Modo normal completo del MiniPlayer

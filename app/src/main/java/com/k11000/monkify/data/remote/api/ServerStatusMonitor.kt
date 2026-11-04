@@ -41,8 +41,7 @@ sealed interface GlobalServerStatus {
     ) : GlobalServerStatus
 }
 
-@Singleton
-class ServerStatusMonitor @Inject constructor() {
+class ServerStatusMonitor {
 
     private val _status = MutableStateFlow<GlobalServerStatus>(GlobalServerStatus.Idle)
     val status: StateFlow<GlobalServerStatus> = _status.asStateFlow()

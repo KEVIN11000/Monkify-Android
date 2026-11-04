@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.width
 import android.widget.Toast
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
@@ -98,11 +100,12 @@ import com.k11000.monkify.ui.theme.MonkifyPrimary
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.ui.components.AddToPlaylistDialog
 import com.k11000.monkify.ui.components.CreatePlaylistDialog
 import com.k11000.monkify.ui.components.PlaylistCollageArtwork
 import com.k11000.monkify.ui.components.TrackArtwork
@@ -127,6 +130,7 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val displayedTracks by viewModel.displayedTracks.collectAsState()
@@ -138,7 +142,7 @@ fun LibraryScreen(
     val albums by viewModel.filteredAlbums.collectAsState()
     val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
-    val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
+    val currentTrackId by playerViewModel.currentTrackId.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
     val selectedTrackIds by viewModel.selectedTrackIds.collectAsState()
@@ -146,9 +150,11 @@ fun LibraryScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     var isSearchVisible by remember { mutableStateOf(false) }
     var trackToDeleteDownload by remember { mutableStateOf<Track?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showBatchMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(scrollToTopTrigger) {
@@ -165,7 +171,7 @@ fun LibraryScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = statusBarPadding + 16.dp, bottom = 16.dp)
+                .padding(top = statusBarPadding + 16.dp)
         ) {
             // Header
             if (isSelectionMode) {
@@ -182,27 +188,124 @@ fun LibraryScreen(
                             tint = MonkifyOnBackground
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "${selectedTrackIds.size} seleccionada${if (selectedTrackIds.size == 1) "" else "s"}",
                         color = MonkifyOnBackground,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.weight(1f)
                     )
-                    val allSelected = selectedTrackIds.size == displayedTracks.size && displayedTracks.isNotEmpty()
-                    TextButton(onClick = {
+
+                    // Acción Descargar en lote
+                    IconButton(onClick = {
                         try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
-                        if (allSelected) {
-                            viewModel.clearSelection()
-                        } else {
-                            viewModel.selectAll(displayedTracks.map { it.id })
+                        viewModel.batchDownloadSelected(displayedTracks) { comp, _ ->
+                            Toast.makeText(context, "$comp pistas descargadas", Toast.LENGTH_SHORT).show()
                         }
                     }) {
-                        Text(
-                            text = if (allSelected) "Deseleccionar" else "Seleccionar todo",
-                            color = MonkifyPrimary,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Descargar seleccionadas",
+                            tint = MonkifyPrimary
                         )
+                    }
+
+                    // Acción Añadir a Playlist
+                    IconButton(onClick = {
+                        try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                        showAddToPlaylistDialog = true
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                            contentDescription = "Añadir a Playlist",
+                            tint = MonkifyPrimary
+                        )
+                    }
+
+                    // Menú de 3 puntos para opciones adicionales
+                    Box {
+                        IconButton(onClick = { showBatchMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Más opciones de selección",
+                                tint = MonkifyOnBackground
+                            )
+                        }
+
+                        val allSelected = selectedTrackIds.size == displayedTracks.size && displayedTracks.isNotEmpty()
+                        DropdownMenu(
+                            expanded = showBatchMenu,
+                            onDismissRequest = { showBatchMenu = false },
+                            modifier = Modifier.background(MonkifyDarkGray)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (allSelected) "Deseleccionar todo" else "Seleccionar todo",
+                                        color = MonkifyOnBackground
+                                    )
+                                },
+                                onClick = {
+                                    showBatchMenu = false
+                                    try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                    if (allSelected) {
+                                        viewModel.clearSelection()
+                                    } else {
+                                        viewModel.selectAll(displayedTracks.map { it.id })
+                                    }
+                                }
+                            )
+
+                            if (selectedFilter == LibraryFilter.FAVORITES || selectedFilter == LibraryFilter.ALL) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Quitar de favoritos",
+                                            color = Color(0xFFEF4444)
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444)
+                                        )
+                                    },
+                                    onClick = {
+                                        showBatchMenu = false
+                                        try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                        viewModel.batchRemoveFavorites { count ->
+                                            Toast.makeText(context, "$count pistas quitadas de favoritos", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (selectedFilter == LibraryFilter.DOWNLOADS) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Borrar descargas",
+                                            color = Color(0xFFEF4444)
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEF4444)
+                                        )
+                                    },
+                                    onClick = {
+                                        showBatchMenu = false
+                                        try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
+                                        viewModel.batchDeleteDownloads { count ->
+                                            Toast.makeText(context, "$count descargas eliminadas", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             } else {
@@ -455,7 +558,7 @@ fun LibraryScreen(
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = navBarPadding + 88.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -514,7 +617,7 @@ fun LibraryScreen(
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = navBarPadding + 88.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -550,7 +653,7 @@ fun LibraryScreen(
         } else {
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = navBarPadding + 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -617,7 +720,7 @@ fun LibraryScreen(
                     LibraryTrackItem(
                         track = track,
                         isDownloaded = isTrackDownloaded,
-                        isCurrentPlaying = (track.title == currentTitle && isPlaying),
+                        isCurrentPlaying = (track.id == currentTrackId && isPlaying),
                         isSelectionMode = isSelectionMode,
                         isSelected = isSelected,
                         onClick = {
@@ -646,6 +749,23 @@ fun LibraryScreen(
                 onConfirm = { name ->
                     showCreatePlaylistDialog = false
                     viewModel.createPlaylist(name)
+                }
+            )
+        }
+
+        if (showAddToPlaylistDialog) {
+            AddToPlaylistDialog(
+                playlists = playlists,
+                onDismiss = { showAddToPlaylistDialog = false },
+                onSelectPlaylist = { playlistId ->
+                    showAddToPlaylistDialog = false
+                    viewModel.batchAddTracksToPlaylist(playlistId) { count ->
+                        Toast.makeText(context, "$count pistas añadidas a la playlist", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onCreateNewPlaylist = {
+                    showAddToPlaylistDialog = false
+                    showCreatePlaylistDialog = true
                 }
             )
         }
@@ -700,115 +820,7 @@ fun LibraryScreen(
         }
     }
 
-    // Barra Flotante de Acciones en Lote
-    AnimatedVisibility(
-        visible = isSelectionMode && selectedTrackIds.isNotEmpty(),
-        enter = fadeIn() + expandVertically(),
-        exit = fadeOut() + shrinkVertically(),
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Surface(
-                color = MonkifyDarkGray,
-                shape = RoundedCornerShape(20.dp),
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 72.dp, start = 16.dp, end = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Descargar en lote
-                    Button(
-                        onClick = {
-                            try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
-                            viewModel.batchDownloadSelected(displayedTracks) { comp, _ ->
-                                Toast.makeText(context, "$comp pistas descargadas", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Descargar",
-                            tint = Color.Black,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Descargar (${selectedTrackIds.size})",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
 
-                    // Quitar de Favoritos
-                    if (selectedFilter == LibraryFilter.FAVORITES || selectedFilter == LibraryFilter.ALL) {
-                        Button(
-                            onClick = {
-                                try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
-                                viewModel.batchRemoveFavorites { count ->
-                                    Toast.makeText(context, "$count pistas quitadas de favoritos", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Quitar favoritos",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Quitar",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    // Eliminar descarga si estamos en DOWNLOADS
-                    if (selectedFilter == LibraryFilter.DOWNLOADS) {
-                        Button(
-                            onClick = {
-                                try { haptic.performHapticFeedback(HapticFeedbackType.LongPress) } catch (_: Exception) {}
-                                viewModel.batchDeleteDownloads { count ->
-                                    Toast.makeText(context, "$count descargas eliminadas", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Borrar descargas",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Borrar",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 }
 
@@ -1062,8 +1074,8 @@ fun CreatePlaylistHeaderItem(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
             .background(MonkifyDarkGray)
+            .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

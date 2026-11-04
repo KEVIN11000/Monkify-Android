@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -179,7 +182,216 @@ fun ZenBackground(
             }
         }
 
-        // Capa 2: Contenedor Rive Animation (si se provee recurso binario .riv)
+        // Capa 2: Froggy Híbrido Web Live (Animación oficial Flare / Web de R0rt1z2/Froggy limpia y sin botones)
+        if (engine == "FROGGY") {
+            var webLoadFailed by remember { mutableStateOf(false) }
+
+            if (!webLoadFailed) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { context ->
+                        android.webkit.WebView(context).apply {
+                            layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.databaseEnabled = true
+                            settings.setGeolocationEnabled(true)
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            setBackgroundColor(0x00000000)
+                            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                            isClickable = false
+                            isFocusable = false
+                            setOnTouchListener { _, _ -> false }
+
+                            webChromeClient = object : android.webkit.WebChromeClient() {
+                                override fun onGeolocationPermissionsShowPrompt(
+                                    origin: String?,
+                                    callback: android.webkit.GeolocationPermissions.Callback?
+                                ) {
+                                    callback?.invoke(origin, true, false)
+                                }
+                            }
+
+                            val injectedHtml = """
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <base href="https://weather.r0rt1z2.com/">
+                              <meta charset="UTF-8">
+                              <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+                              <meta name="description" content="Froggy">
+                              <meta name="theme-color" content="#4CAF50">
+                              <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+                              <title>Froggy</title>
+                              <link rel="manifest" href="manifest.json">
+
+                              <script>
+                                try {
+                                  var froggySettings = {
+                                    unit: "celsius",
+                                    hourFormat: "h24",
+                                    locationMode: "manual",
+                                    savedLocations: [{"name":"Local","lat":-25.2637,"lon":-57.5759,"region":"Asuncion"}],
+                                    selectedLocationId: "Local",
+                                    showLocation: false,
+                                    showMusicTitle: false,
+                                    textShadow: 0.8,
+                                    overlayScale: 0.0,
+                                    checkUpdatesOnStartup: false,
+                                    showClock: false,
+                                    showDate: false,
+                                    showWeather: false,
+                                    dimMode: "off",
+                                    nightDim: 0.45,
+                                    dimStart: 1320,
+                                    dimEnd: 420,
+                                    refreshMinutes: 20,
+                                    rotateMinutes: 5,
+                                    locationRotation: "off",
+                                    locationRotateMinutes: 15,
+                                    showLocationArrows: false,
+                                    locationSwipe: "tap",
+                                    showStatus: false,
+                                    showWifi: false,
+                                    showBluetooth: false,
+                                    showMusic: false,
+                                    kioskMode: true
+                                  };
+                                  var jsonStr = JSON.stringify(froggySettings);
+                                  localStorage.setItem('flutter.settings', JSON.stringify(jsonStr));
+                                  localStorage.setItem('flutter.rotate_hint_dismissed', 'true');
+                                  localStorage.setItem('flutter.kioskMode', 'true');
+                                  localStorage.setItem('flutter.showClock', 'false');
+                                  localStorage.setItem('flutter.showDate', 'false');
+                                  localStorage.setItem('flutter.showWeather', 'false');
+                                  localStorage.setItem('flutter.overlayScale', '0.0');
+                                } catch(e) {}
+
+                                try {
+                                  if (navigator.geolocation) {
+                                    navigator.geolocation.getCurrentPosition = function(success, error, options) {
+                                      success({
+                                        coords: {
+                                          latitude: -25.2637,
+                                          longitude: -57.5759,
+                                          accuracy: 10,
+                                          altitude: null,
+                                          altitudeAccuracy: null,
+                                          heading: null,
+                                          speed: null
+                                        },
+                                        timestamp: Date.now()
+                                      });
+                                    };
+                                  }
+                                } catch(e) {}
+                              </script>
+
+                              <style>
+                                header, [class*="overlay"], [class*="clock"], [class*="hint"] {
+                                  display: none !important;
+                                }
+                                body, html {
+                                  margin: 0;
+                                  padding: 0;
+                                  width: 100%;
+                                  height: 100%;
+                                  overflow: hidden;
+                                  background-color: transparent !important;
+                                }
+                                #flutter-container {
+                                  position: absolute;
+                                  top: 0;
+                                  height: 100vh;
+                                  overflow: hidden;
+                                }
+                                @media (orientation: portrait) {
+                                  #flutter-container {
+                                    left: -12vw;
+                                    width: 124vw;
+                                  }
+                                }
+                                @media (orientation: landscape) {
+                                  #flutter-container {
+                                    left: 0;
+                                    width: 100vw;
+                                  }
+                                }
+                                flt-glass-pane {
+                                  position: absolute !important;
+                                  top: 0 !important;
+                                  left: 0 !important;
+                                  width: 100% !important;
+                                  height: 100% !important;
+                                }
+                              </style>
+                              <script src="https://weather.r0rt1z2.com/flutter.js" defer></script>
+                            </head>
+                            <body>
+                              <div id="flutter-container"></div>
+                              <script>
+                                window.addEventListener('load', function(ev) {
+                                  _flutter.loader.loadEntrypoint({
+                                    onEntrypointLoaded: function(engineInitializer) {
+                                      engineInitializer.initializeEngine({
+                                        hostElement: document.getElementById('flutter-container')
+                                      }).then(function(appRunner) {
+                                        appRunner.runApp();
+                                      });
+                                    }
+                                  });
+                                });
+                              </script>
+                            </body>
+                            </html>
+                            """.trimIndent()
+
+                            webViewClient = object : android.webkit.WebViewClient() {
+                                override fun shouldInterceptRequest(
+                                    view: android.webkit.WebView?,
+                                    request: android.webkit.WebResourceRequest?
+                                ): android.webkit.WebResourceResponse? {
+                                    val url = request?.url?.toString() ?: return null
+                                    if (url == "https://weather.r0rt1z2.com/" || url == "https://weather.r0rt1z2.com/index.html") {
+                                        return android.webkit.WebResourceResponse(
+                                            "text/html",
+                                            "UTF-8",
+                                            java.io.ByteArrayInputStream(injectedHtml.toByteArray(Charsets.UTF_8))
+                                        )
+                                    }
+                                    return super.shouldInterceptRequest(view, request)
+                                }
+
+                                override fun onReceivedError(
+                                    view: android.webkit.WebView?,
+                                    request: android.webkit.WebResourceRequest?,
+                                    error: android.webkit.WebResourceError?
+                                ) {
+                                    if (request?.isForMainFrame == true) {
+                                        webLoadFailed = true
+                                    }
+                                }
+                            }
+
+                            loadDataWithBaseURL(
+                                "https://weather.r0rt1z2.com/",
+                                injectedHtml,
+                                "text/html",
+                                "UTF-8",
+                                null
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        // Capa 3: Contenedor Rive Animation (si se provee recurso binario .riv)
         if (engine == "FROGGY" && riveAnimationRes != null) {
             AndroidView(
                 modifier = Modifier
@@ -821,6 +1033,114 @@ private fun DrawScope.drawFroggyBackground(
         radius = 5f,
         center = Offset(froggyX + 18f, froggyY - 5f)
     )
+}
+
+/**
+ * Rana Froggy animada que se dibuja sobre los fondos oficiales WebP y reacciona al clima,
+ * a la franja horaria y a la música (respiración, parpadeo, accesorios).
+ */
+private fun DrawScope.drawFroggyCharacter(
+    width: Float,
+    height: Float,
+    phase: Float,
+    pulse: Float,
+    isPlaying: Boolean,
+    timeOfDay: ZenTimeOfDay,
+    condition: WeatherCondition
+) {
+    val cx = width * 0.5f
+    val cy = height * 0.80f
+    val breath = (pulse - 1.0f) * (if (isPlaying) 9f else 5f)
+    val bob = if (isPlaying) 4f * sin(phase * 6f) else 0f
+    val bodyR = 30f + breath
+    val center = Offset(cx, cy + bob)
+
+    // Parpadeo periódico (cierra los ojos brevemente)
+    val blink = (sin(phase * 5f) > 0.97f)
+
+    // Cuerpo y panza
+    drawCircle(color = Color(0xFF4CAF50), radius = bodyR, center = center)
+    drawCircle(color = Color(0xFFC8E6C9), radius = bodyR * 0.6f, center = Offset(cx, center.y + 5f))
+
+    // Ojos
+    val eyeY = center.y - bodyR * 0.75f
+    for (dx in listOf(-bodyR * 0.55f, bodyR * 0.55f)) {
+        drawCircle(color = Color(0xFF4CAF50), radius = 12f, center = Offset(cx + dx, eyeY))
+        if (blink) {
+            drawLine(
+                color = Color.Black,
+                start = Offset(cx + dx - 6f, eyeY),
+                end = Offset(cx + dx + 6f, eyeY),
+                strokeWidth = 2.5f
+            )
+        } else {
+            drawCircle(color = Color.Black, radius = 6f, center = Offset(cx + dx, eyeY))
+            drawCircle(color = Color.White, radius = 2f, center = Offset(cx + dx - 2f, eyeY - 2f))
+        }
+    }
+    // Mejillas
+    drawCircle(Color(0xFFFF8A80).copy(alpha = 0.65f), 5f, Offset(cx - bodyR * 0.6f, center.y - 4f))
+    drawCircle(Color(0xFFFF8A80).copy(alpha = 0.65f), 5f, Offset(cx + bodyR * 0.6f, center.y - 4f))
+
+    // Accesorios reactivos al clima
+    when (condition) {
+        WeatherCondition.RAINY -> {
+            // Paraguas
+            val umbrellaY = eyeY - 34f
+            val path = Path().apply {
+                moveTo(cx - 52f, umbrellaY)
+                quadraticTo(cx, umbrellaY - 46f, cx + 52f, umbrellaY)
+                close()
+            }
+            drawPath(path, Color(0xFFEF5350))
+            drawLine(Color(0xFF6D4C41), Offset(cx, umbrellaY), Offset(cx, eyeY - 8f), strokeWidth = 3f)
+        }
+        WeatherCondition.SNOWY -> {
+            // Bufanda
+            drawRoundRect(
+                color = Color(0xFFE53935),
+                topLeft = Offset(cx - bodyR * 0.9f, center.y - bodyR * 0.15f),
+                size = Size(bodyR * 1.8f, 12f),
+                cornerRadius = CornerRadius(6f, 6f)
+            )
+            drawRoundRect(
+                color = Color(0xFFE53935),
+                topLeft = Offset(cx + bodyR * 0.45f, center.y - bodyR * 0.1f),
+                size = Size(10f, 28f),
+                cornerRadius = CornerRadius(5f, 5f)
+            )
+        }
+        WeatherCondition.SUNNY -> {
+            if (timeOfDay != ZenTimeOfDay.NIGHT) {
+                // Gafas de sol
+                for (dx in listOf(-bodyR * 0.55f, bodyR * 0.55f)) {
+                    drawCircle(Color(0xFF212121), 9f, Offset(cx + dx, eyeY))
+                }
+                drawLine(
+                    Color(0xFF212121),
+                    Offset(cx - bodyR * 0.55f, eyeY),
+                    Offset(cx + bodyR * 0.55f, eyeY),
+                    strokeWidth = 3f
+                )
+            }
+        }
+        else -> Unit
+    }
+
+    // De noche, una luciérnaga cercana que la rana "observa"
+    if (timeOfDay == ZenTimeOfDay.NIGHT) {
+        val fx = cx + 70f * sin(phase * 2f)
+        val fy = center.y - bodyR - 40f + 14f * cos(phase * 3f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFE2F97D), Color.Transparent),
+                center = Offset(fx, fy),
+                radius = 16f
+            ),
+            radius = 16f,
+            center = Offset(fx, fy)
+        )
+    }
 }
 
 // ==========================================

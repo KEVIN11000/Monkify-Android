@@ -43,6 +43,7 @@ import com.k11000.monkify.ui.components.MiniPlayer
 import com.k11000.monkify.ui.navigation.Destinations
 import com.k11000.monkify.ui.navigation.MonkifyNavGraph
 import com.k11000.monkify.ui.screens.FullScreenPlayer
+import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MyApplicationTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -56,10 +57,15 @@ class MainActivity : ComponentActivity() {
     lateinit var syncScheduler: SyncScheduler
 
     private val playerViewModel: PlayerViewModel by viewModels()
+    private val settingsViewModel: SettingsViewModel by viewModels()
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
+    private val requestPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            playerViewModel.refreshWeather(force = true)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,9 +76,13 @@ class MainActivity : ComponentActivity() {
             // No bloquear la inicialización de UI si el planificador de WorkManager está en entorno restringido
         }
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        val permissionsToRequest = buildList {
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
+        requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
 
         lifecycleScope.launch {
             playerViewModel.playbackError.collect { errorMsg ->
@@ -82,7 +92,8 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val settingsState by settingsViewModel.uiState.collectAsState()
+            MyApplicationTheme(dynamicColor = settingsState.dynamicColor) {
                 val navController = rememberNavController()
                 var showFullScreenPlayer by rememberSaveable { mutableStateOf(false) }
                 var homeScrollTrigger by rememberSaveable { mutableStateOf(0) }

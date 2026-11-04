@@ -74,6 +74,8 @@ class HomeViewModelGreetingTest {
             trackRepository = fakeTrackRepository,
             weatherRepository = fakeWeatherRepository
         )
+        viewModel.hourProvider = { 10 }
+        viewModel.refreshGreeting()
 
         val greeting = viewModel.greeting.value
         assertEquals("Buenos días", greeting.title)
@@ -100,6 +102,8 @@ class HomeViewModelGreetingTest {
             trackRepository = fakeTrackRepository,
             weatherRepository = fakeWeatherRepository
         )
+        viewModel.hourProvider = { 22 }
+        viewModel.refreshGreeting()
 
         val greeting = viewModel.greeting.value
         assertEquals("Buenas noches", greeting.title)

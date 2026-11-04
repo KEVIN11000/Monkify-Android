@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Excluir bases de datos Room locales y DataStore de respaldo no cifrado adb -->
-    <exclude domain="database" path="monkify.db" />
+    <!-- Excluir bases de datos Room locales, DataStore (con server_access_token) y logs locales -->
+    <exclude domain="database" path="monkify_local.db" />
     <exclude domain="database" path="." />
     <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="datastore" />
+    <exclude domain="file" path="logs" />
 </full-backup-content>

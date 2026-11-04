@@ -2,6 +2,7 @@ package com.k11000.monkify.ui.screens.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.api.ServerStatusMonitor
 import com.k11000.monkify.data.remote.dto.SupportReportRequestDto
@@ -32,6 +33,7 @@ data class SettingsUiState(
     val message: String? = null,
     val zenModeEnabled: Boolean = true,
     val zenEngine: String = "AURORA",
+    val froggyScenery: String = SettingsRepository.DEFAULT_FROGGY_SCENERY,
     val lockScreenEnabled: Boolean = false,
     val isCheckingUpdate: Boolean = false,
     val availableUpdate: AppUpdate? = null,
@@ -75,6 +77,11 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             viewModelScope.launch {
+                repo.froggyScenery.collect { scenery ->
+                    _uiState.update { it.copy(froggyScenery = scenery) }
+                }
+            }
+            viewModelScope.launch {
                 repo.lockScreenEnabled.collect { lockEnabled ->
                     _uiState.update { it.copy(lockScreenEnabled = lockEnabled) }
                 }
@@ -109,6 +116,12 @@ class SettingsViewModel @Inject constructor(
     fun setZenEngine(engine: String) {
         viewModelScope.launch {
             settingsRepository?.setZenEngine(engine)
+        }
+    }
+
+    fun setFroggyScenery(scenery: String) {
+        viewModelScope.launch {
+            settingsRepository?.setFroggyScenery(scenery)
         }
     }
 
@@ -295,7 +308,7 @@ class SettingsViewModel @Inject constructor(
                 val request = SupportReportRequestDto(
                     message = message,
                     diagnostics = diagnosticsText,
-                    appVersion = "0.4.0",
+                    appVersion = BuildConfig.VERSION_NAME,
                     deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
                 )
                 val response = api.submitSupportReport(request)

@@ -7,5 +7,6 @@ data class Track(
     val album: String,
     val durationMs: Long,
     val coverUrl: String?,
-    val streamUrl: String
+    val streamUrl: String,
+    val remoteStreamUrl: String = streamUrl
 )

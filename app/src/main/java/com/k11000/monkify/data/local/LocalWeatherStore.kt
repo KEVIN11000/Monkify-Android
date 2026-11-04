@@ -31,6 +31,9 @@ open class LocalWeatherStore @Inject constructor(
         val KEY_WEATHER_SUNSET = longPreferencesKey("weather_sunset")
         val KEY_WEATHER_FETCHED_AT = longPreferencesKey("weather_fetched_at")
         val KEY_WEATHER_CITY = stringPreferencesKey("weather_city")
+        val KEY_MANUAL_LATITUDE = stringPreferencesKey("weather_manual_lat")
+        val KEY_MANUAL_LONGITUDE = stringPreferencesKey("weather_manual_lon")
+        val KEY_MANUAL_CITY = stringPreferencesKey("weather_manual_city")
     }
 
     open val weatherFlow: Flow<CurrentWeather?> = dataStore.data.map { prefs ->
@@ -102,6 +105,26 @@ open class LocalWeatherStore @Inject constructor(
 
     open suspend fun getLastWeather(): CurrentWeather? {
         return weatherFlow.firstOrNull()
+    }
+
+    open suspend fun saveManualLocation(latitude: Double, longitude: Double, cityName: String?) {
+        dataStore.edit { prefs ->
+            prefs[KEY_MANUAL_LATITUDE] = latitude.toString()
+            prefs[KEY_MANUAL_LONGITUDE] = longitude.toString()
+            if (!cityName.isNullOrBlank()) {
+                prefs[KEY_MANUAL_CITY] = cityName
+            } else {
+                prefs.remove(KEY_MANUAL_CITY)
+            }
+        }
+    }
+
+    open suspend fun getManualLocation(): Triple<Double, Double, String?>? {
+        val prefs = dataStore.data.firstOrNull() ?: return null
+        val lat = prefs[KEY_MANUAL_LATITUDE]?.toDoubleOrNull() ?: return null
+        val lon = prefs[KEY_MANUAL_LONGITUDE]?.toDoubleOrNull() ?: return null
+        val city = prefs[KEY_MANUAL_CITY]
+        return Triple(lat, lon, city)
     }
 
     open suspend fun clearWeather() {

@@ -12,7 +12,6 @@
 }
 -keep class com.k11000.monkify.data.remote.dto.** { *; }
 -keep class com.k11000.monkify.domain.model.** { *; }
--keep class com.k11000.monkify.data.local.model.** { *; }
 -keep class com.k11000.monkify.data.local.entity.** { *; }
 
 # Room SQLite Database
@@ -34,9 +33,9 @@
 -keep class androidx.media3.ui.** { *; }
 -dontwarn androidx.media3.**
 
-# Coil Image Loader
--keep class coil.** { *; }
--dontwarn coil.**
+# Coil 3 Image Loader
+-keep class coil3.** { *; }
+-dontwarn coil3.**
 
 # Rive Animation Runtime (JNI / C++ Native Bindings)
 -keep class app.rive.runtime.kotlin.** { *; }

@@ -91,7 +91,8 @@ import com.k11000.monkify.ui.theme.MonkifySurface
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
+    playerViewModel: com.k11000.monkify.playback.PlayerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
@@ -411,6 +412,47 @@ fun SettingsScreen(
                                 labelColor = MonkifyOnBackground
                             )
                         )
+                    }
+
+                    if (uiState.zenEngine == "FROGGY") {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Escenario de Froggy:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MonkifyOnBackground
+                        )
+                        val froggyWeather by playerViewModel.currentWeather.collectAsState()
+                        froggyWeather?.let { w ->
+                            Text(
+                                text = "Clima actual: ${w.temperatureSummary}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MonkifyPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                "AUTO" to "Automático 🔄",
+                                "FIELDS" to "Campos 🌾",
+                                "HILL" to "Colina 🌳",
+                                "MUSHROOM" to "Hongos 🍄"
+                            ).forEach { (key, label) ->
+                                FilterChip(
+                                    selected = uiState.froggyScenery == key,
+                                    onClick = { viewModel.setFroggyScenery(key) },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MonkifyPrimary,
+                                        selectedLabelColor = Color.Black,
+                                        containerColor = MonkifyDarkGray,
+                                        labelColor = MonkifyOnBackground
+                                    )
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

@@ -136,7 +136,19 @@ class MonkifyPlaybackService : MediaSessionService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
+        val callerPkg = controllerInfo.packageName
+        val isOwnApp = callerPkg == packageName
+        val isSystemOrMediaController = controllerInfo.isTrusted ||
+            callerPkg == "android" ||
+            callerPkg.startsWith("com.android.systemui") ||
+            callerPkg.startsWith("com.google.android.projection.gearhead") ||
+            callerPkg.startsWith("com.android.bluetooth")
+        return if (isOwnApp || isSystemOrMediaController) {
+            mediaSession
+        } else {
+            AppLogger.w("PlaybackService", "Conexión MediaSession rechazada para paquete no autorizado: $callerPkg")
+            null
+        }
     }
 
     override fun onDestroy() {

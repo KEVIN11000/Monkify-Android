@@ -21,4 +21,10 @@ class PlaybackCacheTest {
     fun `se puede construir un evictor con tope personalizado`() {
         assertTrue(PlaybackCache.newEvictor(maxBytes = 1_000L) is LeastRecentlyUsedCacheEvictor)
     }
+
+    @Test
+    fun `mbToBytes convierte megabytes a bytes respetando el minimo de 64 MB`() {
+        assertEquals(512L * 1024L * 1024L, PlaybackCache.mbToBytes(512L))
+        assertEquals(64L * 1024L * 1024L, PlaybackCache.mbToBytes(0L))
+    }
 }

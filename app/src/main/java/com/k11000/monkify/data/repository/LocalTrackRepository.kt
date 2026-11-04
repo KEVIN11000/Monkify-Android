@@ -100,26 +100,9 @@ class LocalTrackRepository @Inject constructor(
     }
 
     suspend fun syncRemoteCatalog(remoteTracks: List<Track>): Int {
-        val existingMap = trackDao.getAllTracksSnapshot().associateBy { it.id }
-        val entities = remoteTracks.map { track ->
-            val local = existingMap[track.id]
-            com.k11000.monkify.data.local.entity.TrackEntity(
-                id = track.id,
-                title = track.title,
-                artist = track.artist,
-                album = track.album,
-                durationMs = track.durationMs,
-                coverUrl = track.coverUrl,
-                streamUrl = track.streamUrl,
-                isFavorite = local?.isFavorite ?: false,
-                isDownloaded = local?.isDownloaded ?: false,
-                localFilePath = local?.localFilePath,
-                addedAt = local?.addedAt ?: System.currentTimeMillis(),
-                playCount = local?.playCount ?: 0,
-                lastPlayedAt = local?.lastPlayedAt ?: 0L
-            )
-        }
-        entities.forEach { trackDao.insertTrack(it) }
+        if (remoteTracks.isEmpty()) return 0
+        val entities = remoteTracks.map { it.toEntity(isFavorite = false, isDownloaded = false) }
+        trackDao.upsertRemoteTracks(entities)
         return entities.size
     }
 
@@ -127,12 +110,7 @@ class LocalTrackRepository @Inject constructor(
         val target = albumName.trim()
         if (target.isEmpty()) return emptyList()
         val normalizedTarget = target.replace('+', ' ').trim()
-        return trackDao.getAllTracksSnapshot()
-            .filter {
-                val a = it.album.trim()
-                a.equals(target, ignoreCase = true) || a.equals(normalizedTarget, ignoreCase = true)
-            }
-            .map { it.toDomain() }
+        return trackDao.getTracksByAlbumName(target, normalizedTarget).map { it.toDomain() }
     }
 
     suspend fun getAllLocalTracks(): List<Track> {

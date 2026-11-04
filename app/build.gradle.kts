@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+}
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -23,19 +32,24 @@ android {
 
     signingConfigs {
         create("release") {
-            val customKeystore = System.getenv("KEYSTORE_FILE")?.let { file(it) }
-            val repoKeystore = file("keystore/monkify-release.jks")
-            val targetKeystore = when {
-                customKeystore != null && customKeystore.exists() -> customKeystore
-                repoKeystore.exists() -> repoKeystore
-                else -> null
-            }
+            val keystorePath = System.getenv("KEYSTORE_FILE")
+                ?: System.getenv("KEYSTORE_PATH")
+                ?: keystoreProperties.getProperty("storeFile")
+            val targetKeystore = keystorePath?.let { file(it) }?.takeIf { it.exists() }
+                ?: file("keystore/monkify-release.jks").takeIf { it.exists() }
 
-            if (targetKeystore != null) {
+            val resolvedStorePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: keystoreProperties.getProperty("storePassword")
+            val resolvedKeyAlias = System.getenv("KEY_ALIAS")
+                ?: keystoreProperties.getProperty("keyAlias")
+            val resolvedKeyPassword = System.getenv("KEY_PASSWORD")
+                ?: keystoreProperties.getProperty("keyPassword")
+
+            if (targetKeystore != null && !resolvedStorePassword.isNullOrBlank() && !resolvedKeyAlias.isNullOrBlank() && !resolvedKeyPassword.isNullOrBlank()) {
                 storeFile = targetKeystore
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "monkify_release_2026"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "monkify"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "monkify_release_2026"
+                storePassword = resolvedStorePassword
+                keyAlias = resolvedKeyAlias
+                keyPassword = resolvedKeyPassword
             } else {
                 initWith(getByName("debug"))
             }
@@ -44,13 +58,13 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
             buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
-            buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8000/ws/connect\"")
         }
         release {
             signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
-            buildConfigField("String", "WS_URL", "\"wss://api.monkify.tudominio.com/ws/connect\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

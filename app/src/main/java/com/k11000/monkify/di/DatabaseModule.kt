@@ -23,8 +23,7 @@ object DatabaseModule {
             MonkifyDatabase::class.java,
             MonkifyDatabase.DATABASE_NAME
         )
-            .addMigrations(MonkifyDatabase.MIGRATION_1_2)
-            .fallbackToDestructiveMigration(true)
+            .addMigrations(MonkifyDatabase.MIGRATION_1_2, MonkifyDatabase.MIGRATION_2_3)
             .build()
     }
 

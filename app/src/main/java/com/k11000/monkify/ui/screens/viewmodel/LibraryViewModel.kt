@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -44,6 +45,12 @@ enum class LibrarySortOption(val displayName: String) {
     COUNT_DESC("Cantidad de canciones")
 }
 
+/** Dispatcher de I/O de disco; los tests lo sustituyen para ser deterministas. */
+internal object LibraryDispatchers {
+    @Volatile
+    var io: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO
+}
+
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val localTrackRepository: LocalTrackRepository,
@@ -56,8 +63,9 @@ class LibraryViewModel @Inject constructor(
 
     val totalStorageBytes: StateFlow<Long> = (downloadRepository?.downloadedTrackIds
         ?.map { downloadRepository.getTotalDownloadsSizeBytes() }
+        ?.flowOn(LibraryDispatchers.io)
         ?: flowOf(0L))
-        .stateIn(viewModelScope, SharingStarted.Eagerly, downloadRepository?.getTotalDownloadsSizeBytes() ?: 0L)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     private val _selectedFilter = MutableStateFlow(LibraryFilter.ALL)
     val selectedFilter: StateFlow<LibraryFilter> = _selectedFilter.asStateFlow()
@@ -172,6 +180,38 @@ class LibraryViewModel @Inject constructor(
                 count++
             }
             clearSelection()
+            onComplete(count)
+        }
+    }
+
+    fun batchAddTracksToPlaylist(
+        playlistId: String,
+        onComplete: (count: Int) -> Unit = {}
+    ) {
+        val selectedIds = _selectedTrackIds.value
+        if (selectedIds.isEmpty()) {
+            onComplete(0)
+            return
+        }
+        viewModelScope.launch {
+            var count = 0
+            val repo = playlistRepository
+            for (id in selectedIds) {
+                if (repo != null) {
+                    val result = repo.addTrackToPlaylist(playlistId, id)
+                    if (result.isSuccess) count++
+                } else if (monkifyApi != null) {
+                    try {
+                        monkifyApi.addTrackToPlaylist(
+                            playlistId,
+                            com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest(id)
+                        )
+                        count++
+                    } catch (_: Exception) {}
+                }
+            }
+            clearSelection()
+            loadPlaylists()
             onComplete(count)
         }
     }

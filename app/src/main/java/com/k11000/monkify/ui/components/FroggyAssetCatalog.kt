@@ -12,6 +12,21 @@ import com.k11000.monkify.domain.model.ZenDayPart
  */
 object FroggyAssetCatalog {
 
+    /**
+     * Resuelve el escenario a mostrar según la preferencia del usuario.
+     * `AUTO` rota entre los 3 escenarios oficiales de forma estable durante el día
+     * (cambia cada día del año), de modo que los 60 fondos sean alcanzables.
+     */
+    fun resolveScenery(
+        pref: String,
+        dayOfYear: Int = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+    ): FroggyScenery = when (pref.uppercase()) {
+        "FIELDS" -> FroggyScenery.FIELDS
+        "HILL" -> FroggyScenery.HILL
+        "MUSHROOM" -> FroggyScenery.MUSHROOM
+        else -> FroggyScenery.values()[Math.floorMod(dayOfYear, FroggyScenery.values().size)]
+    }
+
     @DrawableRes
     fun getBackgroundRes(
         scenery: FroggyScenery,

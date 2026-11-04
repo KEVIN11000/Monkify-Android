@@ -11,7 +11,18 @@ package com.k11000.monkify.domain.model
  */
 object ZenPhraseCatalog {
 
-    fun resolveTitle(dayPart: ZenDayPart): String {
+    /**
+     * Resuelve el saludo. Si se provee [hour] (0..23) el saludo sigue la hora local del día
+     * (mañana / tarde / noche); sin [hour] se deriva de la franja solar [dayPart].
+     */
+    fun resolveTitle(dayPart: ZenDayPart, hour: Int? = null): String {
+        if (hour != null) {
+            return when (hour) {
+                in 6..11 -> "Buenos días"
+                in 12..19 -> "Buenas tardes"
+                else -> "Buenas noches"
+            }
+        }
         return when (dayPart) {
             ZenDayPart.DAWN -> "Buen amanecer"
             ZenDayPart.DAY -> "Buenos días"

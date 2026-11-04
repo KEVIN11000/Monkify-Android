@@ -25,6 +25,7 @@ monkify_*.md
 # Secretos y firma
 *.jks
 *.keystore
+app/keystore/
 *.pem
 *.key
 .env

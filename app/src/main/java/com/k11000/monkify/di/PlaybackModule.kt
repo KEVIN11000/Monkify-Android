@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.SimpleCache
+import com.k11000.monkify.data.repository.SettingsRepository
 import com.k11000.monkify.playback.PlaybackCache
 import dagger.Module
 import dagger.Provides
@@ -29,13 +30,16 @@ object PlaybackModule {
     @Singleton
     fun provideSimpleCache(
         @ApplicationContext context: Context,
-        databaseProvider: StandaloneDatabaseProvider
+        databaseProvider: StandaloneDatabaseProvider,
+        settingsRepository: SettingsRepository
     ): SimpleCache =
         SimpleCache(
             File(context.cacheDir, PlaybackCache.DIRECTORY_NAME),
-            PlaybackCache.newEvictor(),
+            PlaybackCache.newEvictor(settingsRepository.getCacheLimitBytesImmediate()),
             databaseProvider
-        )
+        ).also { cache ->
+            settingsRepository.attachMediaCache(cache)
+        }
 
     @UnstableApi
     @Provides

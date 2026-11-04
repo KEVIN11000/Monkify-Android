@@ -89,29 +89,48 @@ class HomeViewModel @Inject constructor(
         ?: MutableStateFlow(null)
 
     private val _phraseIndexOffset = MutableStateFlow(0)
+    private val _greetingRefreshTick = MutableStateFlow(0)
+
+    /** Proveedor de la hora local (0..23); sustituible en tests para fijar la franja horaria. */
+    internal var hourProvider: () -> Int = { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
 
     val greeting: StateFlow<GreetingInfo> = combine(
         currentWeather,
-        _phraseIndexOffset
-    ) { weather, offset ->
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        _phraseIndexOffset,
+        _greetingRefreshTick
+    ) { weather, offset, _ ->
+        val hour = hourProvider()
         val condition = weather?.condition ?: WeatherCondition.SUNNY
         val dayPart = weather?.resolveDayPart() ?: ZenDayPart.fromHour(hour)
-        val title = ZenPhraseCatalog.resolveTitle(dayPart)
+        val title = ZenPhraseCatalog.resolveTitle(dayPart, hour)
         val phrase = ZenPhraseCatalog.resolvePhrase(condition, dayPart, offset)
         GreetingInfo(title = title, phrase = phrase)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = run {
-            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val hour = hourProvider()
             val dayPart = ZenDayPart.fromHour(hour)
             GreetingInfo(
-                title = ZenPhraseCatalog.resolveTitle(dayPart),
+                title = ZenPhraseCatalog.resolveTitle(dayPart, hour),
                 phrase = ZenPhraseCatalog.resolvePhrase(WeatherCondition.SUNNY, dayPart, 0)
             )
         }
     )
+
+    init {
+        // Reevalúa el saludo cada minuto para que cambie solo al pasar de mañana a tarde/noche.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                _greetingRefreshTick.value += 1
+            }
+        }
+    }
+
+    fun refreshGreeting() {
+        _greetingRefreshTick.value += 1
+    }
 
     fun cycleNextPhrase() {
         _phraseIndexOffset.value += 1

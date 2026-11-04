@@ -76,12 +76,21 @@ class WeatherRepositoryImpl @Inject constructor(
         manualLatitude = latitude
         manualLongitude = longitude
         manualCityName = cityName
+        localWeatherStore.saveManualLocation(latitude, longitude, cityName)
         refreshWeatherIfNeeded(force = true)
     }
 
     private suspend fun resolveCoordinates(): Triple<Double, Double, String?> {
         if (manualLatitude != null && manualLongitude != null) {
             return Triple(manualLatitude!!, manualLongitude!!, manualCityName)
+        }
+
+        val persistedManual = localWeatherStore.getManualLocation()
+        if (persistedManual != null) {
+            manualLatitude = persistedManual.first
+            manualLongitude = persistedManual.second
+            manualCityName = persistedManual.third
+            return persistedManual
         }
 
         val gpsLocation = locationDataSource.getLastKnownLocation()

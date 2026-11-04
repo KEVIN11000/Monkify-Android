@@ -28,8 +28,31 @@ class SettingsRepository @Inject constructor(
     @Volatile
     private var cachedServerToken: String? = null
 
+    @Volatile
+    private var activeMediaCache: androidx.media3.datasource.cache.Cache? = null
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun attachMediaCache(cache: androidx.media3.datasource.cache.Cache) {
+        activeMediaCache = cache
+    }
+
     val cacheLimitMb: Flow<Long> = dataStore.data.map { preferences ->
         preferences[KEY_CACHE_LIMIT_MB] ?: DEFAULT_CACHE_LIMIT_MB
+    }
+
+    /**
+     * Obtiene el límite de caché configurado en bytes de forma inmediata al arranque
+     * para inicializar el `LeastRecentlyUsedCacheEvictor` de Media3 con la preferencia real del usuario.
+     */
+    fun getCacheLimitBytesImmediate(): Long {
+        val mb = try {
+            runBlocking(Dispatchers.IO) {
+                dataStore.data.first()[KEY_CACHE_LIMIT_MB] ?: DEFAULT_CACHE_LIMIT_MB
+            }
+        } catch (_: Exception) {
+            DEFAULT_CACHE_LIMIT_MB
+        }
+        return PlaybackCache.mbToBytes(mb)
     }
 
     val dynamicColor: Flow<Boolean> = dataStore.data.map { preferences ->
@@ -42,6 +65,10 @@ class SettingsRepository @Inject constructor(
 
     val zenEngine: Flow<String> = dataStore.data.map { preferences ->
         preferences[KEY_ZEN_ENGINE] ?: DEFAULT_ZEN_ENGINE
+    }
+
+    val froggyScenery: Flow<String> = dataStore.data.map { preferences ->
+        preferences[KEY_FROGGY_SCENERY] ?: DEFAULT_FROGGY_SCENERY
     }
 
     val coverStyle: Flow<String> = dataStore.data.map { preferences ->
@@ -103,6 +130,12 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    suspend fun setFroggyScenery(scenery: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_FROGGY_SCENERY] = scenery
+        }
+    }
+
     suspend fun setCoverStyle(style: String) {
         dataStore.edit { preferences ->
             preferences[KEY_COVER_STYLE] = style
@@ -129,13 +162,34 @@ class SettingsRepository @Inject constructor(
         }
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     suspend fun getCacheUsedBytes(): Long = withContext(Dispatchers.IO) {
+        activeMediaCache?.let { cache ->
+            try {
+                return@withContext cache.cacheSpace.coerceAtLeast(0L)
+            } catch (_: Exception) {
+                // Fallback a lectura de directorio si el índice aún no está listo
+            }
+        }
         val cacheDir = File(context.cacheDir, PlaybackCache.DIRECTORY_NAME)
         if (!cacheDir.exists()) return@withContext 0L
         calculateDirectorySize(cacheDir)
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     suspend fun clearMediaCache(): Boolean = withContext(Dispatchers.IO) {
+        val cache = activeMediaCache
+        if (cache != null) {
+            return@withContext try {
+                val keysSnapshot = cache.keys.toList()
+                for (key in keysSnapshot) {
+                    cache.removeResource(key)
+                }
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
         val cacheDir = File(context.cacheDir, PlaybackCache.DIRECTORY_NAME)
         if (!cacheDir.exists()) return@withContext true
         cacheDir.deleteRecursively().also {
@@ -157,6 +211,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val KEY_ZEN_MODE_ENABLED = booleanPreferencesKey("zen_mode_enabled")
         val KEY_ZEN_ENGINE = stringPreferencesKey("zen_engine")
+        val KEY_FROGGY_SCENERY = stringPreferencesKey("froggy_scenery")
         val KEY_COVER_STYLE = stringPreferencesKey("cover_style")
         val KEY_LOCK_SCREEN_ENABLED = booleanPreferencesKey("lock_screen_enabled")
         val KEY_LAST_SYNC_TIMESTAMP = longPreferencesKey("last_sync_timestamp")
@@ -174,5 +229,11 @@ class SettingsRepository @Inject constructor(
         const val ZEN_ENGINE_FROGGY = "FROGGY"
         const val ZEN_ENGINE_COSMOS = "COSMOS"
         const val ZEN_ENGINE_NONE = "NONE"
+
+        const val DEFAULT_FROGGY_SCENERY = "AUTO"
+        const val FROGGY_SCENERY_AUTO = "AUTO"
+        const val FROGGY_SCENERY_FIELDS = "FIELDS"
+        const val FROGGY_SCENERY_HILL = "HILL"
+        const val FROGGY_SCENERY_MUSHROOM = "MUSHROOM"
     }
 }

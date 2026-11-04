@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.k11000.monkify.data.local.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -37,6 +38,35 @@ interface TrackDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTracks(tracks: List<TrackEntity>): List<Long>
 
+    @Transaction
+    suspend fun upsertRemoteTracks(remoteTracks: List<TrackEntity>) {
+        if (remoteTracks.isEmpty()) return
+        val existingById = getAllTracksSnapshot().associateBy { it.id }
+        remoteTracks.forEach { remote ->
+            val local = existingById[remote.id]
+            val merged = if (local == null) {
+                remote
+            } else {
+                remote.copy(
+                    isFavorite = local.isFavorite,
+                    isDownloaded = local.isDownloaded,
+                    localFilePath = local.localFilePath,
+                    addedAt = local.addedAt,
+                    playCount = local.playCount,
+                    lastPlayedAt = local.lastPlayedAt
+                )
+            }
+            insertTrack(merged)
+        }
+    }
+
+    suspend fun getTracksByAlbumName(target: String, normalizedTarget: String): List<TrackEntity> {
+        return getAllTracksSnapshot().filter {
+            val a = it.album.trim()
+            a.equals(target, ignoreCase = true) || a.equals(normalizedTarget, ignoreCase = true)
+        }
+    }
+
     @Query("DELETE FROM favorite_tracks WHERE id = :id")
     suspend fun deleteTrackById(id: String): Int
 
@@ -64,4 +94,3 @@ interface TrackDao {
     @Query("SELECT * FROM favorite_tracks ORDER BY playCount DESC, lastPlayedAt DESC LIMIT :limit")
     suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int = 50): List<TrackEntity>
 }
-

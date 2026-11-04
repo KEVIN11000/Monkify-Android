@@ -162,7 +162,7 @@ fun SearchScreen(
             placeholder = {
                 Text(
                     text = "¿Qué te gustaría escuchar?",
-                    color = Color.Gray,
+                    color = MonkifyGray,
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -170,7 +170,7 @@ fun SearchScreen(
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Buscar",
-                    tint = Color.DarkGray
+                    tint = MonkifyGray
                 )
             },
             trailingIcon = {
@@ -179,7 +179,7 @@ fun SearchScreen(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Limpiar búsqueda",
-                            tint = Color.DarkGray
+                            tint = MonkifyGray
                         )
                     }
                 }
@@ -187,14 +187,15 @@ fun SearchScreen(
             singleLine = true,
             shape = RoundedCornerShape(8.dp),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                disabledContainerColor = Color.White,
+                focusedContainerColor = MonkifyDarkGray,
+                unfocusedContainerColor = MonkifyDarkGray,
+                disabledContainerColor = MonkifyDarkGray,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.Black,
-                unfocusedTextColor = Color.Black
+                focusedTextColor = MonkifyOnBackground,
+                unfocusedTextColor = MonkifyOnBackground,
+                cursorColor = MonkifyPrimary
             )
         )
 
@@ -304,11 +305,15 @@ fun SearchScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = Color.Black.copy(alpha = 0.35f),
                             onClick = {
-                                val clipText = clipboardManager.getText()?.text ?: ""
+                                val clipText = clipboardManager.getText()?.text?.trim().orEmpty()
                                 if (clipText.isNotBlank()) {
                                     viewModel.ingestSpotifyUrl(clipText)
                                 } else {
-                                    viewModel.ingestSpotifyUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+                                    Toast.makeText(
+                                        context,
+                                        "El portapapeles está vacío. Copia un enlace de Spotify primero.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             }
                         ) {

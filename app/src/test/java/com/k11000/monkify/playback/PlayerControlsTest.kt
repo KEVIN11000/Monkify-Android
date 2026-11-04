@@ -1,306 +1,216 @@
 package com.k11000.monkify.playback
 
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.media3.common.Player
+import com.k11000.monkify.BuildConfig
+import com.k11000.monkify.data.local.dao.TrackDao
+import com.k11000.monkify.data.local.entity.TrackEntity
+import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.ActionResponseDto
+import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
+import com.k11000.monkify.data.remote.dto.BackendTrackDto
+import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
+import com.k11000.monkify.data.remote.dto.IngestRequest
+import com.k11000.monkify.data.remote.dto.IngestResponse
+import com.k11000.monkify.data.remote.dto.LoginRequest
+import com.k11000.monkify.data.remote.dto.LoginResponse
+import com.k11000.monkify.data.remote.dto.LyricsResponse
+import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.data.remote.dto.SupportReportRequestDto
+import com.k11000.monkify.data.remote.dto.SupportReportResponseDto
+import com.k11000.monkify.data.repository.LocalTrackRepository
+import com.k11000.monkify.domain.model.DownloadState
 import com.k11000.monkify.domain.model.Track
+import com.k11000.monkify.domain.repository.DownloadRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import retrofit2.Response
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlayerControlsTest {
 
-    private fun nextRepeatMode(currentMode: Int): Int = when (currentMode) {
-        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-        else -> Player.REPEAT_MODE_OFF
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var viewModel: PlayerViewModel
+    private lateinit var stateHolder: PlaybackSessionStateHolder
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(testDispatcher)
+        stateHolder = PlaybackSessionStateHolder()
+        viewModel = PlayerViewModel(
+            context = ContextWrapper(null),
+            localTrackRepository = LocalTrackRepository(FakeTrackDao()),
+            downloadRepository = FakeDownloadRepository(),
+            monkifyApi = FakeMonkifyApi(),
+            stateHolder = stateHolder
+        )
     }
 
-    private fun formatTime(ms: Long): String {
-        val totalSeconds = ms / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return String.format("%d:%02d", minutes, seconds)
-    }
-
-    @Test
-    fun `ciclo de repeticion avanza correctamente por los 3 estados de Media3`() {
-        var mode = Player.REPEAT_MODE_OFF
-        mode = nextRepeatMode(mode)
-        assertEquals(Player.REPEAT_MODE_ALL, mode)
-
-        mode = nextRepeatMode(mode)
-        assertEquals(Player.REPEAT_MODE_ONE, mode)
-
-        mode = nextRepeatMode(mode)
-        assertEquals(Player.REPEAT_MODE_OFF, mode)
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
-    fun `formateador de tiempo calcula minutos y segundos correctamente`() {
-        assertEquals("0:00", formatTime(0L))
-        assertEquals("1:15", formatTime(75000L))
-        assertEquals("4:02", formatTime(242000L))
+    fun `toggleRepeatMode en PlayerViewModel avanza por los 3 estados reales de Media3`() {
+        assertEquals(Player.REPEAT_MODE_OFF, viewModel.repeatMode.value)
+
+        viewModel.toggleRepeatMode()
+        assertEquals(Player.REPEAT_MODE_ALL, viewModel.repeatMode.value)
+
+        viewModel.toggleRepeatMode()
+        assertEquals(Player.REPEAT_MODE_ONE, viewModel.repeatMode.value)
+
+        viewModel.toggleRepeatMode()
+        assertEquals(Player.REPEAT_MODE_OFF, viewModel.repeatMode.value)
     }
 
     @Test
-    fun `toggle de Zen Clear conmuta el estado booleano correctamente`() {
-        var isZenCleared = false
-        // Simular accion toggleZenCleared
-        isZenCleared = !isZenCleared
-        assertEquals(true, isZenCleared)
+    fun `toggleZenCleared y setZenCleared conmutan el StateFlow real en PlayerViewModel`() {
+        assertFalse(viewModel.isZenCleared.value)
 
-        isZenCleared = !isZenCleared
-        assertEquals(false, isZenCleared)
+        viewModel.toggleZenCleared()
+        assertTrue(viewModel.isZenCleared.value)
+
+        viewModel.setZenCleared(false)
+        assertFalse(viewModel.isZenCleared.value)
     }
 
     @Test
-    fun `toggle de shuffle conmuta adecuadamente el flag`() {
-        var shuffle = false
-        shuffle = !shuffle
-        assertTrue(shuffle)
-        shuffle = !shuffle
-        assertFalse(shuffle)
+    fun `toggleShuffle y setShuffleEnabled actualizan isShuffleEnabled en PlayerViewModel`() {
+        assertFalse(viewModel.isShuffleEnabled.value)
+
+        viewModel.toggleShuffle()
+        assertTrue(viewModel.isShuffleEnabled.value)
+
+        viewModel.setShuffleEnabled(false)
+        assertFalse(viewModel.isShuffleEnabled.value)
     }
 
     @Test
-    fun `reordenar elementos en la cola desplaza correctamente el item`() {
+    fun `playQueue reordenar y eliminar elementos actualiza la cola y PlaybackSessionStateHolder`() {
         val tracks = listOf(
-            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "s1"),
-            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "s2"),
-            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "s3")
+            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "https://monkify.workers.dev/t1"),
+            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "https://monkify.workers.dev/t2"),
+            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "https://monkify.workers.dev/t3")
         )
 
-        fun move(list: List<Track>, from: Int, to: Int): List<Track> {
-            if (from !in list.indices || to !in list.indices || from == to) return list
-            val mutable = list.toMutableList()
-            val item = mutable.removeAt(from)
-            mutable.add(to, item)
-            return mutable
-        }
+        viewModel.playQueue(tracks, startIndex = 0)
+        assertEquals(3, viewModel.queue.value.size)
+        assertEquals("Track 1", viewModel.currentTrackTitle.value)
 
-        // Mover de indice 0 a indice 2 -> [t2, t3, t1]
-        val moved = move(tracks, 0, 2)
-        assertEquals("t2", moved[0].id)
-        assertEquals("t3", moved[1].id)
-        assertEquals("t1", moved[2].id)
+        // Mover de índice 0 a índice 2 -> [t2, t3, t1]
+        viewModel.moveQueueItem(0, 2)
+        assertEquals(listOf("t2", "t3", "t1"), viewModel.queue.value.map { it.id })
+        assertEquals(listOf("t2", "t3", "t1"), stateHolder.queue.value.map { it.id })
 
-        // Mover con indices iguales o invalidos no altera la lista
-        val invalid = move(tracks, 0, 0)
-        assertEquals(tracks, invalid)
+        // Eliminar elemento intermedio (índice 1 -> t3) -> [t2, t1]
+        viewModel.removeQueueItem(1)
+        assertEquals(listOf("t2", "t1"), viewModel.queue.value.map { it.id })
+        assertEquals(listOf("t2", "t1"), stateHolder.queue.value.map { it.id })
     }
 
     @Test
-    fun `remover elemento de la cola elimina solo el indice solicitado`() {
-        val tracks = listOf(
-            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "s1"),
-            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "s2"),
-            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "s3")
+    fun `seekTo en PlayerViewModel actualiza currentPosition y progress inmediatamente`() {
+        viewModel.setDurationForTest(200_000L)
+
+        viewModel.seekTo(50_000L)
+        assertEquals(50_000L, viewModel.currentPosition.value)
+        assertEquals(0.25f, viewModel.progress.value, 0.001f)
+
+        viewModel.seekTo(100_000L)
+        assertEquals(100_000L, viewModel.currentPosition.value)
+        assertEquals(0.50f, viewModel.progress.value, 0.001f)
+    }
+
+    @Test
+    fun `selectDevice en PlayerViewModel marca el dispositivo activo y actualiza activeDeviceName`() {
+        val currentDevices = viewModel.devices.value
+        assertTrue(currentDevices.isNotEmpty())
+        val firstId = currentDevices.first().id
+
+        viewModel.selectDevice(firstId)
+        assertTrue(viewModel.devices.value.first { it.id == firstId }.isSelected)
+        assertEquals(currentDevices.first().name, viewModel.activeDeviceName.value)
+    }
+
+    @Test
+    fun `SupportReportRequestDto utiliza BuildConfig VERSION_NAME por defecto`() {
+        val dto = SupportReportRequestDto(
+            message = "Test",
+            diagnostics = "Diag"
         )
-
-        fun remove(list: List<Track>, index: Int): List<Track> {
-            if (index !in list.indices) return list
-            val mutable = list.toMutableList()
-            mutable.removeAt(index)
-            return mutable
-        }
-
-        // Eliminar pista intermedia (t2, index 1) -> [t1, t3]
-        val afterRemove = remove(tracks, 1)
-        assertEquals(2, afterRemove.size)
-        assertEquals("t1", afterRemove[0].id)
-        assertEquals("t3", afterRemove[1].id)
-
-        // Eliminar con índice fuera de rango no altera la lista
-        val outOfBounds = remove(tracks, 99)
-        assertEquals(tracks, outOfBounds)
+        assertEquals(BuildConfig.VERSION_NAME, dto.appVersion)
     }
 
-    @Test
-    fun `seekTo actualiza posicion y porcentaje de progreso de forma inmediata sin desfases`() {
-        var currentPosition = 0L
-        var progress = 0f
-        val duration = 200000L
-
-        fun seek(positionMs: Long) {
-            currentPosition = positionMs
-            if (duration > 0L) {
-                progress = (positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-            }
+    private class FakeTrackDao : TrackDao {
+        private val tracksFlow = MutableStateFlow<List<TrackEntity>>(emptyList())
+        override fun getAllFavoriteTracks(): Flow<List<TrackEntity>> = tracksFlow.map { it.filter { t -> t.isFavorite } }
+        override fun getDownloadedTracks(): Flow<List<TrackEntity>> = tracksFlow.map { it.filter { t -> t.isDownloaded } }
+        override suspend fun getTrackById(id: String): TrackEntity? = tracksFlow.value.find { it.id == id }
+        override fun isFavorite(id: String): Flow<Boolean> = tracksFlow.map { list -> list.any { it.id == id && it.isFavorite } }
+        override suspend fun insertTrack(track: TrackEntity) {
+            tracksFlow.value = tracksFlow.value.filterNot { it.id == track.id } + track
         }
-
-        seek(50000L)
-        assertEquals(50000L, currentPosition)
-        assertEquals(0.25f, progress, 0.001f)
-
-        seek(100000L)
-        assertEquals(100000L, currentPosition)
-        assertEquals(0.50f, progress, 0.001f)
+        override suspend fun deleteTrackById(id: String): Int = 0
+        override suspend fun updateFavoriteStatus(id: String, isFavorite: Boolean): Int = 1
+        override fun getAllTracksFlow(): Flow<List<TrackEntity>> = tracksFlow
+        override suspend fun getPagedTracks(limit: Int, offset: Int): List<TrackEntity> = emptyList()
+        override suspend fun searchTracks(query: String, limit: Int, offset: Int): List<TrackEntity> = emptyList()
+        override suspend fun insertTracks(tracks: List<TrackEntity>): List<Long> = emptyList()
+        override suspend fun updateDownloadStatus(id: String, isDownloaded: Boolean, localPath: String?): Int = 1
+        override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
+        override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int = 1
+        override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> = flowOf(emptyList())
+        override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> = flowOf(emptyList())
+        override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> = emptyList()
+        override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> = emptyList()
     }
 
-    @Test
-    fun `modelo Device y seleccion conmuta correctamente el dispositivo activo`() {
-        val initialDevices = listOf(
-            PlayerViewModel.Device("dev_speaker", "Altavoz del dispositivo", true, "Altavoz"),
-            PlayerViewModel.Device("dev_bt", "Sony WH-1000XM4", false, "Bluetooth")
-        )
-
-        fun select(devices: List<PlayerViewModel.Device>, targetId: String): List<PlayerViewModel.Device> {
-            return devices.map { it.copy(isSelected = it.id == targetId) }
-        }
-
-        val updated = select(initialDevices, "dev_bt")
-        val active = updated.find { it.isSelected }
-
-        assertEquals(true, updated[1].isSelected)
-        assertEquals(false, updated[0].isSelected)
-        assertEquals("Sony WH-1000XM4", active?.name)
-        assertEquals("Bluetooth", active?.type)
+    private class FakeDownloadRepository : DownloadRepository {
+        override val downloadingTrackIds: StateFlow<Set<String>> = MutableStateFlow(emptySet())
+        override val downloadedTrackIds: Flow<Set<String>> = flowOf(emptySet())
+        override fun getDownloadState(trackId: String): Flow<DownloadState> = flowOf(DownloadState.NotDownloaded)
+        override suspend fun downloadTrack(track: Track): Result<String> = Result.success("")
+        override suspend fun downloadTracks(tracks: List<Track>, onProgress: (Int, Int) -> Unit): Result<Unit> = Result.success(Unit)
+        override suspend fun deleteDownloadedTrack(trackId: String): Result<Unit> = Result.success(Unit)
+        override suspend fun toggleDownload(track: Track) {}
+        override fun isTrackDownloaded(trackId: String): Boolean = false
+        override fun getLocalLyrics(trackId: String): String? = null
+        override fun getLocalAudioPath(trackId: String): String? = null
+        override fun getTotalDownloadsSizeBytes(): Long = 0L
+        override fun downloadPlaylist(playlistId: String, tracks: List<Track>) {}
+        override fun cancelPlaylistDownload(playlistId: String) {}
+        override fun isPlaylistDownloading(playlistId: String): StateFlow<Boolean> = MutableStateFlow(false)
+        override fun getPlaylistDownloadProgress(playlistId: String): StateFlow<Pair<Int, Int>> = MutableStateFlow(0 to 0)
     }
 
-    @Test
-    fun `resolucion de tipos de salida de audio mapea correctamente descripciones legibles`() {
-        fun resolveType(isBluetooth: Boolean, isHeadset: Boolean): String {
-            return when {
-                isBluetooth -> "Bluetooth"
-                isHeadset -> "Auriculares"
-                else -> "Altavoz"
-            }
-        }
-
-        assertEquals("Altavoz", resolveType(isBluetooth = false, isHeadset = false))
-        assertEquals("Bluetooth", resolveType(isBluetooth = true, isHeadset = false))
-        assertEquals("Auriculares", resolveType(isBluetooth = false, isHeadset = true))
-    }
-
-    @Test
-    fun `salto en skipToNext con shuffle activo y final de cola cicla al primer indice de shuffle`() {
-        data class NavigationState(
-            val hasNext: Boolean,
-            val shuffleEnabled: Boolean,
-            val firstShuffleIndex: Int
-        )
-
-        fun resolveNextIndex(state: NavigationState): Int {
-            return if (state.hasNext) {
-                -1 // ExoPlayer seekToNextMediaItem()
-            } else if (state.shuffleEnabled) {
-                state.firstShuffleIndex
-            } else {
-                0
-            }
-        }
-
-        val stateAtEndWithShuffle = NavigationState(
-            hasNext = false,
-            shuffleEnabled = true,
-            firstShuffleIndex = 2
-        )
-
-        val target = resolveNextIndex(stateAtEndWithShuffle)
-        assertEquals(2, target)
-
-        val stateAtEndWithoutShuffle = NavigationState(
-            hasNext = false,
-            shuffleEnabled = false,
-            firstShuffleIndex = 2
-        )
-        assertEquals(0, resolveNextIndex(stateAtEndWithoutShuffle))
-    }
-
-    @Test
-    fun `avance de pista en modo aleatorio cuando la pista actual es la ultima fisica pero no la ultima en shuffle no se detiene`() {
-        val tracks = listOf("track_0", "track_1", "track_2", "track_3")
-        // Secuencia aleatoria: [1, 3, 0, 2]
-        val shuffleOrder = listOf(1, 3, 0, 2)
-
-        fun getNextInShuffle(currentIndex: Int): Int? {
-            val posInShuffle = shuffleOrder.indexOf(currentIndex)
-            return if (posInShuffle in 0 until shuffleOrder.lastIndex) {
-                shuffleOrder[posInShuffle + 1]
-            } else null
-        }
-
-        // Pista física final (índice 3): en la secuencia aleatoria está en la posición 1 y le sigue el índice 0
-        val nextAfterPhysicalLast = getNextInShuffle(3)
-        assertEquals(0, nextAfterPhysicalLast)
-
-        // Última pista en el orden aleatorio (índice 2): no tiene siguiente en la secuencia
-        val nextAfterShuffleLast = getNextInShuffle(2)
-        assertEquals(null, nextAfterShuffleLast)
-    }
-
-    @Test
-    fun `transicion de STATE_ENDED con shuffle activo y repeat off reinicia ciclo y activa reproduccion`() {
-        var isPlaying = false
-        var currentPosition = 120000L
-        var targetIndex = -1
-
-        fun onPlaybackStateChanged(
-            playbackState: Int,
-            shuffleModeEnabled: Boolean,
-            repeatMode: Int,
-            firstShuffleIndex: Int
-        ) {
-            if (playbackState == Player.STATE_ENDED && shuffleModeEnabled && repeatMode == Player.REPEAT_MODE_OFF) {
-                targetIndex = firstShuffleIndex
-                currentPosition = 0L
-                isPlaying = true
-            }
-        }
-
-        onPlaybackStateChanged(
-            playbackState = Player.STATE_ENDED,
-            shuffleModeEnabled = true,
-            repeatMode = Player.REPEAT_MODE_OFF,
-            firstShuffleIndex = 1
-        )
-
-        assertTrue(isPlaying)
-        assertEquals(0L, currentPosition)
-        assertEquals(1, targetIndex)
-    }
-
-    @Test
-    fun `skipToNext cuando el primer indice de shuffle es igual al actual selecciona un candidato alternativo`() {
-        val totalCount = 4
-        val currentIndex = 2
-        val firstIndex = 2 // El primer índice del timeline coincide con la pista actual
-
-        fun resolveTargetIndex(count: Int, current: Int, first: Int?): Int {
-            return if (first != null && first != current) {
-                first
-            } else if (count > 1) {
-                val candidates = (0 until count).filter { it != current }
-                candidates.first() // Determinista para el test
-            } else {
-                0
-            }
-        }
-
-        val target = resolveTargetIndex(totalCount, currentIndex, firstIndex)
-        assertTrue(target != currentIndex)
-        assertEquals(0, target)
-    }
-
-    @Test
-    fun `STATE_ENDED en shuffle selecciona pista no reproducida y no reitera la pista actual`() {
-        val totalCount = 5
-        val currentIndex = 4 // Última pista física
-        val firstShuffleIndex = 4 // Coincide con la actual
-
-        fun resolveEndTransitionIndex(count: Int, current: Int, first: Int?): Int {
-            return if (first != null && first != current) {
-                first
-            } else if (count > 1) {
-                val candidates = (0 until count).filter { it != current }
-                candidates.first()
-            } else {
-                0
-            }
-        }
-
-        val nextTrackIndex = resolveEndTransitionIndex(totalCount, currentIndex, firstShuffleIndex)
-        assertTrue("El índice siguiente no debe ser el actual", nextTrackIndex != currentIndex)
-        assertTrue("El índice debe estar dentro del rango válido", nextTrackIndex in 0 until totalCount)
+    private class FakeMonkifyApi : MonkifyApi {
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun submitSupportReport(request: SupportReportRequestDto): SupportReportResponseDto = SupportReportResponseDto(ok = true)
+        override suspend fun login(request: LoginRequest): LoginResponse = throw UnsupportedOperationException()
+        override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = throw UnsupportedOperationException()
+        override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse()
+        override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
+        override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = emptyList()
+        override suspend fun createPlaylist(request: CreatePlaylistRequest): PlaylistSummaryDto = throw UnsupportedOperationException()
+        override suspend fun addTrackToPlaylist(playlistId: String, request: AddTrackToPlaylistRequest): ActionResponseDto = ActionResponseDto(true)
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): ActionResponseDto = ActionResponseDto(true)
+        override suspend fun deletePlaylist(playlistId: String): ActionResponseDto = ActionResponseDto(true)
     }
 }

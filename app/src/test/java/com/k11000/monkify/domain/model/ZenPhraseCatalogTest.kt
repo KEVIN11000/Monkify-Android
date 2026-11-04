@@ -17,6 +17,19 @@ class ZenPhraseCatalogTest {
     }
 
     @Test
+    fun `resolveTitle follows local hour of day when hour is provided`() {
+        assertEquals("Buenas noches", ZenPhraseCatalog.resolveTitle(ZenDayPart.NIGHT, 3))
+        assertEquals("Buenos días", ZenPhraseCatalog.resolveTitle(ZenDayPart.DAWN, 6))
+        assertEquals("Buenos días", ZenPhraseCatalog.resolveTitle(ZenDayPart.DAY, 11))
+        // Franja solar DAY pero ya es de tarde: debe saludar con "Buenas tardes"
+        assertEquals("Buenas tardes", ZenPhraseCatalog.resolveTitle(ZenDayPart.DAY, 12))
+        assertEquals("Buenas tardes", ZenPhraseCatalog.resolveTitle(ZenDayPart.DAY, 15))
+        assertEquals("Buenas tardes", ZenPhraseCatalog.resolveTitle(ZenDayPart.SUNSET, 19))
+        assertEquals("Buenas noches", ZenPhraseCatalog.resolveTitle(ZenDayPart.NIGHT, 20))
+        assertEquals("Buenas noches", ZenPhraseCatalog.resolveTitle(ZenDayPart.NIGHT, 23))
+    }
+
+    @Test
     fun `every weather and dayPart combination contains at least 3 distinct non-empty phrases`() {
         for (condition in WeatherCondition.values()) {
             for (dayPart in ZenDayPart.values()) {

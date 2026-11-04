@@ -1,10 +1,21 @@
 package com.k11000.monkify.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.k11000.monkify.domain.model.Track
 
-@Entity(tableName = "favorite_tracks")
+@Entity(
+    tableName = "favorite_tracks",
+    indices = [
+        Index(value = ["isFavorite"]),
+        Index(value = ["isDownloaded"]),
+        Index(value = ["addedAt"]),
+        Index(value = ["lastPlayedAt"]),
+        Index(value = ["playCount"]),
+        Index(value = ["album"])
+    ]
+)
 data class TrackEntity(
     @PrimaryKey
     val id: String,
@@ -29,7 +40,8 @@ fun TrackEntity.toDomain(): Track = Track(
     album = album,
     durationMs = durationMs,
     coverUrl = coverUrl,
-    streamUrl = localFilePath ?: streamUrl
+    streamUrl = localFilePath ?: streamUrl,
+    remoteStreamUrl = streamUrl
 )
 
 fun Track.toEntity(
@@ -45,7 +57,7 @@ fun Track.toEntity(
     album = album,
     durationMs = durationMs,
     coverUrl = coverUrl,
-    streamUrl = streamUrl,
+    streamUrl = remoteStreamUrl.ifBlank { streamUrl },
     isFavorite = isFavorite,
     isDownloaded = isDownloaded,
     localFilePath = localFilePath,

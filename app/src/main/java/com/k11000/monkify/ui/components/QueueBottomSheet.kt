@@ -246,7 +246,7 @@ fun QueueBottomSheet(
                                         IconButton(
                                             onClick = { onMoveTrack(index, index - 1) },
                                             enabled = index > 0,
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.KeyboardArrowUp,
@@ -258,7 +258,7 @@ fun QueueBottomSheet(
                                         IconButton(
                                             onClick = { onMoveTrack(index, index + 1) },
                                             enabled = index < queue.size - 1,
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.KeyboardArrowDown,
@@ -271,7 +271,7 @@ fun QueueBottomSheet(
                                     if (onRemoveTrack != null) {
                                         IconButton(
                                             onClick = { onRemoveTrack(index) },
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,

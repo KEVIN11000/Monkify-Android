@@ -3,12 +3,19 @@ package com.k11000.monkify.data.repository
 import com.k11000.monkify.data.local.dao.TrackDao
 import com.k11000.monkify.data.local.entity.TrackEntity
 import com.k11000.monkify.data.remote.api.MonkifyApi
+import com.k11000.monkify.data.remote.dto.ActionResponseDto
+import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
+import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
 import com.k11000.monkify.data.remote.dto.LoginResponse
 import com.k11000.monkify.data.remote.dto.LyricsResponse
+import com.k11000.monkify.data.remote.dto.PlaylistSummaryDto
+import com.k11000.monkify.data.remote.dto.SupportReportRequestDto
+import com.k11000.monkify.data.remote.dto.SupportReportResponseDto
+import com.k11000.monkify.domain.model.Track
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -16,255 +23,199 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import retrofit2.Response
 
 class OfflineFirstTrackRepositoryTest {
 
-    private class FakeTrackDao : TrackDao {
-        val tracksFlow = MutableStateFlow<List<TrackEntity>>(emptyList())
+    private lateinit var fakeDao: InMemoryTrackDao
+    private lateinit var fakeNetworkRepo: FakeNetworkTrackRepository
+    private lateinit var repository: OfflineFirstTrackRepository
+    private lateinit var localRepo: LocalTrackRepository
+
+    @Before
+    fun setUp() {
+        fakeDao = InMemoryTrackDao()
+        fakeNetworkRepo = FakeNetworkTrackRepository()
+        repository = OfflineFirstTrackRepository(fakeNetworkRepo, fakeDao)
+        localRepo = LocalTrackRepository(fakeDao)
+    }
+
+    @Test
+    fun `getTracks preserva isFavorite, isDownloaded, localFilePath y playCount al sincronizar desde el servidor`() = runTest {
+        val existingEntity = TrackEntity(
+            id = "track_1",
+            title = "Old Title",
+            artist = "Artist A",
+            album = "Album X",
+            durationMs = 180000L,
+            coverUrl = "https://old/cover.jpg",
+            streamUrl = "https://remote/stream/track_1",
+            isFavorite = true,
+            isDownloaded = true,
+            localFilePath = "/data/user/0/com.k11000.monkify/files/downloads/track_1.mp3",
+            addedAt = 1700000000000L,
+            playCount = 12,
+            lastPlayedAt = 1700005000000L
+        )
+        fakeDao.insertTrack(existingEntity)
+
+        fakeNetworkRepo.tracksToReturn = listOf(
+            Track(
+                id = "track_1",
+                title = "Updated Remastered Title",
+                artist = "Artist A",
+                album = "Album X",
+                durationMs = 182000L,
+                coverUrl = "https://new/cover.jpg",
+                streamUrl = "https://remote/stream/track_1"
+            ),
+            Track(
+                id = "track_2",
+                title = "New Track",
+                artist = "Artist B",
+                album = "Album Y",
+                durationMs = 200000L,
+                coverUrl = null,
+                streamUrl = "https://remote/stream/track_2"
+            )
+        )
+
+        val result = repository.getTracks(limit = 20, offset = 0, query = null)
+        assertEquals(2, result.size)
+
+        val persistedTrack1 = fakeDao.getTrackById("track_1")!!
+        assertEquals("Updated Remastered Title", persistedTrack1.title)
+        assertEquals(182000L, persistedTrack1.durationMs)
+        assertTrue("Debe preservar isFavorite = true", persistedTrack1.isFavorite)
+        assertTrue("Debe preservar isDownloaded = true", persistedTrack1.isDownloaded)
+        assertEquals("/data/user/0/com.k11000.monkify/files/downloads/track_1.mp3", persistedTrack1.localFilePath)
+        assertEquals(1700000000000L, persistedTrack1.addedAt)
+        assertEquals(12, persistedTrack1.playCount)
+        assertEquals(1700005000000L, persistedTrack1.lastPlayedAt)
+    }
+
+    @Test
+    fun `getRecentTracks emite lista vacia cuando la base local y la respuesta remota estan vacias`() = runTest {
+        fakeNetworkRepo.tracksToReturn = emptyList()
+
+        val recent = repository.getRecentTracks().first()
+        assertTrue("Debe emitir lista vacía sin quedar colgado", recent.isEmpty())
+    }
+
+    @Test
+    fun `getTracksByAlbum consulta por nombre de album normalizando signos mas e ignorando mayusculas`() = runTest {
+        fakeDao.insertTrack(
+            TrackEntity(
+                id = "a1",
+                title = "Song 1",
+                artist = "Artist",
+                album = "Dark Side",
+                durationMs = 1000L,
+                coverUrl = null,
+                streamUrl = "https://remote/a1"
+            )
+        )
+        val matches = localRepo.getTracksByAlbum("dark+side")
+        assertEquals(1, matches.size)
+        assertEquals("a1", matches.first().id)
+    }
+
+    private class FakeNetworkTrackRepository : NetworkTrackRepository(NoOpMonkifyApi, "https://example.com") {
+        var tracksToReturn: List<Track> = emptyList()
+
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?): List<Track> = tracksToReturn
+
+        override suspend fun getLatestUploadedTracks(limit: Int): List<Track> = tracksToReturn
+    }
+
+    private object NoOpMonkifyApi : MonkifyApi {
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
+        override suspend fun submitSupportReport(request: SupportReportRequestDto): SupportReportResponseDto = throw UnsupportedOperationException()
+        override suspend fun login(request: LoginRequest): LoginResponse = throw UnsupportedOperationException()
+        override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = throw UnsupportedOperationException()
+        override suspend fun getLyrics(trackId: String): LyricsResponse = throw UnsupportedOperationException()
+        override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
+        override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = emptyList()
+        override suspend fun createPlaylist(request: CreatePlaylistRequest): PlaylistSummaryDto = throw UnsupportedOperationException()
+        override suspend fun addTrackToPlaylist(playlistId: String, request: AddTrackToPlaylistRequest): ActionResponseDto = throw UnsupportedOperationException()
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): ActionResponseDto = throw UnsupportedOperationException()
+        override suspend fun deletePlaylist(playlistId: String): ActionResponseDto = throw UnsupportedOperationException()
+    }
+
+    private class InMemoryTrackDao : TrackDao {
+        private val state = MutableStateFlow<Map<String, TrackEntity>>(emptyMap())
 
         override fun getAllFavoriteTracks(): Flow<List<TrackEntity>> =
-            tracksFlow.map { list -> list.filter { it.isFavorite } }
+            state.map { map -> map.values.filter { it.isFavorite }.sortedByDescending { it.addedAt } }
 
         override fun getDownloadedTracks(): Flow<List<TrackEntity>> =
-            tracksFlow.map { list -> list.filter { it.isDownloaded } }
+            state.map { map -> map.values.filter { it.isDownloaded }.sortedByDescending { it.addedAt } }
 
-        override fun getAllTracksFlow(): Flow<List<TrackEntity>> = tracksFlow
+        override fun getAllTracksFlow(): Flow<List<TrackEntity>> =
+            state.map { map -> map.values.sortedByDescending { it.addedAt } }
 
         override suspend fun getPagedTracks(limit: Int, offset: Int): List<TrackEntity> =
-            tracksFlow.value.drop(offset).take(limit)
+            state.value.values.sortedByDescending { it.addedAt }.drop(offset).take(limit)
 
         override suspend fun searchTracks(query: String, limit: Int, offset: Int): List<TrackEntity> =
-            tracksFlow.value.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                it.artist.contains(query, ignoreCase = true) ||
-                it.album.contains(query, ignoreCase = true)
+            state.value.values.filter {
+                it.title.contains(query, true) || it.artist.contains(query, true) || it.album.contains(query, true)
             }.drop(offset).take(limit)
 
-        override suspend fun getTrackById(id: String): TrackEntity? =
-            tracksFlow.value.find { it.id == id }
+        override suspend fun getTrackById(id: String): TrackEntity? = state.value[id]
 
         override fun isFavorite(id: String): Flow<Boolean> =
-            tracksFlow.map { list -> list.any { it.id == id && it.isFavorite } }
+            state.map { it[id]?.isFavorite == true }
 
         override suspend fun insertTrack(track: TrackEntity) {
-            tracksFlow.value = tracksFlow.value.filter { it.id != track.id } + track
+            state.value = state.value + (track.id to track)
         }
 
         override suspend fun insertTracks(tracks: List<TrackEntity>): List<Long> {
-            val existingIds = tracksFlow.value.map { it.id }.toSet()
-            val newTracks = tracks.filter { it.id !in existingIds }
-            tracksFlow.value = tracksFlow.value + newTracks
-            return newTracks.map { 1L }
+            val mutable = state.value.toMutableMap()
+            tracks.forEach { if (!mutable.containsKey(it.id)) mutable[it.id] = it }
+            state.value = mutable
+            return tracks.map { 1L }
         }
 
         override suspend fun deleteTrackById(id: String): Int {
-            val initialSize = tracksFlow.value.size
-            tracksFlow.value = tracksFlow.value.filter { it.id != id }
-            return initialSize - tracksFlow.value.size
+            val existed = state.value.containsKey(id)
+            state.value = state.value - id
+            return if (existed) 1 else 0
         }
 
         override suspend fun updateFavoriteStatus(id: String, isFavorite: Boolean): Int {
-            tracksFlow.value = tracksFlow.value.map {
-                if (it.id == id) it.copy(isFavorite = isFavorite) else it
-            }
+            val current = state.value[id] ?: return 0
+            state.value = state.value + (id to current.copy(isFavorite = isFavorite))
             return 1
         }
 
         override suspend fun updateDownloadStatus(id: String, isDownloaded: Boolean, localPath: String?): Int {
-            tracksFlow.value = tracksFlow.value.map {
-                if (it.id == id) it.copy(isDownloaded = isDownloaded, localFilePath = localPath) else it
-            }
+            val current = state.value[id] ?: return 0
+            state.value = state.value + (id to current.copy(isDownloaded = isDownloaded, localFilePath = localPath))
             return 1
         }
 
-        override suspend fun getAllTracksSnapshot(): List<TrackEntity> = tracksFlow.value
+        override suspend fun getAllTracksSnapshot(): List<TrackEntity> = state.value.values.toList()
 
         override suspend fun recordTrackPlay(trackId: String, timestamp: Long): Int {
-            tracksFlow.value = tracksFlow.value.map {
-                if (it.id == trackId) it.copy(playCount = it.playCount + 1, lastPlayedAt = timestamp) else it
-            }
+            val current = state.value[trackId] ?: return 0
+            state.value = state.value + (trackId to current.copy(playCount = current.playCount + 1, lastPlayedAt = timestamp))
             return 1
         }
 
         override fun getRecentlyPlayedTracks(limit: Int): Flow<List<TrackEntity>> =
-            tracksFlow.map { list -> list.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
+            state.map { map -> map.values.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit) }
 
         override fun getTracksOrderedByPlayCount(): Flow<List<TrackEntity>> =
-            tracksFlow.map { list -> list.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }) }
+            state.map { map -> map.values.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }) }
 
         override suspend fun getRecentlyPlayedTracksSnapshot(limit: Int): List<TrackEntity> =
-            tracksFlow.value.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
+            state.value.values.filter { it.lastPlayedAt > 0 }.sortedByDescending { it.lastPlayedAt }.take(limit)
 
         override suspend fun getTracksOrderedByPlayCountSnapshot(limit: Int): List<TrackEntity> =
-            tracksFlow.value.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }).take(limit)
-    }
-
-    private class FakeMonkifyApi(
-        private val getTracksHandler: (limit: Int, offset: Int, query: String?) -> List<BackendTrackDto> = { _, _, _ -> emptyList() },
-        private val ingestHandler: (request: IngestRequest) -> Response<IngestResponse> = {
-            Response.success(IngestResponse("task_1", "OK", "Queued"))
-        }
-    ) : MonkifyApi {
-        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> =
-            getTracksHandler(limit, offset, query)
-
-        override suspend fun login(request: LoginRequest): LoginResponse =
-            LoginResponse("fake_token", "fake_refresh", "bearer", 3600)
-
-        override suspend fun ingest(request: IngestRequest): Response<IngestResponse> =
-            ingestHandler(request)
-
-        override suspend fun getLyrics(trackId: String): LyricsResponse =
-            LyricsResponse(trackId, "lrc", "")
-
-        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto =
-            com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true, reportId = "rep_test")
-
-        override suspend fun getPlaylists(limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> =
-            emptyList()
-
-        override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> =
-            emptyList()
-
-        override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto =
-            com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("fake_pl", request.name, 0)
-
-        override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto =
-            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "added", playlistId, request.trackId, 1)
-
-        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto =
-            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "removed", playlistId, trackId)
-
-        override suspend fun deletePlaylist(playlistId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto =
-            com.k11000.monkify.data.remote.dto.ActionResponseDto(true, "deleted", deletedId = playlistId)
-    }
-
-    private fun sampleEntity(id: String, title: String, artist: String, album: String = "Test Album") = TrackEntity(
-        id = id,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = 210000L,
-        coverUrl = "https://example.com/$id.jpg",
-        streamUrl = "https://stream/$id",
-        isFavorite = false,
-        isDownloaded = false,
-        localFilePath = null
-    )
-
-    private fun sampleBackendTrack(id: String, title: String, artist: String, album: String = "Test Album") = BackendTrackDto(
-        id = id,
-        title = title,
-        artist = artist,
-        album = album,
-        durationMs = 210000L,
-        coverUrl = "https://example.com/$id.jpg",
-        streamUrl = "/api/v1/stream/$id",
-        isDownloaded = false
-    )
-
-    @Test
-    fun `cuando la red falla o no esta disponible, getTracks retorna el catalogo persistido en Room`() = runTest {
-        val fakeDao = FakeTrackDao()
-        fakeDao.insertTrack(sampleEntity("t1", "Comfortably Numb", "Pink Floyd"))
-        fakeDao.insertTrack(sampleEntity("t2", "Wish You Were Here", "Pink Floyd"))
-
-        // La API falla lanzando excepción de conexión
-        val fakeApi = FakeMonkifyApi(
-            getTracksHandler = { _, _, _ -> throw RuntimeException("No network connection") }
-        )
-        val networkRepo = NetworkTrackRepository(fakeApi, "https://api.monkify.com/")
-        val repository = OfflineFirstTrackRepository(networkRepo, fakeDao)
-
-        val tracks = repository.getTracks(limit = 10, offset = 0)
-
-        assertEquals(2, tracks.size)
-        assertEquals("Comfortably Numb", tracks[0].title)
-        assertEquals("Wish You Were Here", tracks[1].title)
-    }
-
-    @Test
-    fun `cuando la red responde con exito, getTracks sincroniza e inserta las pistas en Room y las retorna`() = runTest {
-        val fakeDao = FakeTrackDao()
-        assertTrue(fakeDao.tracksFlow.value.isEmpty())
-
-        val networkDtos = listOf(
-            sampleBackendTrack("net1", "Starman", "David Bowie"),
-            sampleBackendTrack("net2", "Space Oddity", "David Bowie")
-        )
-
-        val fakeApi = FakeMonkifyApi(
-            getTracksHandler = { _, _, _ -> networkDtos }
-        )
-        val networkRepo = NetworkTrackRepository(fakeApi, "https://api.monkify.com/")
-        val repository = OfflineFirstTrackRepository(networkRepo, fakeDao)
-
-        val tracks = repository.getTracks(limit = 10, offset = 0)
-
-        assertEquals(2, tracks.size)
-        assertEquals("Starman", tracks[0].title)
-        // Confirmar que Room fue actualizado en background
-        assertEquals(2, fakeDao.tracksFlow.value.size)
-        assertEquals("Starman", fakeDao.tracksFlow.value[0].title)
-    }
-
-    @Test
-    fun `en busqueda offline, getTracks filtra las pistas locales en Room por query`() = runTest {
-        val fakeDao = FakeTrackDao()
-        fakeDao.insertTrack(sampleEntity("t1", "Bohemian Rhapsody", "Queen"))
-        fakeDao.insertTrack(sampleEntity("t2", "Hotel California", "Eagles"))
-        fakeDao.insertTrack(sampleEntity("t3", "Radio Ga Ga", "Queen"))
-
-        // Offline (falla red)
-        val fakeApi = FakeMonkifyApi(
-            getTracksHandler = { _, _, _ -> throw RuntimeException("Offline mode") }
-        )
-        val networkRepo = NetworkTrackRepository(fakeApi, "https://api.monkify.com/")
-        val repository = OfflineFirstTrackRepository(networkRepo, fakeDao)
-
-        val queenResults = repository.getTracks(limit = 10, offset = 0, query = "Queen")
-        assertEquals(2, queenResults.size)
-        assertTrue(queenResults.all { it.artist == "Queen" })
-
-        val hotelResults = repository.getTracks(limit = 10, offset = 0, query = "Hotel")
-        assertEquals(1, hotelResults.size)
-        assertEquals("Hotel California", hotelResults[0].title)
-    }
-
-    @Test
-    fun `getRecentTracks emite catalogo local inmediatamente en ausencia de red`() = runTest {
-        val fakeDao = FakeTrackDao()
-        fakeDao.insertTrack(sampleEntity("t1", "Clocks", "Coldplay"))
-
-        val fakeApi = FakeMonkifyApi(
-            getTracksHandler = { _, _, _ -> throw RuntimeException("Offline") }
-        )
-        val networkRepo = NetworkTrackRepository(fakeApi, "https://api.monkify.com/")
-        val repository = OfflineFirstTrackRepository(networkRepo, fakeDao)
-
-        val firstEmission = repository.getRecentTracks().first()
-        assertEquals(1, firstEmission.size)
-        assertEquals("Clocks", firstEmission[0].title)
-    }
-
-    @Test
-    fun `requestIngest delega en networkTrackRepository`() = runTest {
-        val fakeDao = FakeTrackDao()
-        var ingestCalled = false
-        val fakeApi = FakeMonkifyApi(
-            ingestHandler = {
-                ingestCalled = true
-                Response.success(IngestResponse("task_ingest", "QUEUED", "Enqueued"))
-            }
-        )
-        val networkRepo = NetworkTrackRepository(fakeApi, "https://api.monkify.com/")
-        val repository = OfflineFirstTrackRepository(networkRepo, fakeDao)
-
-        val result = repository.requestIngest("https://open.spotify.com/track/123")
-        assertTrue(ingestCalled)
-        assertTrue(result.isSuccess)
-        assertEquals("task_ingest", result.getOrNull()?.taskId)
+            state.value.values.sortedWith(compareByDescending<TrackEntity> { it.playCount }.thenByDescending { it.lastPlayedAt }).take(limit)
     }
 }

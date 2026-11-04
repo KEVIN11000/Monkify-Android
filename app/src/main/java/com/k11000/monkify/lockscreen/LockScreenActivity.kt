@@ -24,6 +24,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -71,6 +75,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.k11000.monkify.playback.PlayerViewModel
+import com.k11000.monkify.domain.model.WeatherCondition
+import com.k11000.monkify.ui.components.FroggyAssetCatalog
+import com.k11000.monkify.ui.components.resolveCurrentZenTimeOfDay
+import com.k11000.monkify.ui.components.toZenTimeOfDay
 import com.k11000.monkify.ui.components.ZenBackground
 import com.k11000.monkify.ui.screens.viewmodel.SettingsViewModel
 import com.k11000.monkify.ui.theme.MonkifyBackground
@@ -99,14 +107,12 @@ class LockScreenActivity : ComponentActivity(), SensorEventListener {
         proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 
         setContent {
-            MyApplicationTheme {
+            MyApplicationTheme(dynamicColor = settingsViewModel.uiState.collectAsState().value.dynamicColor) {
                 val isPlaying by playerViewModel.isPlaying.collectAsState()
                 val currentTitle by playerViewModel.currentTrackTitle.collectAsState()
                 val currentArtist by playerViewModel.currentTrackArtist.collectAsState()
                 val coverUrl by playerViewModel.coverUrl.collectAsState()
-                val progress by playerViewModel.progress.collectAsState()
-                val currentPosition by playerViewModel.currentPosition.collectAsState()
-                val duration by playerViewModel.duration.collectAsState()
+                val currentWeather by playerViewModel.currentWeather.collectAsState()
                 val settingsState by settingsViewModel.uiState.collectAsState()
 
                 // Actualizar bandera de pantalla activa según reproducción
@@ -120,14 +126,14 @@ class LockScreenActivity : ComponentActivity(), SensorEventListener {
                 }
 
                 LockScreenContent(
+                    playerViewModel = playerViewModel,
                     isPlaying = isPlaying,
                     title = currentTitle,
                     artist = currentArtist,
                     coverUrl = coverUrl,
-                    progress = progress,
-                    currentPosition = currentPosition,
-                    duration = duration,
                     zenEngine = settingsState.zenEngine,
+                    froggyScenery = settingsState.froggyScenery,
+                    weather = currentWeather,
                     isCovered = isCoveredInPocket,
                     onPlayPause = { playerViewModel.togglePlayPause() },
                     onSkipNext = { playerViewModel.skipToNext() },
@@ -197,14 +203,14 @@ class LockScreenActivity : ComponentActivity(), SensorEventListener {
 
 @Composable
 fun LockScreenContent(
+    playerViewModel: PlayerViewModel,
     isPlaying: Boolean,
     title: String,
     artist: String,
     coverUrl: String?,
-    progress: Float,
-    currentPosition: Long,
-    duration: Long,
     zenEngine: String,
+    froggyScenery: String = "AUTO",
+    weather: com.k11000.monkify.domain.model.CurrentWeather? = null,
     isCovered: Boolean,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
@@ -220,6 +226,9 @@ fun LockScreenContent(
         )
         return
     }
+
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     // Pixel-shifting sutil anti-burn-in para paneles OLED
     val infiniteTransition = rememberInfiniteTransition(label = "PixelShift")
@@ -250,6 +259,9 @@ fun LockScreenContent(
         // Fondo ambiental Zen dinámico
         ZenBackground(
             engine = zenEngine,
+            timeOfDay = weather?.resolveDayPart()?.toZenTimeOfDay() ?: resolveCurrentZenTimeOfDay(),
+            weatherCondition = weather?.condition ?: WeatherCondition.SUNNY,
+            scenery = FroggyAssetCatalog.resolveScenery(froggyScenery),
             isPlaying = isPlaying,
             modifier = Modifier.fillMaxSize()
         )
@@ -259,7 +271,7 @@ fun LockScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .offset { IntOffset(shiftX.roundToInt(), shiftY.roundToInt()) }
-                .padding(horizontal = 28.dp, vertical = 36.dp),
+                .padding(start = 28.dp, end = 28.dp, top = statusBarPadding + 16.dp, bottom = navBarPadding + 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -347,34 +359,7 @@ fun LockScreenContent(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Barra de Progreso
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth(0.85f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = MonkifyPrimary,
-                    trackColor = Color(0x33FFFFFF)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.85f),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = formatMillis(currentPosition),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MonkifyGray
-                    )
-                    Text(
-                        text = formatMillis(duration),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MonkifyGray
-                    )
-                }
+                LockScreenProgressSection(playerViewModel = playerViewModel)
             }
 
             // Controles de Reproducción y Desbloqueo
@@ -461,4 +446,48 @@ private fun formatMillis(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
+}
+
+
+@Composable
+private fun LockScreenProgressSection(
+    playerViewModel: PlayerViewModel,
+    modifier: Modifier = Modifier
+) {
+    val progress by playerViewModel.progress.collectAsState()
+    val currentPosition by playerViewModel.currentPosition.collectAsState()
+    val duration by playerViewModel.duration.collectAsState()
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = MonkifyPrimary,
+            trackColor = Color(0x33FFFFFF)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatMillis(currentPosition),
+                style = MaterialTheme.typography.labelSmall,
+                color = MonkifyGray
+            )
+            Text(
+                text = formatMillis(duration),
+                style = MaterialTheme.typography.labelSmall,
+                color = MonkifyGray
+            )
+        }
+    }
 }

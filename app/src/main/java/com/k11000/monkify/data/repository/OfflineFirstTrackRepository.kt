@@ -26,15 +26,21 @@ class OfflineFirstTrackRepository @Inject constructor(
                 if (cached.isNotEmpty()) {
                     emit(cached)
                 } else {
-                    try {
+                    val synced = try {
                         val remote = networkTrackRepository.getTracks(limit = PAGE_SIZE, offset = 0)
                         if (remote.isNotEmpty()) {
                             val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
-                            trackDao.insertTracks(entities)
+                            trackDao.upsertRemoteTracks(entities)
+                            trackDao.getPagedTracks(limit = PAGE_SIZE, offset = 0).map { it.toDomain() }
+                        } else {
+                            emptyList()
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (_: Exception) {
-                        emit(emptyList())
+                        emptyList()
                     }
+                    emit(synced)
                 }
             }
         }
@@ -68,8 +74,11 @@ class OfflineFirstTrackRepository @Inject constructor(
             val remote = networkTrackRepository.getTracks(limit = limit, offset = offset, query = trimmedQuery)
             if (remote.isNotEmpty()) {
                 val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
-                trackDao.insertTracks(entities)
-                return remote
+                trackDao.upsertRemoteTracks(entities)
+                val persistedById = trackDao.getAllTracksSnapshot().associateBy { it.id }
+                return remote.map { track ->
+                    persistedById[track.id]?.toDomain() ?: track
+                }
             }
         } catch (_: Exception) {
             // Continuar al fallback de Room
@@ -86,6 +95,8 @@ class OfflineFirstTrackRepository @Inject constructor(
     override suspend fun getLatestUploadedTracks(limit: Int): List<Track> {
         val remote = networkTrackRepository.getLatestUploadedTracks(limit = limit)
         if (remote.isNotEmpty()) {
+            val entities = remote.map { it.toEntity(isFavorite = false, isDownloaded = false) }
+            trackDao.upsertRemoteTracks(entities)
             return remote
         }
         return trackDao.getPagedTracks(limit = limit, offset = 0).map { it.toDomain() }

@@ -12,6 +12,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -25,6 +26,14 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideServerStatusMonitor(): com.k11000.monkify.data.remote.api.ServerStatusMonitor =
+        com.k11000.monkify.data.remote.api.ServerStatusMonitor.shared
+
+
+    private val networkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Provides
+    @Singleton
     fun provideGson(): Gson {
         return Gson()
     }
@@ -33,7 +42,7 @@ object NetworkModule {
     @Singleton
     fun provideAuthInterceptor(settingsRepository: SettingsRepository): AuthInterceptor {
         // Mantiene caliente el caché en memoria ante cambios reactivos en DataStore
-        CoroutineScope(Dispatchers.IO).launch {
+        networkScope.launch {
             settingsRepository.serverAccessToken.collect { /* actualiza cachedServerToken en SettingsRepository */ }
         }
         return AuthInterceptor(tokenProvider = { settingsRepository.getServerAccessTokenImmediate() })
@@ -44,10 +53,13 @@ object NetworkModule {
     fun provideOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.HEADERS
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
+            redactHeader("Authorization")
+            redactHeader("X-Monkify-Token")
+            redactHeader("Cookie")
         }
 
         return OkHttpClient.Builder()

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -123,8 +124,7 @@ fun FullScreenPlayer(
     val title by viewModel.currentTrackTitle.collectAsState()
     val artist by viewModel.currentTrackArtist.collectAsState()
     val coverUrl by viewModel.coverUrl.collectAsState()
-    val currentPosition by viewModel.currentPosition.collectAsState()
-    val duration by viewModel.duration.collectAsState()
+    val isLoadingLyrics by viewModel.isLoadingLyrics.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val activeDeviceName by viewModel.activeDeviceName.collectAsState()
     val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
@@ -137,6 +137,7 @@ fun FullScreenPlayer(
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
     val zenModeEnabled by viewModel.zenModeEnabled.collectAsState()
     val zenEngine by viewModel.zenEngine.collectAsState()
+    val froggyScenery by viewModel.froggyScenery.collectAsState()
     val currentWeather by viewModel.currentWeather.collectAsState()
     val coverStyle by viewModel.coverStyle.collectAsState()
     val playbackSource by viewModel.playbackSource.collectAsState()
@@ -151,6 +152,7 @@ fun FullScreenPlayer(
     var showQueueSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     // Manejo del botón de retroceso: si las letras están visibles las cierra; si no, colapsa el reproductor
     BackHandler(enabled = true) {
@@ -201,6 +203,7 @@ fun FullScreenPlayer(
                 engine = zenEngine,
                 timeOfDay = fullTimeOfDay,
                 weatherCondition = fullWeatherCondition,
+                scenery = com.k11000.monkify.ui.components.FroggyAssetCatalog.resolveScenery(froggyScenery),
                 modifier = Modifier.fillMaxSize()
             )
             // Viñeta ambiental superior e inferior para óptimo contraste de tipografías y controles
@@ -222,7 +225,7 @@ fun FullScreenPlayer(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = 24.dp)
+                .padding(top = statusBarPadding + 12.dp, start = 24.dp, end = 24.dp, bottom = navBarPadding + 16.dp)
         ) {
         // Barra Superior
         Row(
@@ -314,12 +317,10 @@ fun FullScreenPlayer(
                             .clip(RoundedCornerShape(16.dp))
                             .background(MonkifyDarkGray.copy(alpha = 0.5f))
                     ) {
-                        LyricsView(
+                        FullScreenLyricsSection(
+                            viewModel = viewModel,
                             lyrics = lyrics,
-                            currentPositionMs = currentPosition,
-                            onLineClick = { timestampMs ->
-                                viewModel.seekTo(timestampMs)
-                            }
+                            isLoading = isLoadingLyrics
                         )
                     }
                 } else {
@@ -469,39 +470,7 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Slider de Progreso en Azul Eléctrico
-        var sliderPosition by remember { mutableStateOf<Float?>(null) }
-
-        val currentProgress = if (duration > 0) {
-            (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-        } else 0f
-
-        Slider(
-            value = sliderPosition ?: currentProgress,
-            onValueChange = { newProgress ->
-                sliderPosition = newProgress
-            },
-            onValueChangeFinished = {
-                sliderPosition?.let { newProgress ->
-                    val newPosition = (newProgress * duration).toLong()
-                    viewModel.seekTo(newPosition)
-                    sliderPosition = null
-                }
-            },
-            colors = SliderDefaults.colors(
-                thumbColor = MonkifyPrimary,
-                activeTrackColor = MonkifyPrimary,
-                inactiveTrackColor = MonkifyDarkGray
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = formatTime(currentPosition), color = MonkifyGray, style = MaterialTheme.typography.labelSmall)
-            Text(text = formatTime(duration), color = MonkifyGray, style = MaterialTheme.typography.labelSmall)
-        }
+        FullScreenProgressBar(viewModel = viewModel)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -810,3 +779,73 @@ fun FullScreenPlayer(
     }
 }
 
+
+
+@Composable
+private fun FullScreenLyricsSection(
+    viewModel: PlayerViewModel,
+    lyrics: List<com.k11000.monkify.playback.lyrics.LyricLine>,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val currentPosition by viewModel.currentPosition.collectAsState()
+    LyricsView(
+        lyrics = lyrics,
+        currentPositionMs = currentPosition,
+        isLoading = isLoading,
+        onLineClick = { timestampMs ->
+            viewModel.seekTo(timestampMs)
+        },
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun FullScreenProgressBar(
+    viewModel: PlayerViewModel,
+    modifier: Modifier = Modifier
+) {
+    val currentPosition by viewModel.currentPosition.collectAsState()
+    val duration by viewModel.duration.collectAsState()
+    var sliderPosition by remember { mutableStateOf<Float?>(null) }
+
+    val currentProgress = if (duration > 0) {
+        (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Slider(
+            value = sliderPosition ?: currentProgress,
+            onValueChange = { newProgress ->
+                sliderPosition = newProgress
+            },
+            onValueChangeFinished = {
+                sliderPosition?.let { newProgress ->
+                    val newPosition = (newProgress * duration).toLong()
+                    viewModel.seekTo(newPosition)
+                    sliderPosition = null
+                }
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = MonkifyPrimary,
+                activeTrackColor = MonkifyPrimary,
+                inactiveTrackColor = MonkifyDarkGray
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = formatPlaybackTime(currentPosition), color = MonkifyGray, style = MaterialTheme.typography.labelSmall)
+            Text(text = formatPlaybackTime(duration), color = MonkifyGray, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+private fun formatPlaybackTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
+}

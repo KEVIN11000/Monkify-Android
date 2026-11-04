@@ -32,11 +32,13 @@ class LibraryViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        com.k11000.monkify.ui.screens.viewmodel.LibraryDispatchers.io = testDispatcher
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        com.k11000.monkify.ui.screens.viewmodel.LibraryDispatchers.io = Dispatchers.IO
     }
 
     private class FakeTrackDao : TrackDao {
@@ -186,6 +188,7 @@ class LibraryViewModelTest {
         val playlists = mutableListOf<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>(
             com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("pl_1", "Lofi Beats", 5)
         )
+        val addedTracks = mutableListOf<String>()
 
         override suspend fun getPlaylists(limit: Int, offset: Int): Result<List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>> =
             Result.success(playlists.toList())
@@ -204,8 +207,10 @@ class LibraryViewModelTest {
             return Result.success(Unit)
         }
 
-        override suspend fun addTrackToPlaylist(playlistId: String, trackId: String): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun addTrackToPlaylist(playlistId: String, trackId: String): Result<Unit> {
+            addedTracks.add(trackId)
+            return Result.success(Unit)
+        }
 
         override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): Result<Unit> =
             Result.success(Unit)
@@ -573,5 +578,31 @@ class LibraryViewModelTest {
         assertTrue(viewModel.selectedTrackIds.value.isEmpty())
 
         assertEquals(2, viewModel.downloadedTracks.value.size)
+    }
+    @Test
+    fun `batchAddTracksToPlaylist agrega pistas y limpia seleccion`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakePlaylistRepo = FakePlaylistRepo()
+
+        val viewModel = LibraryViewModel(
+            localTrackRepository = localRepo,
+            playlistRepository = fakePlaylistRepo
+        )
+        advanceUntilIdle()
+
+        viewModel.selectAll(listOf("t1", "t2", "t3"))
+        assertEquals(3, viewModel.selectedTrackIds.value.size)
+
+        var addedCount = 0
+        viewModel.batchAddTracksToPlaylist("playlist_xyz") { count ->
+            addedCount = count
+        }
+        advanceUntilIdle()
+
+        assertEquals(3, addedCount)
+        assertEquals(listOf("t1", "t2", "t3"), fakePlaylistRepo.addedTracks)
+        assertFalse(viewModel.isSelectionMode.value)
+        assertTrue(viewModel.selectedTrackIds.value.isEmpty())
     }
 }

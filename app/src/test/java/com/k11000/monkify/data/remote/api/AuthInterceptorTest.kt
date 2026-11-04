@@ -137,6 +137,7 @@ class AuthInterceptorTest {
     fun is_trusted_monkify_host_validation() {
         val interceptor = AuthInterceptor()
         assertTrue(interceptor.isTrustedMonkifyHost("monkify-backend.monkify.workers.dev"))
+        assertTrue(interceptor.isTrustedMonkifyHost("monkify.workers.dev"))
         assertTrue(interceptor.isTrustedMonkifyHost("api.monkify.tudominio.com"))
         assertTrue(interceptor.isTrustedMonkifyHost("10.0.2.2"))
         assertTrue(interceptor.isTrustedMonkifyHost("localhost"))
@@ -146,5 +147,20 @@ class AuthInterceptorTest {
         assertFalse(interceptor.isTrustedMonkifyHost("api.open-meteo.com"))
         assertFalse(interceptor.isTrustedMonkifyHost("google.com"))
         assertFalse(interceptor.isTrustedMonkifyHost("evil-monkify.workers.dev.attacker.com"))
+        assertFalse("No debe confiar en dominios lookalike sin punto separador", interceptor.isTrustedMonkifyHost("evil-monkify.workers.dev"))
+        assertFalse("No debe confiar en cualquier worker ajeno", interceptor.isTrustedMonkifyHost("other-project.workers.dev"))
+    }
+
+    @Test
+    fun app_logger_sanitizes_token_query_and_bearer_headers() {
+        val rawLog = "Transición de pista: uri=https://monkify-backend.monkify.workers.dev/api/v1/stream/t1?token=super_secret_token_999&foo=bar Authorization: Bearer my_jwt_secret X-Monkify-Token: raw_key_123"
+        val sanitized = com.k11000.monkify.util.AppLogger.sanitizeSensitiveText(rawLog)
+
+        assertFalse("No debe contener el token de query en texto plano", sanitized.contains("super_secret_token_999"))
+        assertFalse("No debe contener el Bearer token en texto plano", sanitized.contains("my_jwt_secret"))
+        assertFalse("No debe contener X-Monkify-Token en texto plano", sanitized.contains("raw_key_123"))
+        assertTrue(sanitized.contains("?token=[REDACTED]&foo=bar"))
+        assertTrue(sanitized.contains("Bearer [REDACTED]"))
+        assertTrue(sanitized.contains("X-Monkify-Token: [REDACTED]"))
     }
 }

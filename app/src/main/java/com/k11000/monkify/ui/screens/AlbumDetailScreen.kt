@@ -322,7 +322,7 @@ fun AlbumDetailScreen(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
+                                    .height(52.dp)
                             )
 
                             Box {

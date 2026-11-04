@@ -15,6 +15,12 @@ object PlaybackCache {
     /** Tope de la caché LRU: 1 GiB. Al superarlo se expulsan las pistas menos recientes. */
     const val MAX_CACHE_BYTES: Long = 1024L * 1024L * 1024L
 
+    /** Límite mínimo permitido (64 MiB) para evitar evicción degenerada si se configura un valor inválido. */
+    const val MIN_CACHE_BYTES: Long = 64L * 1024L * 1024L
+
+    fun mbToBytes(mb: Long): Long =
+        (mb.coerceAtLeast(64L)) * 1024L * 1024L
+
     fun newEvictor(maxBytes: Long = MAX_CACHE_BYTES): CacheEvictor =
-        LeastRecentlyUsedCacheEvictor(maxBytes)
+        LeastRecentlyUsedCacheEvictor(maxBytes.coerceAtLeast(MIN_CACHE_BYTES))
 }

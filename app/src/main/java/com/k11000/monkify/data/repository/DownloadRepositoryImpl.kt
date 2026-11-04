@@ -228,8 +228,8 @@ class DownloadRepositoryImpl @Inject constructor(
     private fun resolveStreamUrl(streamUrl: String, trackId: String): String {
         return when {
             streamUrl.startsWith("http://") || streamUrl.startsWith("https://") -> streamUrl
-            streamUrl.startsWith("/") -> "https://monkify-backend.monkify.workers.dev$streamUrl"
-            else -> "https://monkify-backend.monkify.workers.dev/api/v1/stream/$trackId"
+            streamUrl.startsWith("/") -> "${com.k11000.monkify.BuildConfig.BASE_URL.substringBefore("/api/")}$streamUrl"
+            else -> "${com.k11000.monkify.BuildConfig.BASE_URL.trimEnd('/')}/stream/$trackId"
         }
     }
 
