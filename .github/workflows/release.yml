@@ -48,6 +48,10 @@ jobs:
 
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-configuration-cache
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'monkify_release_2026' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'monkify' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'monkify_release_2026' }}
 
       - name: Prepare Release Artifact
         run: |

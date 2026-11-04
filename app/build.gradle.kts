@@ -24,8 +24,8 @@ android {
         applicationId = "com.k11000.monkify"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.4.6"
+        versionCode = 8
+        versionName = "0.4.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,10 +40,13 @@ android {
 
             val resolvedStorePassword = System.getenv("KEYSTORE_PASSWORD")
                 ?: keystoreProperties.getProperty("storePassword")
+                ?: "monkify_release_2026"
             val resolvedKeyAlias = System.getenv("KEY_ALIAS")
                 ?: keystoreProperties.getProperty("keyAlias")
+                ?: "monkify"
             val resolvedKeyPassword = System.getenv("KEY_PASSWORD")
                 ?: keystoreProperties.getProperty("keyPassword")
+                ?: "monkify_release_2026"
 
             if (targetKeystore != null && !resolvedStorePassword.isNullOrBlank() && !resolvedKeyAlias.isNullOrBlank() && !resolvedKeyPassword.isNullOrBlank()) {
                 storeFile = targetKeystore
