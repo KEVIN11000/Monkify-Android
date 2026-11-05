@@ -38,6 +38,8 @@
 | `app/src/main/java/com/k11000/monkify/data/local/dao/TrackDao.kt` | `@Transaction upsertRemoteTracks` preservando datos locales frente a sincronizaciones de servidor. |
 | `app/src/main/java/com/k11000/monkify/playback/PlaybackCache.kt` | Integración física con `SimpleCache` de Media3 y evicción segura por tamaño configurado. |
 | `app/src/main/java/com/k11000/monkify/ui/screens/LibraryScreen.kt` | Acciones por lote movidas a la barra contextual superior `TopAppBar`. |
+| `.github/workflows/release.yml` | Blindaje de firma en CI: restauración estricta de `RELEASE_KEYSTORE_BASE64`, erradicación total de debug keystore efímero y aborto con error si falta el secreto. |
+| `app/build.gradle.kts` | Resolución multicamino de ruta de keystore (`rootProject.file` y `file`) para release signing. |
 | `docs/history/fase-v0.4.7.md` | Registro histórico archivado de la fase v0.4.7. |
 
 ## 4. Pendientes explícitos para la próxima fase
