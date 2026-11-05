@@ -39,3 +39,9 @@ keystore.properties
 
 # Context Handoff (local session state)
 HANDOFF.md
+
+# Internal Agent & Session Workflows (excluded from remote for clients)
+docs/history/
+docs/specs/
+docs/incidents/
+docs/SYSTEM_MAP.md

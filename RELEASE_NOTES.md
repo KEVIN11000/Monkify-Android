@@ -1,66 +1,110 @@
-# Monkify Android v0.4.0 — Release Notes
+# Monkify Android — Historial Oficial de Versiones (Release Notes)
 
-**Versión:** 0.4.0  
-**Fecha:** 20 de Octubre de 2026  
-**Repositorios:**
-- Android App: [`Monkify-Android`](https://github.com/KEVIN11000/Monkify-Android)
-- Backend: [`Monkify_backend`](https://github.com/KEVIN11000/Monkify_backend)
+Repositorio oficial: [`Monkify-Android`](https://github.com/KEVIN11000/Monkify-Android)  
+Aplicación nativa de música con modo Zen, sincronización en la nube y reproducción sin interrupciones.
 
 ---
 
-## 🌟 Resumen de la Versión
+## 🌟 Monkify v0.4.7 — Release Oficial de Rendimiento, Froggy y Firma Unificada
+**Fecha:** 5 de Noviembre de 2026 | **Build:** `versionCode 8`
 
-Monkify v0.4.0 representa un salto de calidad enfocado en la estabilidad del reproductor, la ergonomía de navegación, la personalización visual zen y el refinamiento de la biblioteca y pantallas de detalle. Esta versión resuelve 19 puntos críticos solicitados por los usuarios, eliminando comportamientos erráticos en pantalla de bloqueo y estados de ciclo de vida, incorporando nuevos fondos visuales interactivos y optimizando la experiencia de reproducción continua.
+Esta versión establece el estándar definitivo de calidad y estabilidad para Monkify, resolviendo aspectos ergonómicos de pantalla, optimizaciones de bajo nivel y garantizando un canal de actualización fluido y permanente.
 
----
-
-## 🚀 Novedades y Mejoras Clave
-
-### 1. Reproductor & Pantalla de Bloqueo
-- **Eliminación Total de Picture-in-Picture (PiP):** Retirado el soporte PiP del manifiesto y del código. La app ahora delega su control en segundo plano a la bandeja de notificaciones nativa de Android y a `MediaSession`.
-- **Blindaje contra Toques Fantasma:** `FullScreenPlayer` consume todos los eventos táctiles para impedir que toques accidentales sobre áreas vacías traspasen a listas inferiores y cambien la canción de forma inesperada.
-- **Persistencia de Sesión (`PlaybackSessionStateHolder`):** La canción actual, metadatos y cola de reproducción ya no se pierden al salir de la app, bloquear el teléfono o cambiar de tarea.
-- **Sincronización Inmediata en Pantalla de Bloqueo:** `LockScreenActivity` se superpone desde el **primer bloqueo** sin requerir ciclos adicionales de bloqueo/desbloqueo.
-- **Soporte de Letras Dual (.lrc y Texto Plano):** Soporte para letras sincronizadas y texto estático con fallback automático al endpoint `/lyrics` del backend y proveedor LRCLIB.
-
-### 2. Pantalla de Inicio (`HomeScreen`)
-- **Saludo Dinámico con Motivación:** Banner con 7 etapas horarias (Madrugada, Amanecer, Mañana, Mediodía, Tarde, Atardecer, Noche) acompañado de frases breves y motivadoras.
-- **Filtro de Álbumes:** Nuevo chip interactivo "Álbumes" junto a "Música" para explorar el catálogo en cuadrícula.
-- **Últimos 6 Subidos:** La cuadrícula rápida superior muestra dinámicamente los últimos 6 temas incorporados al servidor vía `?sort=latest`.
-- **"Escuchado Recientemente" & "Hecho para ti":** Conectados reactivamente al historial local de Room (`playCount`, `lastPlayedAt`) para sugerir pistas de los artistas más reproducidos.
-- **Inicio Limpio y Enfocado:** Eliminada la lista vertical infinita de "Todas las canciones" de Inicio, concentrando el descubrimiento y las recomendaciones.
-
-### 3. Biblioteca y Pantallas de Detalle
-- **Búsqueda y Ordenamiento Interno:** Tanto `PlaylistDetailScreen` como `AlbumDetailScreen` cuentan con barra de búsqueda rápida y selector de ordenamiento (`Título A-Z`, `Título Z-A`, `Artista`, `Duración`).
-- **Carátulas Automáticas en Collage:** Las listas sin portada personalizada generan dinámicamente un mosaico de 4 (2x2) o 6 canciones (3x2).
-- **Ordenamiento Global de Biblioteca:** Selector interactivo de ordenamiento disponible en todas las pestañas de `LibraryScreen` (`Todo`, `Favoritos`, `Descargas`, `Playlists`, `Álbumes`).
-- **Acciones Rápidas en Pestaña "Todo":** Botones dedicados para **"Aleatorio" (Shuffle)** y **"Desde la primera"** para reproducir el catálogo completo con un solo toque.
-
-### 4. Navegación & Soporte
-- **Navegación Rápida con Reselect:**
-  - Tocar la pestaña activa de **"Biblioteca"** desplaza suavemente la lista hasta el inicio (`Scroll to top`).
-  - Tocar la pestaña activa de **"Buscar"** limpia la búsqueda y restaura la vista de categorías y exploración inicial.
-- **Placeholder Amigable:** El buscador ahora utiliza la frase `"¿Qué te gustaría escuchar?"`.
-- **Nuevos Fondos Visuales Zen:** Incorporados los motores `Froggy` (paisaje dinámico de Google Weather), `Cosmos` (nebulosa en movimiento) y `Ninguno` (negro puro para pantallas AMOLED).
-- **Reporte de Fallos en 1 Clic:** Envío directo de problemas y comentarios desde Ajustes hacia la API de soporte del backend sin necesidad de iniciar sesión en GitHub.
+### Novedades y Mejoras Clave
+* **Encuadre Dinámico del Modo Zen (Froggy):**
+  * Ajuste responsivo del viewport vertical en pantallas modernas 20:9, eliminando bandas negras laterales y recortes de la ranita.
+  * Escenas completas de Picnic, Casa Hongo y Cometa con encuadre continuo e interactivo.
+* **Saludo Dinámico Reactivo:**
+  * Cabecera de Inicio inteligente que conmuta automáticamente entre *"Buenos días"*, *"Buenas tardes"* y *"Buenas noches"*.
+  * Recálculo automático cada 60 segundos y actualización instantánea al reanudar la app.
+* **Protección de Datos Locales del Usuario:**
+  * Sincronización inteligente con el servidor que preserva intactos tus favoritos, canciones descargadas, rutas locales y estadísticas de reproducción personal.
+* **Enrutamiento Físico de Salida de Audio:**
+  * Compatibilidad nativa con altavoces del dispositivo, auriculares con cable y dispositivos Bluetooth, conmutando la salida sin pausar la reproducción.
+* **Caché Físico de Reproducción:**
+  * Integración con almacenamiento en caché dinámico y configurable en Ajustes, permitiendo escuchar música con menor consumo de datos móviles y evicción automática por espacio.
+* **Acciones por Lote en Biblioteca:**
+  * La selección múltiple de canciones ahora fija sus acciones en la barra superior (Favoritos, Descargas, Eliminar), permitiendo desplazarse cómodamente por toda la lista.
+* **Firma Criptográfica Permanente:**
+  * Certificado oficial definitivo Scheme v2 para todas las versiones presentes y futuras, garantizando actualizaciones directas desde el teléfono sin conflictos de paquete.
 
 ---
 
-## 🛠️ Matriz de Archivos Técnicos Modificados
+## 🚀 Monkify v0.4.6 — Resiliencia de Conexión, Aviso Flotante y Skeletons
+**Fecha:** 29 de Octubre de 2026 | **Build:** `versionCode 7`
 
-| Componente | Archivo Principal | Propósito |
-| :--- | :--- | :--- |
-| **Backend** | `src/routes/tracks.ts` | Filtro `?sort=latest` y proxy LRCLIB para letras |
-| **Backend** | `src/routes/playlists.ts` | Extracción de `cover_urls` para mosaicos |
-| **Backend** | `src/routes/support.ts` | Endpoint de soporte `/api/v1/support/report` |
-| **Persistencia** | `TrackEntity.kt` / `TrackDao.kt` | Contadores `playCount` y `lastPlayedAt` |
-| **Reproductor** | `PlaybackSessionStateHolder.kt` | Singleton centralizado de estado y cola |
-| **Reproductor** | `FullScreenPlayer.kt` | Touch shield y remoción de controles PiP |
-| **Pantalla Bloqueo** | `LockScreenActivity.kt` | Flags de encendido y superposición instantánea |
-| **Letras** | `LrcParser.kt` | Parser con fallback a texto plano (`timestampMs = -1L`) |
-| **Fondos Zen** | `ZenBackground.kt` | Motores de canvas `FROGGY`, `COSMOS` y `NONE` |
-| **Ajustes** | `SettingsScreen.kt` | Envío de reporte en 1 clic y selector de fondos |
-| **Inicio** | `HomeScreen.kt` / `HomeViewModel.kt` | Saludos 7 franjas, chip Álbumes, Top 6 últimos |
-| **Biblioteca** | `LibraryScreen.kt` / `LibraryViewModel.kt` | Ordenamiento global, acciones Todo, reselect scroll |
-| **Detalles** | `PlaylistDetailScreen.kt` / `AlbumDetailScreen.kt` | Buscador interno, menú de orden y mosaicos collage |
-| **Búsqueda** | `SearchScreen.kt` | Placeholder localizado y reselect reset |
+* **Aviso Flotante Global de Estado:**
+  * Notificación visual elegante en la parte superior ante pérdidas de conexión o credenciales desactualizadas, con botón directo hacia Ajustes o Reintentar.
+* **Esqueletos de Carga Shimmer:**
+  * Animación fluida de barrido metálico mientras se sincroniza el catálogo musical, eliminando saltos bruscos en la pantalla de Inicio.
+* **Conexión Instantánea en Frío:**
+  * Eliminadas esperas o desconexiones al arrancar la app; las credenciales se cargan síncronamente en memoria desde el primer milisegundo.
+* **Diagnóstico Activo de Servidor:**
+  * Nuevo botón *"Guardar y Conectar"* en Ajustes con comprobación de estado y conectividad en tiempo real.
+
+---
+
+## 🛠️ Monkify v0.4.5 — Blindaje de Seguridad y Respaldo
+**Fecha:** 28 de Octubre de 2026 | **Build:** `versionCode 6`
+
+* **Validación Estricta de Red:**
+  * Restricción de tráfico cifrado exclusivo y protección contra fugas de credenciales hacia servicios externos.
+* **Políticas Seguras de Respaldo:**
+  * Exclusión de tokens y credenciales privadas en copias de seguridad en la nube de Android.
+
+---
+
+## 🎨 Monkify v0.4.4 — Frases Zen Contextuales
+**Fecha:** 28 de Octubre de 2026 | **Build:** `versionCode 5`
+
+* **Catálogo de Reflexiones:**
+  * Nuevas citas y reflexiones breves adaptadas a la franja horaria y atmósfera del modo Zen.
+* **Optimización de Renderizado:**
+  * Reducción en el consumo de batería durante la reproducción en segundo plano.
+
+---
+
+## 🐸 Monkify v0.4.3 — Rive y Clima Zen Adaptativo
+**Fecha:** 28 de Octubre de 2026 | **Build:** `versionCode 4`
+
+* **Integración de Escenarios Interactivos:**
+  * Nuevos escenarios Zen seleccionables desde Ajustes: Campos, Colina y Casa Hongo.
+* **Fondo con Clima Dinámico:**
+  * Adaptación del cielo y la iluminación de Froggy según las condiciones del clima local.
+
+---
+
+## 💎 Monkify v0.4.2 — Consolidación Ergonómica y UX
+**Fecha:** 27 de Octubre de 2026 | **Build:** `versionCode 3`
+
+* **Espaciados Táctiles Mejorados:**
+  * Márgenes de seguridad adaptados a la navegación por gestos de Android (Edge-to-Edge).
+* **Búsqueda Dinámica:**
+  * Filtrado instantáneo por artista, álbum o título dentro de cualquier pantalla de detalle.
+
+---
+
+## 💿 Monkify v0.4.1 — Modo Zen Despejado y Peek Bar
+**Fecha:** 20 de Octubre de 2026 | **Build:** `versionCode 2`
+
+* **Peek Bar de Reproducción:**
+  * Barra flotante inferior de minimización elegante para controlar la música mientras navegas por la biblioteca.
+* **Modo Zen Despejado:**
+  * Visualización inmersiva del fondo animado con controles discretos de reproducción.
+* **Animación de Disco Giratorio:**
+  * Vinilo físico animado que acompaña el compás y ritmo de cada canción.
+
+---
+
+## 🎧 Monkify v0.4.0 — Reproductor Estable, Biblioteca y Soporte
+**Fecha:** 20 de Octubre de 2026 | **Build:** `versionCode 1`
+
+* **Control en Pantalla de Bloqueo:**
+  * Superposición instantánea desde el primer bloqueo de pantalla sin exigir desbloqueo de PIN.
+* **Soporte Dual de Letras:**
+  * Visualización de letras sincronizadas paso a paso (.lrc) y texto plano con desplazamiento manual.
+* **Biblioteca Organizada con Mosaicos:**
+  * Carátulas automáticas en collage (2x2 y 3x2) para listas y álbumes sin portada.
+  * Acciones rápidas *"Aleatorio"* y *"Desde la primera"* en la pestaña Todo.
+* **Inicio con Filtro de Álbumes:**
+  * Chips interactivos y recomendaciones basadas en tus artistas más escuchados.
