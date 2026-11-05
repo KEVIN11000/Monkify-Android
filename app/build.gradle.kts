@@ -35,8 +35,9 @@ android {
             val keystorePath = System.getenv("KEYSTORE_FILE")
                 ?: System.getenv("KEYSTORE_PATH")
                 ?: keystoreProperties.getProperty("storeFile")
-            val targetKeystore = keystorePath?.let { file(it) }?.takeIf { it.exists() }
+            val targetKeystore = keystorePath?.let { rootProject.file(it).takeIf { f -> f.exists() } ?: file(it).takeIf { f -> f.exists() } }
                 ?: file("keystore/monkify-release.jks").takeIf { it.exists() }
+                ?: rootProject.file("app/keystore/monkify-release.jks").takeIf { it.exists() }
 
             val resolvedStorePassword = System.getenv("KEYSTORE_PASSWORD")
                 ?: keystoreProperties.getProperty("storePassword")
