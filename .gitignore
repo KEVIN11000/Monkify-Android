@@ -36,3 +36,6 @@ keystore.properties
 # Spec Kit & Local Agent Scaffolding
 .agents/
 .specify/
+
+# Context Handoff (local session state)
+HANDOFF.md
