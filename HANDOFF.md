@@ -41,6 +41,8 @@
 | `.github/workflows/release.yml` | Blindaje de firma en CI: restauración estricta de `RELEASE_KEYSTORE_BASE64`, erradicación total de debug keystore efímero y aborto con error si falta el secreto. |
 | `app/build.gradle.kts` | Resolución multicamino de ruta de keystore (`rootProject.file` y `file`) para release signing. |
 | `docs/history/fase-v0.4.7.md` | Registro histórico archivado de la fase v0.4.7. |
+| `docs/incidents/INCIDENT-2026-11-05-SIGNING-COLLISION.md` | Reporte post-mortem del incidente de firmas y remediación CI/CD. |
+| `docs/SYSTEM_MAP.md` | Matriz viva de dominios, capacidades activas, invariantes no negociables y suites de prueba. |
 
 ## 4. Pendientes explícitos para la próxima fase
 
