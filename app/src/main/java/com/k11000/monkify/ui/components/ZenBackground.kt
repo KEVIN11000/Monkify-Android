@@ -39,6 +39,7 @@ import app.rive.runtime.kotlin.RiveAnimationView
 import com.k11000.monkify.domain.model.FroggyScenery
 import com.k11000.monkify.domain.model.WeatherCondition
 import com.k11000.monkify.domain.model.ZenDayPart
+import com.k11000.monkify.playback.AudioSpectrumData
 import com.k11000.monkify.ui.theme.MonkifyBackground
 import com.k11000.monkify.ui.theme.MonkifyPrimary
 import java.util.Calendar
@@ -88,6 +89,8 @@ fun resolveCurrentZenTimeOfDay(
 fun ZenBackground(
     isPlaying: Boolean,
     engine: String = "AURORA",
+    cosmosThemeId: String = "DEEP_SPACE",
+    spectrumData: AudioSpectrumData = AudioSpectrumData.EMPTY,
     timeOfDay: ZenTimeOfDay = resolveCurrentZenTimeOfDay(),
     weatherCondition: WeatherCondition = WeatherCondition.SUNNY,
     scenery: FroggyScenery = FroggyScenery.FIELDS,
@@ -155,14 +158,36 @@ fun ZenBackground(
             }
         }
 
+        // Capa 0b: Fondo espacial Cosmos HD (WebP de alta definición con fallback a procedural)
+        var cosmosDrawableRes: Int? = null
+        if (engine == "COSMOS") {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val cosmosTheme = CosmosAssetCatalog.resolveTheme(cosmosThemeId)
+            cosmosDrawableRes = CosmosAssetCatalog.getDrawableRes(context, cosmosTheme)
+            if (cosmosDrawableRes != null) {
+                Crossfade(
+                    targetState = cosmosDrawableRes,
+                    animationSpec = tween(durationMillis = 800),
+                    label = "CosmosBgCrossfade"
+                ) { resId ->
+                    Image(
+                        painter = painterResource(id = resId),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        }
+
         // Capa 1: Efectos atmosféricos reactivos y personajes vectoriales (Canvas)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
             when (engine) {
-                "VISUALIZER" -> drawVisualizerBackground(width, height, phase, pulse, isPlaying)
-                "COSMOS" -> drawCosmosBackground(width, height, phase, pulse, isPlaying)
+                "VISUALIZER" -> drawVisualizerBackground(width, height, phase, pulse, isPlaying, spectrumData)
+                "COSMOS" -> drawCosmosBackground(width, height, phase, pulse, isPlaying, cosmosDrawableRes != null)
                 "FROGGY" -> {
                     if (useOfficialFroggyAssets) {
                         drawFroggyAtmosphericOverlay(
@@ -705,12 +730,13 @@ private fun DrawScope.drawVisualizerBackground(
     height: Float,
     phase: Float,
     pulse: Float,
-    isPlaying: Boolean
+    isPlaying: Boolean,
+    spectrumData: AudioSpectrumData = AudioSpectrumData.EMPTY
 ) {
-    val barCount = 28
+    val barCount = AudioSpectrumData.BAND_COUNT
     val barWidth = (width / barCount) * 0.65f
     val spacing = (width / barCount) * 0.35f
-    val maxBarHeight = height * 0.32f
+    val maxBarHeight = height * 0.34f
 
     val brush = Brush.verticalGradient(
         colors = listOf(
@@ -720,13 +746,21 @@ private fun DrawScope.drawVisualizerBackground(
         )
     )
 
+    val bands = spectrumData.bands
+    val useRealTime = spectrumData.isRealTime && isPlaying
+
     for (i in 0 until barCount) {
-        val harmonicPhase = phase + (i.toFloat() / barCount) * 6.2831853f
-        val wave1 = sin(harmonicPhase)
-        val wave2 = cos(harmonicPhase * 2f)
-        val combinedWave = ((wave1 + wave2 * 0.5f) / 1.5f).coerceIn(-1f, 1f)
-        val normalizedHeight = (abs(combinedWave) * 0.85f + 0.15f) * (if (isPlaying) pulse else 0.6f)
-        val currentBarHeight = maxBarHeight * normalizedHeight
+        val normalizedHeight = if (useRealTime && i < bands.size) {
+            bands[i]
+        } else {
+            val harmonicPhase = phase + (i.toFloat() / barCount) * 6.2831853f
+            val wave1 = sin(harmonicPhase)
+            val wave2 = cos(harmonicPhase * 2f)
+            val combinedWave = ((wave1 + wave2 * 0.5f) / 1.5f).coerceIn(-1f, 1f)
+            (abs(combinedWave) * 0.85f + 0.15f) * (if (isPlaying) pulse else 0.6f)
+        }
+
+        val currentBarHeight = (maxBarHeight * normalizedHeight).coerceAtLeast(barWidth)
 
         val x = i * (barWidth + spacing) + spacing / 2
         val y = height * 0.65f - (currentBarHeight / 2)
@@ -745,59 +779,63 @@ private fun DrawScope.drawCosmosBackground(
     height: Float,
     phase: Float,
     pulse: Float,
-    isPlaying: Boolean
+    isPlaying: Boolean,
+    hasCustomImage: Boolean = false
 ) {
-    // 1. Fondo estelar base
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF04060C),
-                Color(0xFF090D1A),
-                Color(0xFF070B16),
-                Color(0xFF020408)
+    if (!hasCustomImage) {
+        // 1. Fondo estelar base
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF04060C),
+                    Color(0xFF090D1A),
+                    Color(0xFF070B16),
+                    Color(0xFF020408)
+                )
             )
         )
-    )
 
-    // 2. Galaxia Espiral Inclinada (-26°) con brillo central
-    val galaxyX = width * (0.52f + 0.05f * sin(phase * 0.7f))
-    val galaxyY = height * (0.36f + 0.03f * cos(phase * 0.5f))
-    val coreRadius = width * 0.55f * pulse
+        // 2. Galaxia Espiral Inclinada (-26°) con brillo central
+        val galaxyX = width * (0.52f + 0.05f * sin(phase * 0.7f))
+        val galaxyY = height * (0.36f + 0.03f * cos(phase * 0.5f))
+        val coreRadius = width * 0.55f * pulse
 
-    rotate(degrees = -26f, pivot = Offset(galaxyX, galaxyY)) {
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFF80D8FF).copy(alpha = if (isPlaying) 0.40f else 0.22f),
-                    Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.28f else 0.14f),
-                    Color(0xFF536DFE).copy(alpha = if (isPlaying) 0.15f else 0.08f),
-                    Color.Transparent
+        rotate(degrees = -26f, pivot = Offset(galaxyX, galaxyY)) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF80D8FF).copy(alpha = if (isPlaying) 0.40f else 0.22f),
+                        Color(0xFF7C4DFF).copy(alpha = if (isPlaying) 0.28f else 0.14f),
+                        Color(0xFF536DFE).copy(alpha = if (isPlaying) 0.15f else 0.08f),
+                        Color.Transparent
+                    ),
+                    center = Offset(galaxyX, galaxyY),
+                    radius = coreRadius
                 ),
-                center = Offset(galaxyX, galaxyY),
-                radius = coreRadius
-            ),
-            radius = coreRadius,
-            center = Offset(galaxyX, galaxyY)
-        )
+                radius = coreRadius,
+                center = Offset(galaxyX, galaxyY)
+            )
 
-        val arm1Radius = width * 0.75f
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFFF4081).copy(alpha = if (isPlaying) 0.18f else 0.08f),
-                    Color(0xFF7C4DFF).copy(alpha = 0.08f),
-                    Color.Transparent
+            val arm1Radius = width * 0.75f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFF4081).copy(alpha = if (isPlaying) 0.18f else 0.08f),
+                        Color(0xFF7C4DFF).copy(alpha = 0.08f),
+                        Color.Transparent
+                    ),
+                    center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f),
+                    radius = arm1Radius
                 ),
-                center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f),
-                radius = arm1Radius
-            ),
-            radius = arm1Radius,
-            center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f)
-        )
+                radius = arm1Radius,
+                center = Offset(galaxyX + width * 0.18f, galaxyY - height * 0.06f)
+            )
+        }
     }
 
     // 3. 72 estrellas con picos de difracción
     val starCount = 72
+    val globalAlphaMultiplier = if (hasCustomImage) 0.80f else 1.0f
     for (i in 0 until starCount) {
         val seed = i * 137.5f
         val starX = (seed * 11.3f) % width
@@ -818,14 +856,14 @@ private fun DrawScope.drawCosmosBackground(
         val finalRadius = baseRadius * twinkle
 
         drawCircle(
-            color = starColor.copy(alpha = twinkle * 0.9f),
+            color = starColor.copy(alpha = twinkle * 0.9f * globalAlphaMultiplier),
             center = Offset(starX, starY),
             radius = finalRadius
         )
 
         if (isSpikeStar && twinkle > 0.45f) {
             val spikeLen = 8.5f * twinkle
-            val spikeColor = starColor.copy(alpha = twinkle * 0.40f)
+            val spikeColor = starColor.copy(alpha = twinkle * 0.40f * globalAlphaMultiplier)
             drawLine(
                 color = spikeColor,
                 start = Offset(starX - spikeLen, starY),

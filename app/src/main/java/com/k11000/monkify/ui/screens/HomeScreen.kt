@@ -129,6 +129,7 @@ fun HomeScreen(
     val isZenCleared by playerViewModel.isZenCleared.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val currentWeather by playerViewModel.currentWeather.collectAsState()
+    val spectrumData by playerViewModel.spectrumFlow.collectAsState()
 
     // Manejo de desplazamiento al tope y restauración de pantalla despejada al pulsar Inicio
     LaunchedEffect(scrollToTopTrigger) {
@@ -145,11 +146,8 @@ fun HomeScreen(
         animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
         label = "ZenContentAlpha"
     )
-    val contentScale by animateFloatAsState(
-        targetValue = if (isEffectivelyCleared) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-        label = "ZenContentScale"
-    )
+    // INVARIANT: Escala fija en 1.0f para prevenir saltos de perspectiva o recortes de Froggy en Modo Zen. Ref: SYSTEM_MAP #INV-U01
+    val contentScale = 1.0f
 
     Box(
         modifier = Modifier
@@ -163,6 +161,8 @@ fun HomeScreen(
         ZenBackground(
             isPlaying = isPlaying,
             engine = settingsState.zenEngine,
+            cosmosThemeId = settingsState.cosmosTheme,
+            spectrumData = spectrumData,
             timeOfDay = zenTimeOfDay,
             weatherCondition = zenWeatherCondition,
             scenery = com.k11000.monkify.ui.components.FroggyAssetCatalog.resolveScenery(settingsState.froggyScenery),
@@ -1258,6 +1258,32 @@ fun HomeCatalogLoadingSectionPreview() {
                 .padding(16.dp)
         ) {
             HomeCatalogLoadingSection(modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(
+    name = "HomeScreen - Zen Mode Cleared",
+    showBackground = true,
+    widthDp = 412,
+    heightDp = 915
+)
+@Composable
+fun HomeScreenZenClearedPreview() {
+    com.k11000.monkify.ui.theme.MyApplicationTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MonkifyBackground)
+        ) {
+            com.k11000.monkify.ui.components.ZenBackground(
+                isPlaying = true,
+                engine = "FROGGY",
+                timeOfDay = com.k11000.monkify.ui.components.ZenTimeOfDay.DAY,
+                weatherCondition = com.k11000.monkify.domain.model.WeatherCondition.SUNNY,
+                scenery = com.k11000.monkify.domain.model.FroggyScenery.FIELDS,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

@@ -67,6 +67,10 @@ class SettingsRepository @Inject constructor(
         preferences[KEY_ZEN_ENGINE] ?: DEFAULT_ZEN_ENGINE
     }
 
+    val cosmosTheme: Flow<String> = dataStore.data.map { preferences ->
+        preferences[KEY_COSMOS_THEME] ?: DEFAULT_COSMOS_THEME
+    }
+
     val froggyScenery: Flow<String> = dataStore.data.map { preferences ->
         preferences[KEY_FROGGY_SCENERY] ?: DEFAULT_FROGGY_SCENERY
     }
@@ -127,6 +131,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setZenEngine(engine: String) {
         dataStore.edit { preferences ->
             preferences[KEY_ZEN_ENGINE] = engine
+        }
+    }
+
+    suspend fun setCosmosTheme(theme: String) {
+        dataStore.edit { preferences ->
+            preferences[KEY_COSMOS_THEME] = theme
         }
     }
 
@@ -211,6 +221,7 @@ class SettingsRepository @Inject constructor(
         val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val KEY_ZEN_MODE_ENABLED = booleanPreferencesKey("zen_mode_enabled")
         val KEY_ZEN_ENGINE = stringPreferencesKey("zen_engine")
+        val KEY_COSMOS_THEME = stringPreferencesKey("cosmos_theme")
         val KEY_FROGGY_SCENERY = stringPreferencesKey("froggy_scenery")
         val KEY_COVER_STYLE = stringPreferencesKey("cover_style")
         val KEY_LOCK_SCREEN_ENABLED = booleanPreferencesKey("lock_screen_enabled")
@@ -229,6 +240,8 @@ class SettingsRepository @Inject constructor(
         const val ZEN_ENGINE_FROGGY = "FROGGY"
         const val ZEN_ENGINE_COSMOS = "COSMOS"
         const val ZEN_ENGINE_NONE = "NONE"
+
+        const val DEFAULT_COSMOS_THEME = "DEEP_SPACE"
 
         const val DEFAULT_FROGGY_SCENERY = "AUTO"
         const val FROGGY_SCENERY_AUTO = "AUTO"

@@ -33,6 +33,7 @@ data class SettingsUiState(
     val message: String? = null,
     val zenModeEnabled: Boolean = true,
     val zenEngine: String = "AURORA",
+    val cosmosTheme: String = SettingsRepository.DEFAULT_COSMOS_THEME,
     val froggyScenery: String = SettingsRepository.DEFAULT_FROGGY_SCENERY,
     val lockScreenEnabled: Boolean = false,
     val isCheckingUpdate: Boolean = false,
@@ -77,6 +78,11 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             viewModelScope.launch {
+                repo.cosmosTheme.collect { theme ->
+                    _uiState.update { it.copy(cosmosTheme = theme) }
+                }
+            }
+            viewModelScope.launch {
                 repo.froggyScenery.collect { scenery ->
                     _uiState.update { it.copy(froggyScenery = scenery) }
                 }
@@ -116,6 +122,12 @@ class SettingsViewModel @Inject constructor(
     fun setZenEngine(engine: String) {
         viewModelScope.launch {
             settingsRepository?.setZenEngine(engine)
+        }
+    }
+
+    fun setCosmosTheme(theme: String) {
+        viewModelScope.launch {
+            settingsRepository?.setCosmosTheme(theme)
         }
     }
 

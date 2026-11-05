@@ -208,6 +208,11 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        playerViewModel.audioSpectrumProcessor.release()
+    }
 }
 
 @Preview(showBackground = true, device = "id:pixel_8")

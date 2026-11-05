@@ -455,6 +455,35 @@ fun SettingsScreen(
                         }
                     }
 
+                    if (uiState.zenEngine == "COSMOS") {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Tema Cósmico HD:",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MonkifyOnBackground
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(com.k11000.monkify.data.model.CosmosTheme.values().size) { idx ->
+                                val theme = com.k11000.monkify.data.model.CosmosTheme.values()[idx]
+                                FilterChip(
+                                    selected = uiState.cosmosTheme.equals(theme.id, ignoreCase = true),
+                                    onClick = { viewModel.setCosmosTheme(theme.id) },
+                                    label = { Text(theme.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MonkifyPrimary,
+                                        selectedLabelColor = Color.Black,
+                                        containerColor = MonkifyDarkGray,
+                                        labelColor = MonkifyOnBackground
+                                    )
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Box(
                         modifier = Modifier

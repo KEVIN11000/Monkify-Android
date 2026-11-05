@@ -17,8 +17,10 @@ class SettingsTest {
         assertEquals("dynamic_color", SettingsRepository.KEY_DYNAMIC_COLOR.name)
         assertEquals("zen_mode_enabled", SettingsRepository.KEY_ZEN_MODE_ENABLED.name)
         assertEquals("zen_engine", SettingsRepository.KEY_ZEN_ENGINE.name)
+        assertEquals("cosmos_theme", SettingsRepository.KEY_COSMOS_THEME.name)
         assertEquals("lock_screen_enabled", SettingsRepository.KEY_LOCK_SCREEN_ENABLED.name)
         assertEquals("AURORA", SettingsRepository.DEFAULT_ZEN_ENGINE)
+        assertEquals("DEEP_SPACE", SettingsRepository.DEFAULT_COSMOS_THEME)
         assertEquals(false, SettingsRepository.DEFAULT_LOCK_SCREEN_ENABLED)
         assertEquals("AURORA", SettingsRepository.ZEN_ENGINE_AURORA)
         assertEquals("VISUALIZER", SettingsRepository.ZEN_ENGINE_VISUALIZER)
@@ -64,6 +66,7 @@ class SettingsTest {
         assertNull(state.message)
         assertEquals(true, state.zenModeEnabled)
         assertEquals("AURORA", state.zenEngine)
+        assertEquals("DEEP_SPACE", state.cosmosTheme)
         assertEquals(false, state.lockScreenEnabled)
     }
 
@@ -74,12 +77,14 @@ class SettingsTest {
             dynamicColor = true,
             zenModeEnabled = false,
             zenEngine = "VISUALIZER",
+            cosmosTheme = "ORION_NEBULA",
             lockScreenEnabled = true
         )
         assertEquals(2048L, state.cacheLimitMb)
         assertEquals(true, state.dynamicColor)
         assertEquals(false, state.zenModeEnabled)
         assertEquals("VISUALIZER", state.zenEngine)
+        assertEquals("ORION_NEBULA", state.cosmosTheme)
         assertEquals(true, state.lockScreenEnabled)
     }
 }

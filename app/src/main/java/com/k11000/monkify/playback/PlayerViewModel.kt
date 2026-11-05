@@ -133,6 +133,9 @@ class PlayerViewModel @Inject constructor(
     private val _isLoadingLyrics = MutableStateFlow(false)
     val isLoadingLyrics: StateFlow<Boolean> = _isLoadingLyrics.asStateFlow()
 
+    val audioSpectrumProcessor = AudioSpectrumProcessor(viewModelScope)
+    val spectrumFlow: StateFlow<AudioSpectrumData> = audioSpectrumProcessor.spectrumFlow
+
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
@@ -736,6 +739,11 @@ class PlayerViewModel @Inject constructor(
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
+            if (isPlaying) {
+                audioSpectrumProcessor.attachAudioSession(0)
+            } else {
+                audioSpectrumProcessor.release()
+            }
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -1107,6 +1115,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        audioSpectrumProcessor.release()
         lyricsJob?.cancel()
         downloadStateJob?.cancel()
         favoriteJob?.cancel()
