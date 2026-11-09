@@ -24,8 +24,8 @@ android {
         applicationId = "com.k11000.monkify"
         minSdk = 26
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.4.7"
+        versionCode = 9
+        versionName = "0.4.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

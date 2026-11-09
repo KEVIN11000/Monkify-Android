@@ -332,20 +332,10 @@ fun ZenBackground(
                                 #flutter-container {
                                   position: absolute;
                                   top: 0;
+                                  left: 0;
+                                  width: 100vw;
                                   height: 100vh;
                                   overflow: hidden;
-                                }
-                                @media (orientation: portrait) {
-                                  #flutter-container {
-                                    left: -12vw;
-                                    width: 124vw;
-                                  }
-                                }
-                                @media (orientation: landscape) {
-                                  #flutter-container {
-                                    left: 0;
-                                    width: 100vw;
-                                  }
                                 }
                                 flt-glass-pane {
                                   position: absolute !important;

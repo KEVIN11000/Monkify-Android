@@ -1,6 +1,8 @@
 package com.k11000.monkify.ui.navigation
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -27,10 +29,11 @@ fun MonkifyNavGraph(
     searchResetTrigger: Int = 0,
     playerViewModel: PlayerViewModel = hiltViewModel()
 ) {
+    val bottomPadding = innerPadding.calculateBottomPadding()
     NavHost(
         navController = navController,
         startDestination = BottomNavItem.Home.route,
-        modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()) // Solo empujamos la parte de abajo
+        modifier = Modifier.fillMaxSize() // Altura fija e inmutable: HomeScreen y ZenBackground no se redimensionan en runtime
     ) {
         composable(BottomNavItem.Home.route) {
             HomeScreen(
@@ -43,22 +46,34 @@ fun MonkifyNavGraph(
             )
         }
         composable(BottomNavItem.Search.route) {
-            SearchScreen(
-                playerViewModel = playerViewModel,
-                scrollToResetTrigger = searchResetTrigger
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomPadding)
+            ) {
+                SearchScreen(
+                    playerViewModel = playerViewModel,
+                    scrollToResetTrigger = searchResetTrigger
+                )
+            }
         }
         composable(BottomNavItem.Library.route) {
-            LibraryScreen(
-                playerViewModel = playerViewModel,
-                scrollToTopTrigger = libraryScrollTrigger,
-                onNavigateToPlaylist = { playlistId, name ->
-                    navController.navigate(Destinations.playlistDetail(playlistId, name))
-                },
-                onNavigateToAlbum = { album, artist, coverUrl ->
-                    navController.navigate(Destinations.albumDetail(album, artist, coverUrl))
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomPadding)
+            ) {
+                LibraryScreen(
+                    playerViewModel = playerViewModel,
+                    scrollToTopTrigger = libraryScrollTrigger,
+                    onNavigateToPlaylist = { playlistId, name ->
+                        navController.navigate(Destinations.playlistDetail(playlistId, name))
+                    },
+                    onNavigateToAlbum = { album, artist, coverUrl ->
+                        navController.navigate(Destinations.albumDetail(album, artist, coverUrl))
+                    }
+                )
+            }
         }
         composable(Destinations.SETTINGS) {
             SettingsScreen(onBack = { navController.popBackStack() })
@@ -73,12 +88,18 @@ fun MonkifyNavGraph(
             val playlistId = backStackEntry.arguments?.getString("playlistId") ?: ""
             val rawName = backStackEntry.arguments?.getString("name") ?: ""
             val name = runCatching { java.net.URLDecoder.decode(rawName, "UTF-8") }.getOrDefault(rawName)
-            PlaylistDetailScreen(
-                playlistId = playlistId,
-                initialName = name,
-                playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomPadding)
+            ) {
+                PlaylistDetailScreen(
+                    playlistId = playlistId,
+                    initialName = name,
+                    playerViewModel = playerViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
         composable(
             route = Destinations.ALBUM_DETAIL,
@@ -96,13 +117,19 @@ fun MonkifyNavGraph(
             val artist = runCatching { java.net.URLDecoder.decode(rawArtist, "UTF-8") }.getOrDefault(rawArtist)
             val coverUrl = runCatching { java.net.URLDecoder.decode(rawCoverUrl, "UTF-8") }.getOrDefault(rawCoverUrl)
 
-            AlbumDetailScreen(
-                albumName = album,
-                initialArtist = artist,
-                initialCoverUrl = coverUrl,
-                playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = bottomPadding)
+            ) {
+                AlbumDetailScreen(
+                    albumName = album,
+                    initialArtist = artist,
+                    initialCoverUrl = coverUrl,
+                    playerViewModel = playerViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

@@ -9,13 +9,14 @@ import org.junit.Test
 class CosmosAssetCatalogTest {
 
     @Test
-    fun getAvailableThemes_returns_all_four_expected_variants() {
+    fun getAvailableThemes_returns_all_expected_variants() {
         val themes = CosmosAssetCatalog.getAvailableThemes()
-        assertEquals(4, themes.size)
+        assertEquals(5, themes.size)
         assertTrue(themes.contains(CosmosTheme.DEEP_SPACE))
         assertTrue(themes.contains(CosmosTheme.ORION_NEBULA))
         assertTrue(themes.contains(CosmosTheme.ANDROMEDA))
         assertTrue(themes.contains(CosmosTheme.PILLARS_OF_CREATION))
+        assertTrue(themes.contains(CosmosTheme.DEEP_FIELD))
     }
 
     @Test
@@ -25,6 +26,7 @@ class CosmosAssetCatalogTest {
         assertEquals(CosmosTheme.ORION_NEBULA, CosmosAssetCatalog.resolveTheme("orion_nebula"))
         assertEquals(CosmosTheme.ANDROMEDA, CosmosAssetCatalog.resolveTheme("Andromeda"))
         assertEquals(CosmosTheme.PILLARS_OF_CREATION, CosmosAssetCatalog.resolveTheme("pillars_of_creation"))
+        assertEquals(CosmosTheme.DEEP_FIELD, CosmosAssetCatalog.resolveTheme("deep_field"))
     }
 
     @Test

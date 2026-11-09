@@ -59,3 +59,11 @@
 -dontwarn kotlinx.coroutines.**
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# AndroidX WorkManager (Reflection & InputMerger Hardening)
+-keep class * extends androidx.work.InputMerger {
+    public <init>();
+}
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}

@@ -188,7 +188,7 @@ fun HomeScreen(
                     }
                 }
                 .padding(top = statusBarPadding + 16.dp),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            contentPadding = PaddingValues(bottom = 144.dp)
         ) {
         // Cabecera Dinámica con Saludo y Frase Motivadora (Contenedor de alto contraste redondeado)
         item {
