@@ -51,12 +51,33 @@ jobs:
           fi
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-configuration-cache
         env:
           KEYSTORE_PATH: app/keystore/monkify-release.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'monkify_release_2026' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'monkify' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'monkify_release_2026' }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Missing required signing secrets (KEYSTORE_PASSWORD, KEY_ALIAS, or KEY_PASSWORD)!"
+            exit 1
+          fi
+          ./gradlew assembleRelease --no-configuration-cache
+
+      - name: Verify APK Cryptographic Signature
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No release APK found to verify!"
+            exit 1
+          fi
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name "apksigner" | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs "$APK_PATH" | tee apksigner_output.txt
+            if ! grep -qi "62ede63ffb1e550f868e76000252f64e33940845385b6d307e342667aa744b5f" apksigner_output.txt; then
+              echo "::error::APK signature SHA-256 does not match official Monkify release certificate!"
+              exit 1
+            fi
+          fi
 
       - name: Prepare Release Artifact
         run: |

@@ -118,10 +118,14 @@ fun SettingsScreen(
             update = update,
             onConfirmUpdate = { appUpdate ->
                 viewModel.dismissUpdateDialog()
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(appUpdate.downloadUrl)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (com.k11000.monkify.data.repository.UpdateRepositoryImpl.isTrustedDownloadUrl(appUpdate.downloadUrl)) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(appUpdate.downloadUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } else {
+                    Toast.makeText(context, "Enlace de actualización bloqueado por seguridad", Toast.LENGTH_SHORT).show()
                 }
-                context.startActivity(intent)
             },
             onDismiss = {
                 viewModel.dismissUpdateDialog()
@@ -686,7 +690,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Servidor: monkify-backend.monkify.workers.dev",
+                        text = "Servidor: Cloudflare Worker (Endpoint Protegido)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MonkifyGray
                     )

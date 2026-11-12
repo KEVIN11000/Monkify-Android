@@ -252,4 +252,22 @@ class DownloadRepositoryTest {
         fEmpty.delete()
         testDir.delete()
     }
+
+    @Test
+    fun sanitize_track_id_blocks_path_traversal_sequences() {
+        assertEquals("track_123", DownloadRepositoryImpl.sanitizeTrackIdForFile("track_123"))
+        assertEquals("etcpasswd", DownloadRepositoryImpl.sanitizeTrackIdForFile("../../etc/passwd"))
+        assertEquals("windowssystem32", DownloadRepositoryImpl.sanitizeTrackIdForFile("..\\..\\windows\\system32"))
+        assertFalse(DownloadRepositoryImpl.sanitizeTrackIdForFile("../../etc/passwd").contains(".."))
+        assertFalse(DownloadRepositoryImpl.sanitizeTrackIdForFile("../../etc/passwd").contains("/"))
+        assertFalse(DownloadRepositoryImpl.sanitizeTrackIdForFile("..\\..\\windows\\system32").contains("\\"))
+
+        var threwOnEmpty = false
+        try {
+            DownloadRepositoryImpl.sanitizeTrackIdForFile("../../..")
+        } catch (_: IllegalArgumentException) {
+            threwOnEmpty = true
+        }
+        assertTrue("Debe rechazar IDs compuestos únicamente por saltos de directorio", threwOnEmpty)
+    }
 }

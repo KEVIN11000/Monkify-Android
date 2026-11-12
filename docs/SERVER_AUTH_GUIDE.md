@@ -13,9 +13,9 @@ El backend en Cloudflare Worker expone el catálogo y el streaming de audio desd
 2. **Modo Blindado (Token Activo en Servidor):**
    - Cuando se define `SERVER_ACCESS_TOKEN` en Cloudflare, el middleware intercepta toda petición a `/api/v1/*` (incluyendo `/api/v1/stream/:track_id`).
    - El Worker valida que la petición presente el token en:
-     - Cabecera HTTP `X-Monkify-Token: <token>`
-     - Cabecera HTTP `Authorization: Bearer <token>`
-     - Parámetro de URL `?token=<token>` (utilizado por el reproductor ExoPlayer)
+     - Cabecera HTTP `X-Monkify-Token: <token>` (enviada tanto en llamadas API como en streaming de ExoPlayer)
+     - Cabecera HTTP `Authorization: Bearer <token>` (enviada tanto en llamadas API como en streaming de ExoPlayer)
+     - *(Nota de seguridad v0.4.8+: El reproductor Android ya no transmite `?token=` en la URL para evitar exposición en registros y fragmentación de caché; utiliza exclusivamente cabeceras HTTP seguras a través de `ResolvingDataSource`).*
    - Si el token falta o es incorrecto, el Worker responde inmediatamente con **HTTP 401 Unauthorized** en ~2 ms, sin realizar operaciones de base de datos D1 ni transferencias de R2.
    - Rutas públicas esenciales como `/health` y los preflights CORS (`OPTIONS`) permanecen abiertas sin requerir token.
 
@@ -34,7 +34,7 @@ El backend en Cloudflare Worker expone el catálogo y el streaming de audio desd
 
 ### En Cloudflare (Servidor):
 1. Inicia sesión en [Cloudflare Dashboard](https://dash.cloudflare.com/).
-2. Dirígete a **Workers & Pages** > selecciona el Worker **`monkify-backend`**.
+2. Dirígete a **Workers & Pages** > selecciona el Worker de tu backend de Monkify.
 3. Ve a la pestaña **Settings** > **Variables and Secrets**.
 4. Allí verás `SERVER_ACCESS_TOKEN`:
    - Si se guardó como secreto cifrado (*Secret*), Cloudflare no permite leer el texto plano por políticas de seguridad de clave privada, pero puedes modificarlo o redefinirlo cuando desees.
@@ -58,7 +58,7 @@ La terminal solicitará ingresar el secreto:
 ```
 
 ### Opción B: Desde el Dashboard Web de Cloudflare
-1. Ve a **Workers & Pages** > `monkify-backend` > **Settings** > **Variables and Secrets**.
+1. Ve a **Workers & Pages** > tu Worker > **Settings** > **Variables and Secrets**.
 2. Haz clic en **Add** (o **Edit** si ya existe).
 3. Nombre de la variable: `SERVER_ACCESS_TOKEN`.
 4. Valor: Escribe tu clave secreta personalizada.
@@ -83,5 +83,5 @@ Si retiras el token del servidor o deseas que la app no envíe ningún token, si
 
 ## 5. Prevención de Fugas de Seguridad (Host Restriction)
 La app cuenta con un filtro estricto en `AuthInterceptor`:
-- El token únicamente viaja a servidores autorizados de Monkify (`*.workers.dev`, `monkify.tudominio.com`, `10.0.2.2`, `localhost`).
+- El token únicamente viaja al dominio configurado del backend de Monkify (y a `10.0.2.2` / `localhost` exclusivamente en compilaciones de desarrollo `DEBUG`).
 - Si la app realiza peticiones a APIs externas de terceros (como Open-Meteo para el widget del clima o GitHub para verificar nuevas versiones), el token **nunca** se transmite a esos servidores.

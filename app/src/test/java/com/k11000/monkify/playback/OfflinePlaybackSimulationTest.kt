@@ -28,7 +28,7 @@ class OfflinePlaybackSimulationTest {
             album = "Zenith",
             durationMs = 240000L,
             coverUrl = "https://example.com/cover.jpg",
-            streamUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/track_offline_99",
+            streamUrl = "https://api.monkify.tudominio.com/api/v1/stream/track_offline_99",
             isFavorite = true,
             isDownloaded = true,
             localFilePath = localFilePath
@@ -57,13 +57,13 @@ class OfflinePlaybackSimulationTest {
             album = "Space",
             durationMs = 180000L,
             coverUrl = null,
-            streamUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/track_online_only"
+            streamUrl = "https://api.monkify.tudominio.com/api/v1/stream/track_online_only"
         )
 
         var fallbackInvoked = false
         try {
             // Simular petición a servidor en Modo Avión
-            throw UnknownHostException("Unable to resolve host: monkify-backend.monkify.workers.dev (No address associated with hostname)")
+            throw UnknownHostException("Unable to resolve host: api.monkify.tudominio.com (No address associated with hostname)")
         } catch (e: IOException) {
             fallbackInvoked = true
         }
@@ -117,7 +117,7 @@ class OfflinePlaybackSimulationTest {
             album = "Album",
             durationMs = 180000,
             coverUrl = null,
-            streamUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/t_downloaded_1"
+            streamUrl = "https://api.monkify.tudominio.com/api/v1/stream/t_downloaded_1"
         )
         val tempFile = File.createTempFile("monkify_offline_test", ".mp3")
         try {

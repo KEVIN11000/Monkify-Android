@@ -92,4 +92,15 @@ class UpdateRepositoryTest {
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is IOException)
     }
+
+    @Test
+    fun is_trusted_download_url_enforces_https_and_github_domains() {
+        assertTrue(UpdateRepositoryImpl.isTrustedDownloadUrl("https://github.com/KEVIN11000/Monkify-Android/releases/download/v0.4.8/Monkify-v0.4.8.apk"))
+        assertTrue(UpdateRepositoryImpl.isTrustedDownloadUrl("https://objects.githubusercontent.com/github-production-release-asset/apk"))
+
+        assertFalse("Debe rechazar HTTP en texto plano", UpdateRepositoryImpl.isTrustedDownloadUrl("http://github.com/KEVIN11000/Monkify-Android/releases/download/v0.4.8/Monkify.apk"))
+        assertFalse("Debe rechazar dominios externos", UpdateRepositoryImpl.isTrustedDownloadUrl("https://evil-attacker.com/Monkify-v99.apk"))
+        assertFalse("Debe rechazar lookalike domains", UpdateRepositoryImpl.isTrustedDownloadUrl("https://github.com.attacker.org/Monkify.apk"))
+        assertFalse("Debe rechazar esquemas javascript/file", UpdateRepositoryImpl.isTrustedDownloadUrl("file:///sdcard/Download/Monkify.apk"))
+    }
 }

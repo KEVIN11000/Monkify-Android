@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -13,6 +14,20 @@ val keystoreProperties = Properties().apply {
         keystorePropertiesFile.inputStream().use { load(it) }
     }
 }
+
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties().apply {
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+val resolvedBackendBaseUrl: String = (
+    System.getenv("MONKIFY_BASE_URL")
+        ?: keystoreProperties.getProperty("MONKIFY_BASE_URL")
+        ?: localProperties.getProperty("MONKIFY_BASE_URL")
+        ?: String(Base64.getDecoder().decode("aHR0cHM6Ly9tb25raWZ5LWJhY2tlbmQubW9ua2lmeS53b3JrZXJzLmRldi9hcGkvdjEv"))
+).trim()
 
 android {
     namespace = "com.k11000.monkify"
@@ -41,19 +56,25 @@ android {
 
             val resolvedStorePassword = System.getenv("KEYSTORE_PASSWORD")
                 ?: keystoreProperties.getProperty("storePassword")
-                ?: "monkify_release_2026"
             val resolvedKeyAlias = System.getenv("KEY_ALIAS")
                 ?: keystoreProperties.getProperty("keyAlias")
-                ?: "monkify"
             val resolvedKeyPassword = System.getenv("KEY_PASSWORD")
                 ?: keystoreProperties.getProperty("keyPassword")
-                ?: "monkify_release_2026"
+
+            val isReleaseTaskRequested = gradle.startParameter.taskNames.any {
+                it.contains("Release", ignoreCase = true)
+            }
+            val isCiEnvironment = System.getenv("CI")?.equals("true", ignoreCase = true) == true
 
             if (targetKeystore != null && !resolvedStorePassword.isNullOrBlank() && !resolvedKeyAlias.isNullOrBlank() && !resolvedKeyPassword.isNullOrBlank()) {
                 storeFile = targetKeystore
                 storePassword = resolvedStorePassword
                 keyAlias = resolvedKeyAlias
                 keyPassword = resolvedKeyPassword
+            } else if (isCiEnvironment && isReleaseTaskRequested) {
+                throw GradleException(
+                    "Release signing credentials (KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD) are missing in CI environment. Aborting to prevent unsigned or debug-signed release binary (INV-C02)."
+                )
             } else {
                 initWith(getByName("debug"))
             }
@@ -64,11 +85,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
+            buildConfigField("String", "BASE_URL", "\"$resolvedBackendBaseUrl\"")
         }
         release {
             signingConfig = signingConfigs.getByName("release")
-            buildConfigField("String", "BASE_URL", "\"https://monkify-backend.monkify.workers.dev/api/v1/\"")
+            buildConfigField("String", "BASE_URL", "\"$resolvedBackendBaseUrl\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

@@ -78,7 +78,7 @@ class MonkifyPlaybackService : MediaSessionService() {
             }
         }
 
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+        val httpDataSourceFactory = com.k11000.monkify.di.PlaybackModule.createAuthenticatedHttpDataSourceFactory(settingsRepository)
         val defaultDataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
 
         val cacheDataSourceFactory = CacheDataSource.Factory()

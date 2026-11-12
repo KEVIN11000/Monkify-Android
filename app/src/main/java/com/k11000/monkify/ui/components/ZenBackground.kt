@@ -222,7 +222,8 @@ fun ZenBackground(
                             )
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
-                            settings.databaseEnabled = true
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = false
                             settings.setGeolocationEnabled(true)
                             settings.loadWithOverviewMode = true
                             settings.useWideViewPort = true
@@ -371,7 +372,19 @@ fun ZenBackground(
                                     view: android.webkit.WebView?,
                                     request: android.webkit.WebResourceRequest?
                                 ): android.webkit.WebResourceResponse? {
-                                    val url = request?.url?.toString() ?: return null
+                                    val uri = request?.url ?: return null
+                                    val scheme = uri.scheme?.lowercase().orEmpty()
+                                    if (scheme == "file" || scheme == "content") {
+                                        return android.webkit.WebResourceResponse(
+                                            "text/plain",
+                                            "UTF-8",
+                                            403,
+                                            "Forbidden",
+                                            emptyMap(),
+                                            java.io.ByteArrayInputStream(ByteArray(0))
+                                        )
+                                    }
+                                    val url = uri.toString()
                                     if (url == "https://weather.r0rt1z2.com/" || url == "https://weather.r0rt1z2.com/index.html") {
                                         return android.webkit.WebResourceResponse(
                                             "text/html",

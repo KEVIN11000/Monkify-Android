@@ -19,7 +19,7 @@ class DownloadFeatureTest {
             album = "Solitude",
             durationMs = 210000L,
             coverUrl = "https://cdn.example.com/cover.jpg",
-            streamUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/track_offline_1"
+            streamUrl = "https://api.monkify.tudominio.com/api/v1/stream/track_offline_1"
         )
 
         val localPath = "/data/user/0/com.k11000.monkify/files/downloads/track_offline_1.mp3"
@@ -43,7 +43,7 @@ class DownloadFeatureTest {
 
     @Test
     fun `pista no descargada preserva streamUrl remoto para streaming en tiempo real`() {
-        val remoteUrl = "https://monkify-backend.monkify.workers.dev/api/v1/stream/track_stream_only"
+        val remoteUrl = "https://api.monkify.tudominio.com/api/v1/stream/track_stream_only"
         val streamedEntity = TrackEntity(
             id = "track_stream_only",
             title = "Electric Aurora",

@@ -47,9 +47,10 @@ object PlaybackModule {
     fun provideDownloadManager(
         @ApplicationContext context: Context,
         databaseProvider: StandaloneDatabaseProvider,
-        cache: SimpleCache
+        cache: SimpleCache,
+        settingsRepository: SettingsRepository
     ): androidx.media3.exoplayer.offline.DownloadManager {
-        val upstreamFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+        val upstreamFactory = createAuthenticatedHttpDataSourceFactory(settingsRepository)
         return androidx.media3.exoplayer.offline.DownloadManager(
             context,
             databaseProvider,
@@ -57,5 +58,28 @@ object PlaybackModule {
             upstreamFactory,
             java.util.concurrent.Executors.newFixedThreadPool(4)
         )
+    }
+
+    // INVARIANT: Authenticate Media3 streaming via HTTP headers on trusted hosts without leaking token in URLs. Ref: SYSTEM_MAP #INV-N01, #INV-N02
+    @UnstableApi
+    fun createAuthenticatedHttpDataSourceFactory(
+        settingsRepository: SettingsRepository
+    ): androidx.media3.datasource.DataSource.Factory {
+        val baseHttpFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+        return androidx.media3.datasource.ResolvingDataSource.Factory(baseHttpFactory) { dataSpec ->
+            val host = dataSpec.uri.host.orEmpty()
+            if (com.k11000.monkify.data.remote.api.AuthInterceptor.isTrustedHost(host)) {
+                val token = settingsRepository.getServerAccessTokenImmediate().trim()
+                if (token.isNotEmpty()) {
+                    return@Factory dataSpec.withAdditionalHeaders(
+                        mapOf(
+                            "Authorization" to "Bearer $token",
+                            "X-Monkify-Token" to token
+                        )
+                    )
+                }
+            }
+            dataSpec
+        }
     }
 }

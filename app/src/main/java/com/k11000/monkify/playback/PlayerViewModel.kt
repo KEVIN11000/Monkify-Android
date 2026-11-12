@@ -962,17 +962,8 @@ class PlayerViewModel @Inject constructor(
             } else if (track.streamUrl.startsWith("/") && java.io.File(track.streamUrl).exists()) {
                 Uri.fromFile(java.io.File(track.streamUrl))
             } else if (candidateUrl.isNotBlank() && !candidateUrl.startsWith("/")) {
-                val rawUri = Uri.parse(candidateUrl)
-                val host = rawUri.host?.lowercase() ?: ""
-                val isMonkify = com.k11000.monkify.data.remote.api.AuthInterceptor.isTrustedHost(host)
-                val effectiveToken = currentServerToken.ifBlank {
-                    settingsRepository?.getServerAccessTokenImmediate().orEmpty()
-                }
-                if (isMonkify && effectiveToken.isNotBlank() && rawUri.getQueryParameter("token") == null) {
-                    rawUri.buildUpon().appendQueryParameter("token", effectiveToken).build()
-                } else {
-                    rawUri
-                }
+                // INVARIANT: Keep MediaItem URIs clean of ?token= query params; headers are injected by ResolvingDataSource. Ref: SYSTEM_MAP #INV-N02
+                Uri.parse(candidateUrl)
             } else {
                 null
             }

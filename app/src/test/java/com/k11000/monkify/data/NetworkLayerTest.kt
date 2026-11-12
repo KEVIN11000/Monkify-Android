@@ -25,7 +25,7 @@ import retrofit2.Response
 
 class NetworkLayerTest {
 
-    private val baseUrl = "https://monkify-backend.monkify.workers.dev/api/v1/"
+    private val baseUrl = "https://api.monkify.tudominio.com/api/v1/"
 
     private val workerJson = """
         [{"id":"stream1","title":"Stream Song","artist":"Monk","album":null,
@@ -49,7 +49,7 @@ class NetworkLayerTest {
     @Test
     fun `mapper resuelve stream relativo al endpoint real y rellena nulos`() {
         val track = parse()[0].toDomain(baseUrl)
-        assertEquals("https://monkify-backend.monkify.workers.dev/api/v1/stream/stream1", track.streamUrl)
+        assertEquals("https://api.monkify.tudominio.com/api/v1/stream/stream1", track.streamUrl)
         assertEquals("", track.album)
         assertNull(track.coverUrl)
     }
@@ -58,7 +58,7 @@ class NetworkLayerTest {
     fun `mapper conserva stream absoluto y resuelve cover relativo`() {
         val track = parse()[1].toDomain(baseUrl)
         assertEquals("https://cdn.example.com/abs1.mp3", track.streamUrl)
-        assertEquals("https://monkify-backend.monkify.workers.dev/covers/abs1.jpg", track.coverUrl)
+        assertEquals("https://api.monkify.tudominio.com/covers/abs1.jpg", track.coverUrl)
         assertEquals(0L, track.durationMs)
     }
 

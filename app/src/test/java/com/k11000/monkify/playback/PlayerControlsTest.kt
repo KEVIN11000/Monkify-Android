@@ -105,9 +105,9 @@ class PlayerControlsTest {
     @Test
     fun `playQueue reordenar y eliminar elementos actualiza la cola y PlaybackSessionStateHolder`() {
         val tracks = listOf(
-            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "https://monkify.workers.dev/t1"),
-            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "https://monkify.workers.dev/t2"),
-            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "https://monkify.workers.dev/t3")
+            Track("t1", "Track 1", "Artist", "Album 1", 1000L, null, "https://api.monkify.tudominio.com/t1"),
+            Track("t2", "Track 2", "Artist", "Album 2", 1000L, null, "https://api.monkify.tudominio.com/t2"),
+            Track("t3", "Track 3", "Artist", "Album 3", 1000L, null, "https://api.monkify.tudominio.com/t3")
         )
 
         viewModel.playQueue(tracks, startIndex = 0)

@@ -83,26 +83,47 @@ class DownloadRepositoryImpl @Inject constructor(
         }
 
     fun getAudioFile(trackId: String): File {
-        val primary = File(musicDir, "$trackId.mp3")
+        val safeId = sanitizeTrackIdForFile(trackId)
+        val primary = File(musicDir, "$safeId.mp3")
         if (primary.exists() && primary.length() > 0) return primary
 
-        val fallbackInternal = File(context.filesDir, "music/$trackId.mp3")
+        val fallbackInternal = File(context.filesDir, "music/$safeId.mp3")
         if (fallbackInternal.exists() && fallbackInternal.length() > 0) return fallbackInternal
 
-        val legacyDownloads = File(context.filesDir, "downloads/$trackId.mp3")
+        val legacyDownloads = File(context.filesDir, "downloads/$safeId.mp3")
         if (legacyDownloads.exists() && legacyDownloads.length() > 0) return legacyDownloads
 
         return primary
     }
 
     fun getLyricsFile(trackId: String): File {
-        val primary = File(lyricsDir, "$trackId.lrc")
+        val safeId = sanitizeTrackIdForFile(trackId)
+        val primary = File(lyricsDir, "$safeId.lrc")
         if (primary.exists() && primary.length() > 0) return primary
 
-        val legacyDownloads = File(context.filesDir, "downloads/$trackId.lrc")
+        val legacyDownloads = File(context.filesDir, "downloads/$safeId.lrc")
         if (legacyDownloads.exists() && legacyDownloads.length() > 0) return legacyDownloads
 
         return primary
+    }
+
+    companion object {
+        private val SAFE_TRACK_ID_REGEX = Regex("[^A-Za-z0-9._-]")
+
+        /**
+         * SEC-04 (CWE-22): Sanitiza un identificador de pista para impedir Path Traversal (`..`, `/`, `\`)
+         * al construir nombres de archivos en almacenamiento local.
+         */
+        fun sanitizeTrackIdForFile(rawId: String): String {
+            val cleaned = rawId
+                .replace("..", "")
+                .replace("/", "")
+                .replace("\\", "")
+                .replace(SAFE_TRACK_ID_REGEX, "_")
+                .trim('.', '_', '-', ' ')
+            require(cleaned.isNotEmpty()) { "ID de pista inválido para almacenamiento local" }
+            return cleaned
+        }
     }
 
     override fun getDownloadState(trackId: String): Flow<DownloadState> {
@@ -238,8 +259,13 @@ class DownloadRepositoryImpl @Inject constructor(
         stateFlow.value = DownloadState.Downloading(0)
         _downloadingTrackIds.value = _downloadingTrackIds.value + track.id
 
-        val tempAudioFile = File(musicDir, "${track.id}.tmp")
-        val finalAudioFile = File(musicDir, "${track.id}.mp3")
+        val safeId = runCatching { sanitizeTrackIdForFile(track.id) }.getOrElse { e ->
+            stateFlow.value = DownloadState.Error("ID de pista inválido")
+            _downloadingTrackIds.value = _downloadingTrackIds.value - track.id
+            return@withContext Result.failure(e)
+        }
+        val tempAudioFile = File(musicDir, "$safeId.tmp")
+        val finalAudioFile = File(musicDir, "$safeId.mp3")
 
         try {
             // Verificar espacio en disco (> 25 MB)
@@ -301,7 +327,7 @@ class DownloadRepositoryImpl @Inject constructor(
             runCatching {
                 val lyricsResponse = monkifyApi.getLyrics(track.id)
                 if (lyricsResponse.content.isNotBlank()) {
-                    val finalLyricsFile = File(lyricsDir, "${track.id}.lrc")
+                    val finalLyricsFile = File(lyricsDir, "$safeId.lrc")
                     finalLyricsFile.writeText(lyricsResponse.content)
                 }
             }
@@ -350,15 +376,16 @@ class DownloadRepositoryImpl @Inject constructor(
 
     override suspend fun deleteDownloadedTrack(trackId: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val audioFile = getAudioFile(trackId)
+            val safeId = sanitizeTrackIdForFile(trackId)
+            val audioFile = getAudioFile(safeId)
             if (audioFile.exists()) {
                 audioFile.delete()
             }
-            val tempAudioFile = File(musicDir, "$trackId.tmp")
+            val tempAudioFile = File(musicDir, "$safeId.tmp")
             if (tempAudioFile.exists()) {
                 tempAudioFile.delete()
             }
-            val lyricsFile = getLyricsFile(trackId)
+            val lyricsFile = getLyricsFile(safeId)
             if (lyricsFile.exists()) {
                 lyricsFile.delete()
             }

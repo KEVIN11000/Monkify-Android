@@ -62,7 +62,7 @@ class DtoSerializationContractTest {
                 "artist": "Monkify Ensemble",
                 "album": "Deep Focus",
                 "duration_ms": 215000,
-                "cover_url": "https://cdn.monkify.workers.dev/covers/trk_001.jpg",
+                "cover_url": "https://cdn.monkify.tudominio.com/covers/trk_001.jpg",
                 "stream_url": "/api/v1/stream/trk_001",
                 "is_downloaded": true
             }
@@ -75,11 +75,11 @@ class DtoSerializationContractTest {
         assertEquals("Deep Focus", dto.album)
         assertEquals(215000L, dto.durationMs)
 
-        val domainTrack = dto.toDomain("https://monkify-backend.monkify.workers.dev/api/v1/")
+        val domainTrack = dto.toDomain("https://api.monkify.tudominio.com/api/v1/")
         assertEquals("trk_001", domainTrack.id)
         assertEquals("Echoes of Zen", domainTrack.title)
         assertEquals("Monkify Ensemble", domainTrack.artist)
         assertEquals("Deep Focus", domainTrack.album)
-        assertEquals("https://monkify-backend.monkify.workers.dev/api/v1/stream/trk_001", domainTrack.streamUrl)
+        assertEquals("https://api.monkify.tudominio.com/api/v1/stream/trk_001", domainTrack.streamUrl)
     }
 }

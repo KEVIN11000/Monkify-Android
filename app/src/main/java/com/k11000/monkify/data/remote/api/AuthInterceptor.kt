@@ -41,23 +41,34 @@ class AuthInterceptor(
         return response
     }
 
-    fun isTrustedMonkifyHost(host: String): Boolean = Companion.isTrustedHost(host)
+    fun isTrustedMonkifyHost(host: String, isDebug: Boolean = BuildConfig.DEBUG): Boolean =
+        Companion.isTrustedHost(host, isDebug)
 
     companion object {
         private val configuredHost: String? by lazy {
             runCatching { URI(BuildConfig.BASE_URL).host?.lowercase()?.trim() }.getOrNull()
         }
 
-        fun isTrustedHost(host: String): Boolean {
+        private val configuredRootDomain: String? by lazy {
+            val host = configuredHost ?: return@lazy null
+            val parts = host.split(".")
+            if (parts.size >= 3) {
+                "." + parts.takeLast(3).joinToString(".")
+            } else {
+                null
+            }
+        }
+
+        // INVARIANT: Only attach Bearer/X-Monkify-Token to verified Monkify subdomains. Ref: SYSTEM_MAP #INV-N02
+        fun isTrustedHost(host: String, isDebug: Boolean = BuildConfig.DEBUG): Boolean {
             val normalized = host.lowercase().trim()
             if (normalized.isEmpty()) return false
             if (!configuredHost.isNullOrEmpty() && normalized == configuredHost) return true
-            return normalized == "10.0.2.2" ||
-                normalized == "localhost" ||
-                normalized == "127.0.0.1" ||
-                normalized == "monkify.workers.dev" ||
-                normalized.endsWith(".monkify.workers.dev") ||
-                normalized == "monkify.tudominio.com" ||
+            if (!configuredRootDomain.isNullOrEmpty() && normalized.endsWith(configuredRootDomain!!)) return true
+            if (isDebug && (normalized == "10.0.2.2" || normalized == "localhost" || normalized == "127.0.0.1")) {
+                return true
+            }
+            return normalized == "monkify.tudominio.com" ||
                 normalized.endsWith(".monkify.tudominio.com")
         }
     }

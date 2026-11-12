@@ -21,20 +21,43 @@ class UpdateRepositoryImpl @Inject constructor(
             val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
                 ?: release.assets.firstOrNull()
 
+            val candidateUrl = apkAsset?.downloadUrl.orEmpty().trim()
+            val safeDownloadUrl = candidateUrl.takeIf { isTrustedDownloadUrl(it) }.orEmpty()
             val isAvailable = isNewerVersion(remoteVersion, currentVersion)
 
             AppUpdate(
                 latestVersionName = remoteVersion,
                 currentVersionName = currentVersion,
                 releaseNotes = release.body ?: "",
-                downloadUrl = apkAsset?.downloadUrl ?: "",
+                downloadUrl = safeDownloadUrl,
                 apkSize = apkAsset?.size ?: 0L,
-                isUpdateAvailable = isAvailable && !apkAsset?.downloadUrl.isNullOrBlank()
+                isUpdateAvailable = isAvailable && safeDownloadUrl.isNotBlank()
             )
         }
     }
 
     companion object {
+        /**
+         * SEC-06 (CWE-940): Valida que la URL de descarga del APK use HTTPS estricto
+         * y provenga exclusivamente de dominios oficiales de GitHub Releases.
+         */
+        fun isTrustedDownloadUrl(url: String): Boolean {
+            if (url.isBlank()) return false
+            return try {
+                val uri = java.net.URI(url.trim())
+                val scheme = uri.scheme?.lowercase() ?: return false
+                val host = uri.host?.lowercase()?.trim() ?: return false
+                scheme == "https" && (
+                    host == "github.com" ||
+                        host.endsWith(".github.com") ||
+                        host == "githubusercontent.com" ||
+                        host.endsWith(".githubusercontent.com")
+                    )
+            } catch (_: Exception) {
+                false
+            }
+        }
+
         fun isNewerVersion(remote: String, local: String): Boolean {
             val rParts = remote.trim().removePrefix("v").removePrefix("V")
                 .split(".")

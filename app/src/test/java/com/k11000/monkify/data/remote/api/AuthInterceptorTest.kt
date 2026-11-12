@@ -47,7 +47,7 @@ class AuthInterceptorTest {
 
         val chain = FakeChain(
             Request.Builder()
-                .url("https://monkify-backend.monkify.workers.dev/api/v1/tracks")
+                .url("https://api.monkify.tudominio.com/api/v1/tracks")
                 .build()
         )
 
@@ -102,7 +102,7 @@ class AuthInterceptorTest {
 
         val chain = FakeChain(
             Request.Builder()
-                .url("https://monkify-backend.monkify.workers.dev/api/v1/tracks")
+                .url("https://api.monkify.tudominio.com/api/v1/tracks")
                 .build()
         )
 
@@ -119,7 +119,7 @@ class AuthInterceptorTest {
         val interceptor = AuthInterceptor(tokenProvider = { dynamicToken })
 
         val chain1 = FakeChain(
-            Request.Builder().url("https://monkify-backend.monkify.workers.dev/api/v1/tracks").build()
+            Request.Builder().url("https://api.monkify.tudominio.com/api/v1/tracks").build()
         )
         interceptor.intercept(chain1)
         assertEquals("Bearer initial_token", chain1.proceedRequest?.header("Authorization"))
@@ -127,7 +127,7 @@ class AuthInterceptorTest {
         dynamicToken = "updated_token_999"
 
         val chain2 = FakeChain(
-            Request.Builder().url("https://monkify-backend.monkify.workers.dev/api/v1/tracks").build()
+            Request.Builder().url("https://api.monkify.tudominio.com/api/v1/tracks").build()
         )
         interceptor.intercept(chain2)
         assertEquals("Bearer updated_token_999", chain2.proceedRequest?.header("Authorization"))
@@ -136,24 +136,27 @@ class AuthInterceptorTest {
     @Test
     fun is_trusted_monkify_host_validation() {
         val interceptor = AuthInterceptor()
-        assertTrue(interceptor.isTrustedMonkifyHost("monkify-backend.monkify.workers.dev"))
-        assertTrue(interceptor.isTrustedMonkifyHost("monkify.workers.dev"))
+        val configuredHost = java.net.URI(com.k11000.monkify.BuildConfig.BASE_URL).host
+        assertTrue(interceptor.isTrustedMonkifyHost(configuredHost))
         assertTrue(interceptor.isTrustedMonkifyHost("api.monkify.tudominio.com"))
-        assertTrue(interceptor.isTrustedMonkifyHost("10.0.2.2"))
-        assertTrue(interceptor.isTrustedMonkifyHost("localhost"))
-        assertTrue(interceptor.isTrustedMonkifyHost("127.0.0.1"))
+        assertTrue(interceptor.isTrustedMonkifyHost("10.0.2.2", isDebug = true))
+        assertTrue(interceptor.isTrustedMonkifyHost("localhost", isDebug = true))
+        assertTrue(interceptor.isTrustedMonkifyHost("127.0.0.1", isDebug = true))
 
+        assertFalse("No debe confiar en loopback cuando isDebug es false", interceptor.isTrustedMonkifyHost("10.0.2.2", isDebug = false))
+        assertFalse("No debe confiar en localhost cuando isDebug es false", interceptor.isTrustedMonkifyHost("localhost", isDebug = false))
+        assertFalse("No debe confiar en 127.0.0.1 cuando isDebug es false", interceptor.isTrustedMonkifyHost("127.0.0.1", isDebug = false))
+        assertFalse("No debe confiar en dominios externos sin autorizacion", interceptor.isTrustedMonkifyHost("untrusted-worker.example.com"))
         assertFalse(interceptor.isTrustedMonkifyHost("api.github.com"))
         assertFalse(interceptor.isTrustedMonkifyHost("api.open-meteo.com"))
         assertFalse(interceptor.isTrustedMonkifyHost("google.com"))
-        assertFalse(interceptor.isTrustedMonkifyHost("evil-monkify.workers.dev.attacker.com"))
-        assertFalse("No debe confiar en dominios lookalike sin punto separador", interceptor.isTrustedMonkifyHost("evil-monkify.workers.dev"))
-        assertFalse("No debe confiar en cualquier worker ajeno", interceptor.isTrustedMonkifyHost("other-project.workers.dev"))
+        assertFalse(interceptor.isTrustedMonkifyHost("evil.monkify.tudominio.com.attacker.com"))
+        assertFalse("No debe confiar en dominios lookalike sin punto separador", interceptor.isTrustedMonkifyHost("evil-monkify.tudominio.com"))
     }
 
     @Test
     fun app_logger_sanitizes_token_query_and_bearer_headers() {
-        val rawLog = "Transición de pista: uri=https://monkify-backend.monkify.workers.dev/api/v1/stream/t1?token=super_secret_token_999&foo=bar Authorization: Bearer my_jwt_secret X-Monkify-Token: raw_key_123"
+        val rawLog = "Transición de pista: uri=https://api.monkify.tudominio.com/api/v1/stream/t1?token=super_secret_token_999&foo=bar Authorization: Bearer my_jwt_secret X-Monkify-Token: raw_key_123"
         val sanitized = com.k11000.monkify.util.AppLogger.sanitizeSensitiveText(rawLog)
 
         assertFalse("No debe contener el token de query en texto plano", sanitized.contains("super_secret_token_999"))
