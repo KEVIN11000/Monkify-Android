@@ -162,6 +162,12 @@ class HomeViewModel @Inject constructor(
     private val _isLoadingAlbums = MutableStateFlow(false)
     val isLoadingAlbums: StateFlow<Boolean> = _isLoadingAlbums.asStateFlow()
 
+    private val _isLoadingMoreAlbums = MutableStateFlow(false)
+    val isLoadingMoreAlbums: StateFlow<Boolean> = _isLoadingMoreAlbums.asStateFlow()
+
+    private val _hasMoreAlbums = MutableStateFlow(false)
+    val hasMoreAlbums: StateFlow<Boolean> = _hasMoreAlbums.asStateFlow()
+
     private val _recentTracks = MutableStateFlow<List<Track>>(emptyList())
     val recentTracks: StateFlow<List<Track>> = _recentTracks.asStateFlow()
 
@@ -273,15 +279,43 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoadingAlbums.value = true
             try {
-                val remote = monkifyApi?.getAlbums(limit = 50, offset = 0) ?: emptyList()
+                val remote = monkifyApi?.getAlbums(limit = ALBUM_PAGE_SIZE, offset = 0) ?: emptyList()
                 if (remote.isNotEmpty()) {
                     _albums.value = remote
+                    _hasMoreAlbums.value = remote.size >= ALBUM_PAGE_SIZE
+                } else {
+                    _hasMoreAlbums.value = false
                 }
             } catch (e: Exception) {
                 AppLogger.w("HomeViewModel", "Error al cargar álbumes: ${e.message}")
                 ServerStatusMonitor.shared.reportException("Carga de álbumes", e)
+                _hasMoreAlbums.value = false
             } finally {
                 _isLoadingAlbums.value = false
+            }
+        }
+    }
+
+    fun loadMoreAlbums() {
+        val api = monkifyApi ?: return
+        if (_isLoadingAlbums.value || _isLoadingMoreAlbums.value || !_hasMoreAlbums.value) return
+        viewModelScope.launch {
+            _isLoadingMoreAlbums.value = true
+            try {
+                val current = _albums.value
+                val nextBatch = api.getAlbums(limit = ALBUM_PAGE_SIZE, offset = current.size)
+                val existingKeys = current.map { "${it.album.lowercase()}:::${it.artist.lowercase()}" }.toSet()
+                val uniqueNew = nextBatch.filter { "${it.album.lowercase()}:::${it.artist.lowercase()}" !in existingKeys }
+                if (uniqueNew.isEmpty()) {
+                    _hasMoreAlbums.value = false
+                } else {
+                    _albums.value = current + uniqueNew
+                    _hasMoreAlbums.value = nextBatch.size >= ALBUM_PAGE_SIZE
+                }
+            } catch (e: Exception) {
+                AppLogger.w("HomeViewModel", "Error en loadMoreAlbums(): ${e.message}")
+            } finally {
+                _isLoadingMoreAlbums.value = false
             }
         }
     }
@@ -311,5 +345,6 @@ class HomeViewModel @Inject constructor(
 
     companion object {
         const val PAGE_SIZE = 20
+        const val ALBUM_PAGE_SIZE = 50
     }
 }

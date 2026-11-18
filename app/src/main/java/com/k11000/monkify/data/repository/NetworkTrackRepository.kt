@@ -3,6 +3,7 @@ package com.k11000.monkify.data.repository
 import com.k11000.monkify.BuildConfig
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.api.ServerStatusMonitor
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.toDomain
@@ -94,6 +95,19 @@ open class NetworkTrackRepository(
         } catch (e: Exception) {
             AppLogger.e(TAG, "Fallo en requestIngest: ${e.message}", e)
             statusMonitor.reportException("Importación de enlace", e)
+            Result.failure(e)
+        }
+
+    override suspend fun getIngestQueue(status: String?): Result<List<IngestQueueItemDto>> =
+        try {
+            val items = api.getIngestQueue(status = status)
+            statusMonitor.reportConnected("Cola de importación sincronizada")
+            Result.success(items)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Fallo en getIngestQueue: ${e.message}", e)
+            statusMonitor.reportException("Consulta de cola de importación", e)
             Result.failure(e)
         }
 

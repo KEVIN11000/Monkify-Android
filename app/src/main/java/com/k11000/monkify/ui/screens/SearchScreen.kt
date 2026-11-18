@@ -82,6 +82,11 @@ fun SearchScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
     val ingestState by viewModel.ingestState.collectAsState()
+    val ingestQueue by viewModel.ingestQueue.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadIngestQueue()
+    }
 
     LaunchedEffect(scrollToResetTrigger) {
         if (scrollToResetTrigger > 0) {
@@ -134,7 +139,6 @@ fun SearchScreen(
                         Toast.makeText(context, "El portapapeles está vacío", Toast.LENGTH_SHORT).show()
                     } else if (clip.contains("spotify.com") || clip.contains("youtube.com") || clip.contains("youtu.be")) {
                         viewModel.ingestMediaUrl(clip)
-                        Toast.makeText(context, "Enlace registrado para descarga en la nube", Toast.LENGTH_SHORT).show()
                     } else {
                         viewModel.onQueryChange(clip)
                         Toast.makeText(context, "Texto pegado en el buscador", Toast.LENGTH_SHORT).show()
@@ -328,7 +332,54 @@ fun SearchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            if (ingestQueue.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MonkifyDarkGray)
+                        .clickable { viewModel.loadIngestQueue() }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Cola de importación (${ingestQueue.size}) · Toca para actualizar",
+                        color = MonkifyOnBackground,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    ingestQueue.take(2).forEach { item ->
+                        val statusColor = when (item.status.uppercase()) {
+                            "COMPLETED" -> MonkifyPrimary
+                            "FAILED" -> Color(0xFFEF4444)
+                            else -> Color(0xFFF59E0B)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = item.url.removePrefix("https://"),
+                                color = MonkifyGray,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = item.status,
+                                color = statusColor,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Explore Categories
             Text(

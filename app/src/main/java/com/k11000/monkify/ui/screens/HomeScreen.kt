@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -118,6 +119,8 @@ fun HomeScreen(
     val latestUploadedTracks by viewModel.latestUploadedTracks.collectAsState()
     val albums by viewModel.albums.collectAsState()
     val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
+    val isLoadingMoreAlbums by viewModel.isLoadingMoreAlbums.collectAsState()
+    val hasMoreAlbums by viewModel.hasMoreAlbums.collectAsState()
     val greeting by viewModel.greeting.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val downloadedTrackIds by viewModel.downloadedTrackIds.collectAsState()
@@ -348,31 +351,50 @@ fun HomeScreen(
                     }
                 }
             } else {
-                item {
-                    Column(
+                val albumRows = albums.chunked(2)
+                itemsIndexed(
+                    items = albumRows,
+                    key = { rowIdx, rowAlbums -> "${rowAlbums.firstOrNull()?.album.orEmpty()}_$rowIdx" }
+                ) { rowIdx, rowAlbums ->
+                    if (rowIdx >= albumRows.size - 3 && hasMoreAlbums && !isLoadingMoreAlbums) {
+                        LaunchedEffect(albums.size) {
+                            viewModel.loadMoreAlbums()
+                        }
+                    }
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        albums.chunked(2).forEach { rowAlbums ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                rowAlbums.forEach { album ->
-                                    AlbumCard(
-                                        title = album.album,
-                                        subtitle = "${album.artist} • ${album.trackCount} temas",
-                                        coverUrl = album.coverUrl,
-                                        onClick = { onNavigateToAlbum(album.album, album.artist, album.coverUrl) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                                if (rowAlbums.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
+                        rowAlbums.forEach { album ->
+                            AlbumCard(
+                                title = album.album,
+                                subtitle = "${album.artist} • ${album.trackCount} temas",
+                                coverUrl = album.coverUrl,
+                                onClick = { onNavigateToAlbum(album.album, album.artist, album.coverUrl) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowAlbums.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+                if (isLoadingMoreAlbums) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = MonkifyPrimary,
+                                modifier = Modifier.size(28.dp),
+                                strokeWidth = 2.dp
+                            )
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package com.k11000.monkify.ui.viewmodel
 
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.TrackRepository
@@ -65,10 +66,17 @@ class SearchViewModelTest {
 
         var ingestResult: Result<IngestResponse> = Result.success(IngestResponse("task_123", "accepted", "Encolada"))
         var requestedUrl: String? = null
+        var queueItems: List<IngestQueueItemDto> = emptyList()
+        var queueFetchCount = 0
 
         override suspend fun requestIngest(url: String): Result<IngestResponse> {
             requestedUrl = url
             return ingestResult
+        }
+
+        override suspend fun getIngestQueue(status: String?): Result<List<IngestQueueItemDto>> {
+            queueFetchCount++
+            return Result.success(queueItems)
         }
     }
 
@@ -174,5 +182,43 @@ class SearchViewModelTest {
         assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error)
         val error = viewModel.ingestState.value as com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error
         assertEquals("El enlace debe ser de Spotify o YouTube", error.message)
+    }
+
+    @Test
+    fun `ingestMediaUrl ante HTTP 401 reporta error de clave de servidor sin emitir exito`() = runTest(testDispatcher) {
+        val fakeRepo = FakeTrackRepository()
+        fakeRepo.ingestResult = Result.failure(IllegalStateException("Ingest HTTP 401"))
+        val viewModel = SearchViewModel(fakeRepo)
+
+        viewModel.ingestMediaUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+        runCurrent()
+
+        assertTrue(viewModel.ingestState.value is com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error)
+        val error = viewModel.ingestState.value as com.k11000.monkify.ui.screens.viewmodel.IngestUiState.Error
+        assertEquals("Clave de servidor inválida o ausente (HTTP 401)", error.message)
+        assertEquals(0, fakeRepo.queueFetchCount)
+    }
+
+    @Test
+    fun `ingestMediaUrl exitoso refresca automaticamente ingestQueue`() = runTest(testDispatcher) {
+        val fakeRepo = FakeTrackRepository()
+        fakeRepo.queueItems = listOf(
+            IngestQueueItemDto(
+                id = "task_abc",
+                url = "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+                status = "PENDING"
+            )
+        )
+        fakeRepo.ingestResult = Result.success(
+            IngestResponse("task_abc", "accepted", "Enlace añadido", linkedCount = 0, queuedCount = 1)
+        )
+        val viewModel = SearchViewModel(fakeRepo)
+
+        viewModel.ingestMediaUrl("https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT")
+        runCurrent()
+
+        assertEquals(1, fakeRepo.queueFetchCount)
+        assertEquals(1, viewModel.ingestQueue.value.size)
+        assertEquals("PENDING", viewModel.ingestQueue.value.first().status)
     }
 }

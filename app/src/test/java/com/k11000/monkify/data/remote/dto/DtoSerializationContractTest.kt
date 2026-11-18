@@ -25,6 +25,7 @@ class DtoSerializationContractTest {
             LoginResponse::class.java,
             IngestRequest::class.java,
             IngestResponse::class.java,
+            IngestQueueItemDto::class.java,
             LyricsResponse::class.java,
             SupportReportRequestDto::class.java,
             SupportReportResponseDto::class.java,

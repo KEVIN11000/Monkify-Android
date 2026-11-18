@@ -3,6 +3,7 @@ package com.k11000.monkify.data.repository
 import com.k11000.monkify.data.local.dao.TrackDao
 import com.k11000.monkify.data.local.entity.toDomain
 import com.k11000.monkify.data.local.entity.toEntity
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.TrackRepository
@@ -108,6 +109,10 @@ class OfflineFirstTrackRepository @Inject constructor(
 
     override suspend fun requestIngest(url: String): Result<IngestResponse> {
         return networkTrackRepository.requestIngest(url)
+    }
+
+    override suspend fun getIngestQueue(status: String?): Result<List<IngestQueueItemDto>> {
+        return networkTrackRepository.getIngestQueue(status)
     }
 
     private companion object {

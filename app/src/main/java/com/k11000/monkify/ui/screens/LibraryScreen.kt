@@ -141,6 +141,8 @@ fun LibraryScreen(
     val isLoadingPlaylists by viewModel.isLoadingPlaylists.collectAsState()
     val albums by viewModel.filteredAlbums.collectAsState()
     val isLoadingAlbums by viewModel.isLoadingAlbums.collectAsState()
+    val isLoadingMoreAlbums by viewModel.isLoadingMoreAlbums.collectAsState()
+    val hasMoreAlbums by viewModel.hasMoreAlbums.collectAsState()
     val sortOption by viewModel.sortOption.collectAsState()
     val currentTrackId by playerViewModel.currentTrackId.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
@@ -621,13 +623,34 @@ fun LibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    itemsIndexed(albums, key = { idx, alb -> "${alb.album}_$idx" }) { _, alb ->
+                    itemsIndexed(albums, key = { idx, alb -> "${alb.album}_$idx" }) { idx, alb ->
+                        if (idx >= albums.size - 5 && hasMoreAlbums && !isLoadingMoreAlbums) {
+                            LaunchedEffect(albums.size) {
+                                viewModel.loadMoreAlbums()
+                            }
+                        }
                         LibraryAlbumItem(
                             album = alb,
                             onClick = {
                                 onNavigateToAlbum(alb.album, alb.artist, alb.coverUrl)
                             }
                         )
+                    }
+                    if (isLoadingMoreAlbums) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = MonkifyPrimary,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
                     }
                 }
             }

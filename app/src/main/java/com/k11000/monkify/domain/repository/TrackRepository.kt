@@ -1,5 +1,6 @@
 package com.k11000.monkify.domain.repository
 
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.domain.model.Track
 import kotlinx.coroutines.flow.Flow
@@ -11,4 +12,5 @@ interface TrackRepository {
     suspend fun getLatestUploadedTracks(limit: Int = 6): List<Track> = emptyList()
     suspend fun recordTrackPlayed(trackId: String) {}
     suspend fun requestIngest(url: String): Result<IngestResponse>
+    suspend fun getIngestQueue(status: String? = null): Result<List<IngestQueueItemDto>> = Result.success(emptyList())
 }

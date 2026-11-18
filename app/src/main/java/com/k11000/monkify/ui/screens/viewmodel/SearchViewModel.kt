@@ -2,6 +2,7 @@ package com.k11000.monkify.ui.screens.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.domain.model.Track
 import com.k11000.monkify.domain.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,6 +43,9 @@ class SearchViewModel @Inject constructor(
 
     private val _ingestState = MutableStateFlow<IngestUiState>(IngestUiState.Idle)
     val ingestState: StateFlow<IngestUiState> = _ingestState.asStateFlow()
+
+    private val _ingestQueue = MutableStateFlow<List<IngestQueueItemDto>>(emptyList())
+    val ingestQueue: StateFlow<List<IngestQueueItemDto>> = _ingestQueue.asStateFlow()
 
     init {
         observeSearchQuery()
@@ -101,9 +105,25 @@ class SearchViewModel @Inject constructor(
             trackRepository.requestIngest(trimmed)
                 .onSuccess { response ->
                     _ingestState.value = IngestUiState.Success(response.message)
+                    loadIngestQueue()
                 }
-                .onFailure {
-                    _ingestState.value = IngestUiState.Error("Error al conectar con el servidor")
+                .onFailure { err ->
+                    val errMsg = err.message.orEmpty()
+                    val userMessage = if (errMsg.contains("401") || errMsg.contains("403")) {
+                        "Clave de servidor inválida o ausente (HTTP 401)"
+                    } else {
+                        "Error al conectar con el servidor"
+                    }
+                    _ingestState.value = IngestUiState.Error(userMessage)
+                }
+        }
+    }
+
+    fun loadIngestQueue(status: String? = null) {
+        viewModelScope.launch {
+            trackRepository.getIngestQueue(status)
+                .onSuccess { list ->
+                    _ingestQueue.value = list
                 }
         }
     }

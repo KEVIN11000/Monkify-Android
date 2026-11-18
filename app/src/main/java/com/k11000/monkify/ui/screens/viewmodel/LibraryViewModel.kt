@@ -13,6 +13,8 @@ import com.k11000.monkify.domain.repository.DownloadRepository
 import com.k11000.monkify.domain.repository.PlaylistRepository
 import com.k11000.monkify.util.AppLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -219,8 +221,20 @@ class LibraryViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private var albumSearchJob: Job? = null
+    private var albumLoadJob: Job? = null
+
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+        if (monkifyApi != null && _selectedFilter.value == LibraryFilter.ALBUMS) {
+            albumSearchJob?.cancel()
+            albumSearchJob = viewModelScope.launch {
+                if (query.isNotBlank()) {
+                    delay(300L)
+                }
+                loadAlbums(query.trim().takeIf { it.isNotEmpty() })
+            }
+        }
     }
 
     private val _playlists = MutableStateFlow<List<PlaylistSummaryDto>>(emptyList())
@@ -258,6 +272,12 @@ class LibraryViewModel @Inject constructor(
 
     private val _isLoadingAlbums = MutableStateFlow(false)
     val isLoadingAlbums: StateFlow<Boolean> = _isLoadingAlbums.asStateFlow()
+
+    private val _isLoadingMoreAlbums = MutableStateFlow(false)
+    val isLoadingMoreAlbums: StateFlow<Boolean> = _isLoadingMoreAlbums.asStateFlow()
+
+    private val _hasMoreAlbums = MutableStateFlow(false)
+    val hasMoreAlbums: StateFlow<Boolean> = _hasMoreAlbums.asStateFlow()
 
     val filteredAlbums: StateFlow<List<AlbumSummaryDto>> = combine(
         _albums,
@@ -358,22 +378,28 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun loadAlbums() {
-        viewModelScope.launch {
+    fun loadAlbums(query: String? = _searchQuery.value.trim().takeIf { it.isNotEmpty() }) {
+        albumLoadJob?.cancel()
+        albumLoadJob = viewModelScope.launch {
             _isLoadingAlbums.value = true
             try {
-                val remote = monkifyApi?.getAlbums(limit = 100, offset = 0) ?: emptyList()
-                if (remote.isNotEmpty()) {
+                val remote = monkifyApi?.getAlbums(query = query, limit = ALBUM_PAGE_SIZE, offset = 0) ?: emptyList()
+                if (remote.isNotEmpty() || (!query.isNullOrBlank() && monkifyApi != null)) {
                     _albums.value = remote
+                    _hasMoreAlbums.value = remote.size >= ALBUM_PAGE_SIZE
                 } else {
+                    _hasMoreAlbums.value = false
                     val localTracks = localTrackRepository.getAllLocalTracks()
                     if (localTracks.isNotEmpty()) {
                         _albums.value = deriveLocalAlbums(localTracks)
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 AppLogger.w("LibraryViewModel", "Error en loadAlbums(): ${e.message}")
                 ServerStatusMonitor.shared.reportException("Carga de álbumes", e)
+                _hasMoreAlbums.value = false
                 val localTracks = localTrackRepository.getAllLocalTracks()
                 if (localTracks.isNotEmpty()) {
                     _albums.value = deriveLocalAlbums(localTracks)
@@ -384,17 +410,69 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun loadMoreAlbums() {
+        val api = monkifyApi ?: return
+        if (_isLoadingAlbums.value || _isLoadingMoreAlbums.value || !_hasMoreAlbums.value) return
+        viewModelScope.launch {
+            _isLoadingMoreAlbums.value = true
+            try {
+                val current = _albums.value
+                val activeQuery = _searchQuery.value.trim().takeIf { it.isNotEmpty() }
+                val nextBatch = api.getAlbums(
+                    query = activeQuery,
+                    limit = ALBUM_PAGE_SIZE,
+                    offset = current.size
+                )
+                val existingKeys = current.map { "${it.album.lowercase()}:::${it.artist.lowercase()}" }.toSet()
+                val uniqueNew = nextBatch.filter { "${it.album.lowercase()}:::${it.artist.lowercase()}" !in existingKeys }
+                if (uniqueNew.isEmpty()) {
+                    _hasMoreAlbums.value = false
+                } else {
+                    _albums.value = current + uniqueNew
+                    _hasMoreAlbums.value = nextBatch.size >= ALBUM_PAGE_SIZE
+                }
+            } catch (e: Exception) {
+                AppLogger.w("LibraryViewModel", "Error en loadMoreAlbums(): ${e.message}")
+            } finally {
+                _isLoadingMoreAlbums.value = false
+            }
+        }
+    }
+
     fun loadPlaylists() {
         viewModelScope.launch {
             _isLoadingPlaylists.value = true
             try {
-                if (playlistRepository != null) {
-                    val result = playlistRepository.getPlaylists()
-                    if (result.isSuccess) {
-                        _playlists.value = result.getOrThrow()
+                val accumulated = LinkedHashMap<String, PlaylistSummaryDto>()
+                var offset = 0
+                var pageCount = 0
+                while (pageCount < MAX_PLAYLIST_PAGES) {
+                    val batch: List<PlaylistSummaryDto> = if (playlistRepository != null) {
+                        val result = playlistRepository.getPlaylists(limit = PLAYLIST_PAGE_SIZE, offset = offset)
+                        if (result.isSuccess) {
+                            result.getOrThrow()
+                        } else {
+                            if (pageCount == 0) throw result.exceptionOrNull() ?: IllegalStateException("Error al cargar playlists")
+                            emptyList()
+                        }
+                    } else if (monkifyApi != null) {
+                        monkifyApi.getPlaylists(limit = PLAYLIST_PAGE_SIZE, offset = offset)
+                    } else {
+                        emptyList()
                     }
-                } else if (monkifyApi != null) {
-                    _playlists.value = monkifyApi.getPlaylists()
+                    val sizeBefore = accumulated.size
+                    for (item in batch) {
+                        accumulated[item.id] = item
+                    }
+                    val addedNew = accumulated.size > sizeBefore
+                    pageCount++
+                    if (batch.size < PLAYLIST_PAGE_SIZE || !addedNew) {
+                        break
+                    }
+                    offset += batch.size
+                }
+                if (playlistRepository != null || monkifyApi != null) {
+                    _playlists.value = accumulated.values.toList()
                 }
             } catch (e: Exception) {
                 AppLogger.w("LibraryViewModel", "Error en loadPlaylists(): ${e.message}")
@@ -504,11 +582,17 @@ class LibraryViewModel @Inject constructor(
     fun setFilter(filter: LibraryFilter) {
         clearSelection()
         _selectedFilter.value = filter
-        if (filter == LibraryFilter.ALBUMS && _albums.value.isEmpty()) {
+        if (filter == LibraryFilter.ALBUMS && (_albums.value.isEmpty() || (monkifyApi != null && _searchQuery.value.isNotBlank()))) {
             loadAlbums()
         }
         if (filter == LibraryFilter.ALL && _catalogTracks.value.isEmpty()) {
             loadCatalog()
         }
+    }
+
+    companion object {
+        const val PLAYLIST_PAGE_SIZE = 100
+        const val ALBUM_PAGE_SIZE = 100
+        private const val MAX_PLAYLIST_PAGES = 20
     }
 }

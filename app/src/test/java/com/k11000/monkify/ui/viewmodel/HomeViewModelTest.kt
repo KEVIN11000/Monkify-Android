@@ -219,4 +219,45 @@ class HomeViewModelTest {
         viewModel.setFilter(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS)
         assertEquals(com.k11000.monkify.ui.screens.viewmodel.HomeFilter.PODCASTS, viewModel.selectedFilter.value)
     }
+
+    private class FakeAlbumMonkifyApi(
+        private val allAlbums: List<com.k11000.monkify.data.remote.dto.AlbumSummaryDto>
+    ) : com.k11000.monkify.data.remote.api.MonkifyApi {
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto) = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
+        override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
+        override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
+        override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
+        override suspend fun getPlaylists(limit: Int, offset: Int) = emptyList<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>()
+        override suspend fun getPlaylistTracks(id: String) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
+        override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto = error("unused")
+        override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun deletePlaylist(playlistId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+
+        override suspend fun getAlbums(
+            query: String?,
+            limit: Int,
+            offset: Int
+        ): List<com.k11000.monkify.data.remote.dto.AlbumSummaryDto> = allAlbums.drop(offset).take(limit)
+    }
+
+    @Test
+    fun `loadMoreAlbums concatena paginas de albumes en HomeViewModel y actualiza hasMoreAlbums`() = runBlocking {
+        val fakeRepo = FakeTrackRepository { _, _ -> emptyList() }
+        val remoteAlbums = (1..75).map { i ->
+            com.k11000.monkify.data.remote.dto.AlbumSummaryDto("Album $i", "Artist $i", 8)
+        }
+        val fakeApi = FakeAlbumMonkifyApi(remoteAlbums)
+
+        val viewModel = HomeViewModel(trackRepository = fakeRepo, monkifyApi = fakeApi)
+
+        assertEquals(HomeViewModel.ALBUM_PAGE_SIZE, viewModel.albums.value.size)
+        assertTrue(viewModel.hasMoreAlbums.value)
+
+        viewModel.loadMoreAlbums()
+
+        assertEquals(75, viewModel.albums.value.size)
+        assertFalse(viewModel.hasMoreAlbums.value)
+    }
 }

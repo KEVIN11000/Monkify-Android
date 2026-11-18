@@ -5,6 +5,7 @@ import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
 import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
 import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
@@ -53,12 +54,17 @@ interface MonkifyApi {
     @POST("ingest")
     suspend fun ingest(@Body request: IngestRequest): Response<IngestResponse>
 
+    @GET("ingest")
+    suspend fun getIngestQueue(
+        @Query("status") status: String? = null
+    ): List<IngestQueueItemDto> = emptyList()
+
     @GET("tracks/{track_id}/lyrics")
     suspend fun getLyrics(@Path("track_id") trackId: String): LyricsResponse
 
     @GET("playlists")
     suspend fun getPlaylists(
-        @Query("limit") limit: Int = 50,
+        @Query("limit") limit: Int = 100,
         @Query("offset") offset: Int = 0
     ): List<PlaylistSummaryDto>
 

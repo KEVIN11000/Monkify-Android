@@ -191,7 +191,7 @@ class LibraryViewModelTest {
         val addedTracks = mutableListOf<String>()
 
         override suspend fun getPlaylists(limit: Int, offset: Int): Result<List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>> =
-            Result.success(playlists.toList())
+            Result.success(playlists.drop(offset).take(limit))
 
         override suspend fun getPlaylistTracks(playlistId: String): Result<List<Track>> =
             Result.success(emptyList())
@@ -604,5 +604,90 @@ class LibraryViewModelTest {
         assertEquals(listOf("t1", "t2", "t3"), fakePlaylistRepo.addedTracks)
         assertFalse(viewModel.isSelectionMode.value)
         assertTrue(viewModel.selectedTrackIds.value.isEmpty())
+    }
+
+    private class FakePagedMonkifyApi(
+        private val allAlbums: List<com.k11000.monkify.data.remote.dto.AlbumSummaryDto>
+    ) : com.k11000.monkify.data.remote.api.MonkifyApi {
+        val albumQueries = mutableListOf<String?>()
+
+        override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
+        override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto) = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
+        override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
+        override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
+        override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
+        override suspend fun getPlaylists(limit: Int, offset: Int) = emptyList<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>()
+        override suspend fun getPlaylistTracks(id: String) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
+        override suspend fun createPlaylist(request: com.k11000.monkify.data.remote.dto.CreatePlaylistRequest): com.k11000.monkify.data.remote.dto.PlaylistSummaryDto = error("unused")
+        override suspend fun addTrackToPlaylist(playlistId: String, request: com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+        override suspend fun deletePlaylist(playlistId: String): com.k11000.monkify.data.remote.dto.ActionResponseDto = error("unused")
+
+        override suspend fun getAlbums(
+            query: String?,
+            limit: Int,
+            offset: Int
+        ): List<com.k11000.monkify.data.remote.dto.AlbumSummaryDto> {
+            albumQueries.add(query)
+            val filtered = if (query.isNullOrBlank()) {
+                allAlbums
+            } else {
+                allAlbums.filter {
+                    it.album.contains(query, ignoreCase = true) ||
+                    it.artist.contains(query, ignoreCase = true)
+                }
+            }
+            return filtered.drop(offset).take(limit)
+        }
+    }
+
+    @Test
+    fun `loadPlaylists pagina automaticamente cuando hay mas de 100 playlists`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val fakePlaylistRepo = FakePlaylistRepo().apply {
+            playlists.clear()
+            for (i in 1..135) {
+                playlists.add(com.k11000.monkify.data.remote.dto.PlaylistSummaryDto("pl_$i", "Playlist $i", i))
+            }
+        }
+
+        val viewModel = LibraryViewModel(localRepo, playlistRepository = fakePlaylistRepo)
+        advanceUntilIdle()
+
+        assertEquals(135, viewModel.playlists.value.size)
+        assertEquals("pl_1", viewModel.playlists.value.first().id)
+        assertEquals("pl_135", viewModel.playlists.value.last().id)
+    }
+
+    @Test
+    fun `loadMoreAlbums concatena paginas remotas y onSearchQueryChange consulta servidor en filtro ALBUMS`() = runTest(testDispatcher) {
+        val fakeDao = FakeTrackDao()
+        val localRepo = LocalTrackRepository(fakeDao)
+        val remoteAlbums = (1..140).map { i ->
+            val name = if (i == 135) "Rock Anthology 135" else "Album $i"
+            com.k11000.monkify.data.remote.dto.AlbumSummaryDto(name, "Artist $i", 10)
+        }
+        val fakeApi = FakePagedMonkifyApi(remoteAlbums)
+
+        val viewModel = LibraryViewModel(localRepo, monkifyApi = fakeApi)
+        advanceUntilIdle()
+
+        assertEquals(100, viewModel.albums.value.size)
+        assertTrue(viewModel.hasMoreAlbums.value)
+
+        viewModel.loadMoreAlbums()
+        advanceUntilIdle()
+
+        assertEquals(140, viewModel.albums.value.size)
+        assertFalse(viewModel.hasMoreAlbums.value)
+
+        viewModel.setFilter(LibraryFilter.ALBUMS)
+        viewModel.onSearchQueryChange("Rock")
+        advanceUntilIdle()
+
+        assertTrue(fakeApi.albumQueries.contains("Rock"))
+        assertEquals(1, viewModel.filteredAlbums.value.size)
+        assertEquals("Rock Anthology 135", viewModel.filteredAlbums.value.first().album)
     }
 }

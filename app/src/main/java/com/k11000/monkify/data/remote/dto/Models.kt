@@ -72,7 +72,19 @@ data class IngestRequest(
 data class IngestResponse(
     @SerializedName("task_id") val taskId: String,
     @SerializedName("status") val status: String,
-    @SerializedName("message") val message: String
+    @SerializedName("message") val message: String,
+    @SerializedName("linked_count") val linkedCount: Int? = null,
+    @SerializedName("queued_count") val queuedCount: Int? = null,
+    @SerializedName("playlist_id") val playlistId: String? = null
+)
+
+data class IngestQueueItemDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("url") val url: String,
+    @SerializedName("status") val status: String,
+    @SerializedName("error_message") val errorMessage: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null
 )
 
 data class LyricsResponse(
