@@ -5,6 +5,25 @@ Aplicación nativa de música con modo Zen, sincronización en la nube y reprodu
 
 ---
 
+## ✨ Monkify v0.5.0 — Cobertura Total de Catálogo, Ingesta Cloud y Pulido Zen
+**Fecha:** 19 de Noviembre de 2026 | **Build:** `versionCode 10`
+
+Esta versión amplía la cobertura completa del catálogo remoto en Inicio y Tu Biblioteca, habilita el seguimiento real de importaciones en la nube y perfecciona la ergonomía visual del Modo Zen en Android 15.
+
+### Novedades y Mejoras Clave
+* **Cobertura Total de Catálogo y Búsqueda Remota de Álbumes:**
+  * Paginación automática de todas las playlists y carga incremental progresiva de álbumes en Inicio y Tu Biblioteca.
+  * Búsqueda remota de álbumes en tiempo real dentro de Tu Biblioteca sin depender de fallbacks locales truncados.
+* **Cola de Importación Veraz en Buscador:**
+  * Nueva tarjeta interactiva *Cola de importación* en Buscar que refleja el estado real del servidor (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`) sin avisos optimistas falsos.
+* **Streaming Media3 Autenticado por Cabeceras y Hardening:**
+  * Autenticación dinámica vía cabeceras HTTP sin exponer tokens en URIs de reproducción ni fragmentar el caché local, junto con sanitización estricta de rutas y URLs de actualización.
+* **Pulido Visual de Modo Zen y Ergonomía:**
+  * Barra Peek de Modo Zen elevada limpiamente sobre los botones de navegación del sistema con soporte táctil y deslizamiento vertical hacia arriba.
+  * Tarjetas de álbum con pie oscuro traslúcido de alto contraste, filtros en una sola línea en Inicio y botones de acción completos en Tu Biblioteca.
+
+---
+
 ## 🌟 Monkify v0.4.7 — Release Oficial de Rendimiento, Froggy y Firma Unificada
 **Fecha:** 5 de Noviembre de 2026 | **Build:** `versionCode 8`
 
