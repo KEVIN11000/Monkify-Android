@@ -67,7 +67,7 @@ object ZenPhraseCatalog {
         ),
         (WeatherCondition.CLOUDY to ZenDayPart.DAY) to listOf(
             "Cielo gris, alma cálida: el refugio de una buena melodía",
-            "Tarde templada para desconectar y subir el volumen",
+            "Jornada templada para desconectar y subir el volumen",
             "Nubes en calma: armonía perfecta para concentrarse y crear",
             "La suavidad del cielo nublado invita a la introspección"
         ),

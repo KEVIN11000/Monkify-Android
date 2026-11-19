@@ -111,8 +111,11 @@ class SettingsViewModelTest {
     ) : com.k11000.monkify.data.remote.api.MonkifyApi {
         override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = tracksHandler()
         override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = reportHandler(request)
+        override suspend fun getAlbums(query: String?, limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.AlbumSummaryDto> = emptyList()
+        override suspend fun getAlbumTracks(album: String): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()
         override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
         override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
+        override suspend fun getIngestQueue(status: String?): List<com.k11000.monkify.data.remote.dto.IngestQueueItemDto> = emptyList()
         override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
         override suspend fun getPlaylists(limit: Int, offset: Int): List<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<com.k11000.monkify.data.remote.dto.BackendTrackDto> = emptyList()

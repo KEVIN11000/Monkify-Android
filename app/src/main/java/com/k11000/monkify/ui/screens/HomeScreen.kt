@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -35,6 +37,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -72,7 +75,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -274,6 +279,7 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -293,7 +299,10 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 64.dp),
+                        .padding(horizontal = 24.dp, vertical = 48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -303,7 +312,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Default.Podcasts,
                             contentDescription = null,
-                            tint = MonkifyGray,
+                            tint = Color(0xFFE0E0E0),
                             modifier = Modifier.size(56.dp)
                         )
                         Text(
@@ -314,7 +323,7 @@ fun HomeScreen(
                         )
                         Text(
                             text = "Puedes importar episodios pegando enlaces desde el buscador o explorar tu música en 'Todo'.",
-                            color = MonkifyGray,
+                            color = Color(0xFFE0E0E0),
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center
                         )
@@ -339,12 +348,15 @@ fun HomeScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 64.dp),
+                            .padding(horizontal = 24.dp, vertical = 48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .padding(horizontal = 20.dp, vertical = 18.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "No se encontraron álbumes disponibles.",
-                            color = MonkifyGray,
+                            color = MonkifyOnBackground,
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center
                         )
@@ -480,7 +492,14 @@ fun HomeScreen(
                     Text(
                         text = "Escuchado recientemente",
                         color = MonkifyOnBackground,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                offset = Offset(0f, 2f),
+                                blurRadius = 6f
+                            )
+                        ),
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
                             .clickable(
@@ -521,7 +540,14 @@ fun HomeScreen(
                     Text(
                         text = "Hecho para ti",
                         color = MonkifyOnBackground,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                offset = Offset(0f, 2f),
+                                blurRadius = 6f
+                            )
+                        ),
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
                             .clickable(
@@ -554,7 +580,14 @@ fun HomeScreen(
                     Text(
                         text = "Todas las canciones",
                         color = MonkifyOnBackground,
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                offset = Offset(0f, 2f),
+                                blurRadius = 6f
+                            )
+                        ),
                         modifier = Modifier
                             .padding(horizontal = 16.dp)
                             .clickable(
@@ -615,6 +648,8 @@ fun FilterChip(
             text = text,
             color = if (isSelected) Color.Black else MonkifyOnBackground,
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
     }
@@ -858,13 +893,15 @@ fun AlbumCard(
 ) {
     Column(
         modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.62f))
             .clickable(onClick = onClick)
     ) {
         Box {
             TrackArtwork(
                 coverUrl = coverUrl,
                 contentDescription = title,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp),
                 iconSize = 48.dp,
                 isAlbum = true,
                 modifier = Modifier
@@ -888,21 +925,27 @@ fun AlbumCard(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = title,
-            color = MonkifyOnBackground,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = subtitle,
-            color = MonkifyGray,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = title,
+                color = MonkifyOnBackground,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = Color(0xFFDCE1E8),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -1205,21 +1248,28 @@ private fun ZenGestureOverlay(
             }
         }
 
-        // Guía de gestos inferior (auto-ocultable tras 3s, sin títulos sobre la imagen)
+        // Guía de gestos inferior (auto-ocultable tras 3s, sobre la barra Peek y la barra de navegación)
         AnimatedVisibility(
             visible = showGuideHints,
             enter = fadeIn(animationSpec = tween(400)),
             exit = fadeOut(animationSpec = tween(600)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 110.dp, start = 24.dp, end = 24.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 64.dp, start = 24.dp, end = 24.dp)
         ) {
-            Text(
-                text = "Toca para pausar/reanudar • Desliza para cambiar • Doble toque para volver",
-                style = MaterialTheme.typography.labelSmall,
-                color = MonkifyGray.copy(alpha = 0.75f),
-                textAlign = TextAlign.Center
-            )
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.Black.copy(alpha = 0.58f)
+            ) {
+                Text(
+                    text = "Toca para pausar/reanudar • Desliza para cambiar • Doble toque para volver",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MonkifyOnBackground.copy(alpha = 0.9f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }

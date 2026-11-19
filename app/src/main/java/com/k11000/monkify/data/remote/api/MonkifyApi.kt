@@ -22,6 +22,7 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
+// INVARIANT: Todos los endpoints Retrofit deben ser abstractos (prohibido cuerpo por defecto = ...), o Retrofit en API 26+ los omite como JVM default methods. Ref: SYSTEM_MAP #INV-N05
 interface MonkifyApi {
     @GET("tracks")
     suspend fun getTracks(
@@ -41,12 +42,12 @@ interface MonkifyApi {
         @Query("q") query: String? = null,
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0
-    ): List<AlbumSummaryDto> = emptyList()
+    ): List<AlbumSummaryDto>
 
     @GET("albums/tracks")
     suspend fun getAlbumTracks(
         @Query("album") album: String
-    ): List<BackendTrackDto> = emptyList()
+    ): List<BackendTrackDto>
 
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
@@ -57,7 +58,7 @@ interface MonkifyApi {
     @GET("ingest")
     suspend fun getIngestQueue(
         @Query("status") status: String? = null
-    ): List<IngestQueueItemDto> = emptyList()
+    ): List<IngestQueueItemDto>
 
     @GET("tracks/{track_id}/lyrics")
     suspend fun getLyrics(@Path("track_id") trackId: String): LyricsResponse

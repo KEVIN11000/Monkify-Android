@@ -9,8 +9,10 @@ import com.k11000.monkify.data.local.entity.TrackEntity
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.ActionResponseDto
 import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
+import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
 import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
@@ -203,8 +205,11 @@ class PlayerControlsTest {
     private class FakeMonkifyApi : MonkifyApi {
         override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
         override suspend fun submitSupportReport(request: SupportReportRequestDto): SupportReportResponseDto = SupportReportResponseDto(ok = true)
+        override suspend fun getAlbums(query: String?, limit: Int, offset: Int): List<AlbumSummaryDto> = emptyList()
+        override suspend fun getAlbumTracks(album: String): List<BackendTrackDto> = emptyList()
         override suspend fun login(request: LoginRequest): LoginResponse = throw UnsupportedOperationException()
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = throw UnsupportedOperationException()
+        override suspend fun getIngestQueue(status: String?): List<IngestQueueItemDto> = emptyList()
         override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse()
         override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = emptyList()

@@ -613,8 +613,10 @@ class LibraryViewModelTest {
 
         override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
         override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto) = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
+        override suspend fun getAlbumTracks(album: String) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()
         override suspend fun login(request: com.k11000.monkify.data.remote.dto.LoginRequest): com.k11000.monkify.data.remote.dto.LoginResponse = error("unused")
         override suspend fun ingest(request: com.k11000.monkify.data.remote.dto.IngestRequest): retrofit2.Response<com.k11000.monkify.data.remote.dto.IngestResponse> = error("unused")
+        override suspend fun getIngestQueue(status: String?) = emptyList<com.k11000.monkify.data.remote.dto.IngestQueueItemDto>()
         override suspend fun getLyrics(trackId: String): com.k11000.monkify.data.remote.dto.LyricsResponse = error("unused")
         override suspend fun getPlaylists(limit: Int, offset: Int) = emptyList<com.k11000.monkify.data.remote.dto.PlaylistSummaryDto>()
         override suspend fun getPlaylistTracks(id: String) = emptyList<com.k11000.monkify.data.remote.dto.BackendTrackDto>()

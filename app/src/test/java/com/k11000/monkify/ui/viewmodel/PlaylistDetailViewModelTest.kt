@@ -3,8 +3,10 @@ package com.k11000.monkify.ui.viewmodel
 import com.k11000.monkify.data.remote.api.MonkifyApi
 import com.k11000.monkify.data.remote.dto.ActionResponseDto
 import com.k11000.monkify.data.remote.dto.AddTrackToPlaylistRequest
+import com.k11000.monkify.data.remote.dto.AlbumSummaryDto
 import com.k11000.monkify.data.remote.dto.BackendTrackDto
 import com.k11000.monkify.data.remote.dto.CreatePlaylistRequest
+import com.k11000.monkify.data.remote.dto.IngestQueueItemDto
 import com.k11000.monkify.data.remote.dto.IngestRequest
 import com.k11000.monkify.data.remote.dto.IngestResponse
 import com.k11000.monkify.data.remote.dto.LoginRequest
@@ -59,8 +61,11 @@ class PlaylistDetailViewModelTest {
     ) : MonkifyApi {
         override suspend fun getTracks(limit: Int, offset: Int, query: String?, sort: String?): List<BackendTrackDto> = emptyList()
         override suspend fun submitSupportReport(request: com.k11000.monkify.data.remote.dto.SupportReportRequestDto): com.k11000.monkify.data.remote.dto.SupportReportResponseDto = com.k11000.monkify.data.remote.dto.SupportReportResponseDto(ok = true)
+        override suspend fun getAlbums(query: String?, limit: Int, offset: Int): List<AlbumSummaryDto> = emptyList()
+        override suspend fun getAlbumTracks(album: String): List<BackendTrackDto> = emptyList()
         override suspend fun login(request: LoginRequest): LoginResponse = LoginResponse("token", "ref", "bearer", 3600)
         override suspend fun ingest(request: IngestRequest): Response<IngestResponse> = Response.success(IngestResponse("t1", "OK", "msg"))
+        override suspend fun getIngestQueue(status: String?): List<IngestQueueItemDto> = emptyList()
         override suspend fun getLyrics(trackId: String): LyricsResponse = LyricsResponse(trackId, "lrc", "")
         override suspend fun getPlaylists(limit: Int, offset: Int): List<PlaylistSummaryDto> = emptyList()
         override suspend fun getPlaylistTracks(id: String): List<BackendTrackDto> = tracksHandler(id)

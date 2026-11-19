@@ -10,6 +10,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -70,37 +75,56 @@ fun MiniPlayer(
         label = "MiniPlayerZenPeek"
     ) { peekMode ->
         if (peekMode) {
-            // Modo Peek en Modo Zen: lengüeta sutil asomando con área táctil accesible (>= 48dp)
+            // Modo Peek en Modo Zen: elevado sobre la barra de navegación del sistema, con tap o swipe hacia arriba
             Box(
                 modifier = modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .height(48.dp)
-                    .clickable(onClick = onRestoreZen),
+                    .pointerInput(onRestoreZen) {
+                        var totalDragY = 0f
+                        var triggered = false
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                totalDragY = 0f
+                                triggered = false
+                            },
+                            onVerticalDrag = { _, dragAmount ->
+                                totalDragY += dragAmount
+                                if (!triggered && totalDragY < -28f) {
+                                    triggered = true
+                                    onRestoreZen()
+                                }
+                            }
+                        )
+                    }
+                    .clickable(onClick = onRestoreZen)
+                    .semantics { contentDescription = "Desliza hacia arriba o toca para desplegar el reproductor" },
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                        .background(Color.Black.copy(alpha = 0.65f)),
+                        .height(28.dp)
+                        .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                        .background(Color.Black.copy(alpha = 0.78f)),
                     contentAlignment = Alignment.Center
                 ) {
                     // Tirador central
                     Box(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .width(36.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(MonkifyGray.copy(alpha = 0.7f))
+                            .width(44.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.85f))
                     )
                     // Línea inferior de progreso discreta
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .fillMaxWidth(fraction = progress.coerceIn(0f, 1f))
-                            .height(2.dp)
+                            .height(2.5.dp)
                             .background(MonkifyPrimary)
                     )
                 }

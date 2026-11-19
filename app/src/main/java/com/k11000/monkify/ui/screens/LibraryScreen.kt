@@ -696,7 +696,8 @@ fun LibraryScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MonkifyPrimary),
                                 shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.weight(1f)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                                modifier = Modifier.weight(0.85f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Shuffle,
@@ -704,11 +705,13 @@ fun LibraryScreen(
                                     tint = Color.Black,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Aleatorio",
                                     color = Color.Black,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Button(
@@ -717,7 +720,8 @@ fun LibraryScreen(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MonkifyDarkGray),
                                 shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.weight(1f)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                                modifier = Modifier.weight(1.15f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
@@ -725,7 +729,7 @@ fun LibraryScreen(
                                     tint = MonkifyOnBackground,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Desde la primera",
                                     color = MonkifyOnBackground,
